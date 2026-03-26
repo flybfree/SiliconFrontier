@@ -1,0 +1,106 @@
+{
+  "locations": {
+    "command_deck": {
+      "name": "Command Deck",
+      "description": "The high-tech nerve center of the station. Views of the gas giant below are visible through reinforced windows. The hum of life support systems fills the air.",
+      "connected_to": ["mess_hall", "elevator_bay"],
+      "status_effects": []
+    },
+    "mess_hall": {
+      "name": "Mess Hall",
+      "description": "The social hub of the station. A large circular table dominates the center, surrounded by benches. The smell of recycled coffee lingers in the air.",
+      "connected_to": ["command_deck", "hydroponics_bay", "elevator_bay"],
+      "status_effects": []
+    },
+    "hydroponics_bay": {
+      "name": "Hydroponics Bay",
+      "description": "Densely packed with oxygen-producing ferns and nutrient vats. It's humid and smells of wet earth. Rows of genetically modified crops stretch into the distance.",
+      "connected_to": ["mess_hall", "storage_locker"],
+      "status_effects": ["high_humidity"]
+    },
+    "elevator_bay": {
+      "name": "Elevator Bay",
+      "description": "A circular platform that connects all levels of the station. The glass walls offer a vertigo-inducing view down the central shaft.",
+      "connected_to": ["command_deck", "mess_hall", "engineering", "crew_quarters"],
+      "status_effects": []
+    },
+    "engineering": {
+      "name": "Engineering",
+      "description": "The heart of the station's power systems. Massive reactors pulse with blue light, and the constant thrum of energy conversion vibrates through the floor.",
+      "connected_to": ["elevator_bay", "storage_locker"],
+      "status_effects": ["radiation_low"]
+    },
+    "storage_locker": {
+      "name": "Storage Locker",
+      "description": "A cramped room filled with crates, tools, and spare parts. Dust motes dance in the dim light.",
+      "connected_to": ["hydroponics_bay", "engineering"],
+      "status_effects": []
+    },
+    "crew_quarters": {
+      "name": "Crew Quarters",
+      "description": "Small private cabins line the walls. Each has a bunk bed, personal storage, and a small viewport showing the endless expanse of space.",
+      "connected_to": ["elevator_bay"],
+      "status_effects": []
+    }
+  },
+  "items": {
+    "id_card_commander": {
+      "name": "Commander ID Card",
+      "location": "command_deck",
+      "owner": null,
+      "description": "A plastic card with a faded photo. Grants access to all station areas.",
+      "portable": true
+    },
+    "plasma_wrench": {
+      "name": "Plasma Wrench",
+      "location": "engineering",
+      "owner": null,
+      "description": "A heavy industrial tool used for repairing reactor components.",
+      "portable": true
+    },
+    "oxygen_scanner": {
+      "name": "Oxygen Scanner",
+      "location": "command_deck",
+      "owner": null,
+      "description": "A handheld device that measures atmospheric composition.",
+      "portable": true
+    },
+    "seed_canister": {
+      "name": "Seed Canister",
+      "location": "hydroponics_bay",
+      "owner": null,
+      "description": "Contains genetically modified wheat seeds. Critical for food production.",
+      "portable": true
+    },
+    "emergency_rations": {
+      "name": "Emergency Rations",
+      "location": "mess_hall",
+      "owner": null,
+      "description": "A sealed package of nutrient paste. Lasts indefinitely if unopened.",
+      "portable": true
+    },
+    "data_pad": {
+      "name": "Station Data Pad",
+      "location": "command_deck",
+      "owner": null,
+      "description": "Contains the station's maintenance logs and crew manifests.",
+      "portable": true
+    },
+    "reactor_key": {
+      "name": "Reactor Key",
+      "location": "engineering",
+      "owner": null,
+      "description": "A physical key required for emergency reactor shutdown.",
+      "portable": true
+    },
+    "nutrient_vat": {
+      "name": "Industrial Nutrient Vat",
+      "location": "hydroponics_bay",
+      "owner": null,
+      "description": "A massive, immovable tank filled with green sludge.",
+      "portable": false
+    }
+  },
+  "agents": {},
+  "relationships": {}
+}

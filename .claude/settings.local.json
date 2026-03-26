@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pip install openai streamlit)",
+      "Bash(python -c \":*)",
+      "WebSearch",
+      "Bash(cmd.exe /c 'set ANTHROPIC')",
+      "Bash(cmd.exe /c 'where cc')",
+      "Bash(cmd.exe /c 'type %USERPROFILE%\\\\.bashrc')",
+      "Bash(echo $ANTHROPIC_BASE_URL)",
+      "Bash(echo $ANTHROPIC_API_KEY)",
+      "Bash(cat ~/.claude/session-env/*)",
+      "Bash(cat ~/.claude/shell-snapshots/*)",
+      "mcp__plugin_claude-mem_mcp-search__search",
+      "Bash(find /c/Users/rich -maxdepth 3 -name *.bat -o -name *.cmd -o -name *.ps1)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

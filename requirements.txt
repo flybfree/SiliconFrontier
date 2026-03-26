@@ -1,0 +1,11 @@
+# Silicon Frontier - Dependencies
+
+# Core dependencies
+openai>=1.0.0  # For LLM inference
+
+# Dashboard
+streamlit>=1.23.0  # Web UI for observation
+
+# Optional: for advanced features
+# faiss-cpu  # For vector-based long-term memory search
+# numpy    # Required by faiss
