@@ -404,6 +404,9 @@ class Orchestrator:
                 for other_agent in self.agents:
                     if other_agent.agent_id != agent.agent_id:
                         other_agent.add_to_memory(event_msg)
+                for witness_id in self.world.get_visible_agents(agent.agent_id):
+                    self.social.update_scores(witness_id, agent.agent_id, trust_delta=8, affinity_delta=5, notes=f"Witnessed {agent.name} repair a station system.")
+                self._sync_relationships()
 
             elif action == "SABOTAGE" and success:
                 system_id = target.strip()

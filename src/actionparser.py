@@ -316,6 +316,14 @@ class ActionParser:
         if systems_here[matching_system_id].get("status") != "BROKEN":
             return False, f"Failure: {systems_here[matching_system_id].get('name', matching_system_id)} is not broken."
 
+        required_tool = systems_here[matching_system_id].get("required_tool")
+        if required_tool:
+            hand = self._hand_items(agent.agent_id)
+            holding = [item["name"] for item in hand]
+            has_tool = any(required_tool.lower() in item["name"].lower() or item["id"] == required_tool for item in hand)
+            if not has_tool:
+                return False, f"Failure: Repairing {systems_here[matching_system_id].get('name', matching_system_id)} requires {required_tool}. You are holding: {', '.join(holding) if holding else 'nothing'}."
+
         self.world.set_system_status(current_loc, matching_system_id, "ONLINE")
         return True, f"Success: You repaired the {systems_here[matching_system_id].get('name', matching_system_id)}."
 

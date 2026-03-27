@@ -85,7 +85,8 @@
         "reactor_control": {
           "name": "Reactor Control Array",
           "status": "ONLINE",
-          "description": "Monitors and adjusts power core output. A manual override was used here recently without a logged authorization."
+          "description": "Monitors and adjusts power core output. A manual override was used here recently without a logged authorization.",
+          "required_tool": "plasma_wrench"
         }
       }
     },
@@ -104,7 +105,8 @@
         "emergency_beacon": {
           "name": "Emergency Beacon",
           "status": "ONLINE",
-          "description": "Long-range distress transmitter. If disabled, no rescue signal can be sent from the station."
+          "description": "Long-range distress transmitter. If disabled, no rescue signal can be sent from the station.",
+          "required_tool": "plasma_wrench"
         }
       }
     }
