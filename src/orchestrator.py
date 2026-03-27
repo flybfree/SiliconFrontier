@@ -398,9 +398,13 @@ class Orchestrator:
                     self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
 
             elif action == "SABOTAGE" and success:
-                event_msg = f"A system in {current_loc} suddenly failed."
-                self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
                 system_id = target.strip()
+                loc_data = self.world.get_location(current_loc)
+                loc_name = loc_data.get("name", current_loc) if loc_data else current_loc
+                event_msg = f"An alert sounds across the station: a system failure has been detected in {loc_name}."
+                for other_agent in self.agents:
+                    if other_agent.agent_id != agent.agent_id:
+                        other_agent.add_to_memory(event_msg)
                 self._record_system_incident(agent, current_loc, system_id)
                 self._inject_snitch_memory(agent, current_loc, system_id)
 
