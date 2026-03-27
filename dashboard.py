@@ -590,7 +590,14 @@ def render_relationship_matrix():
 
     trust_tab, affinity_tab, notes_tab = st.tabs(["Trust", "Affinity", "Notes"])
 
-    def _build_matrix(field: str) -> "pd.DataFrame":
+    def _get_label(row_id: str, col_id: str) -> str:
+        rel = relationships.get(row_id, {}).get(col_id, {})
+        trust = int(rel.get("trust", 50))
+        affinity = int(rel.get("affinity", 50))
+        suspicion = sim.orchestrator.social.get_suspicion(row_id, col_id)
+        return FrontierAgent._relationship_label(trust, affinity, suspicion)
+
+    def _build_matrix(field: str, with_label: bool = True) -> "pd.DataFrame":
         rows = {}
         for row_agent in agents:
             row = {}
@@ -600,18 +607,35 @@ def render_relationship_matrix():
                     row[col_agent.name] = None
                 else:
                     rel = row_data.get(col_agent.agent_id, {})
-                    row[col_agent.name] = int(rel.get(field, 50))
+                    num = int(rel.get(field, 50))
+                    if with_label:
+                        label = _get_label(row_agent.agent_id, col_agent.agent_id)
+                        row[col_agent.name] = f"{label} ({num})"
+                    else:
+                        row[col_agent.name] = num
             rows[row_agent.name] = row
         df = pd.DataFrame(rows).T
         df.index.name = "Observer ↓  /  Target →"
         return df
 
-    def _color_cell(val, high_bg: str, low_bg: str, mid_bg: str) -> str:
+    def _extract_num(val) -> int | None:
+        """Pull the numeric score out of a 'label (n)' string or raw int."""
         if val is None or (isinstance(val, float) and pd.isna(val)):
+            return None
+        if isinstance(val, str):
+            try:
+                return int(val[val.rfind("(") + 1:val.rfind(")")])
+            except (ValueError, AttributeError):
+                return None
+        return int(val)
+
+    def _color_cell(val, high_bg: str, low_bg: str, mid_bg: str) -> str:
+        num = _extract_num(val)
+        if num is None:
             return "color: #555555"
-        if val >= 70:
+        if num >= 70:
             return f"background-color: {high_bg}; color: white"
-        if val <= 30:
+        if num <= 30:
             return f"background-color: {low_bg}; color: white"
         return f"background-color: {mid_bg}; color: white"
 
@@ -627,7 +651,7 @@ def render_relationship_matrix():
         df = _build_matrix("trust")
         styled = df.style.map(
             lambda v: _color_cell(v, "#1e4d2b", "#4d1e1e", "#4d3a1e")
-        ).format(lambda v: "—" if v is None or (isinstance(v, float) and pd.isna(v)) else str(v))
+        ).format(lambda v: "—" if v is None or (isinstance(v, float) and pd.isna(v)) else v)
         st.dataframe(styled, width="stretch")
 
     with affinity_tab:
@@ -642,7 +666,7 @@ def render_relationship_matrix():
         df = _build_matrix("affinity")
         styled = df.style.map(
             lambda v: _color_cell(v, "#1a3a4d", "#4d1e1e", "#2a2a4d")
-        ).format(lambda v: "—" if v is None or (isinstance(v, float) and pd.isna(v)) else str(v))
+        ).format(lambda v: "—" if v is None or (isinstance(v, float) and pd.isna(v)) else v)
         st.dataframe(styled, width="stretch")
 
     with notes_tab:

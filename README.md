@@ -44,6 +44,8 @@ Load a specific scenario:
 python run_simulation.py --config-dir scenarios/cascade_failure --rounds 20 --delay 0
 ```
 
+By default, all terminal output is also mirrored to a timestamped file in `logs/`. Pass `--no-log` to disable.
+
 ### Dashboard
 
 ```bash
@@ -58,7 +60,7 @@ Set the API URL and config directory in the sidebar, click **Initialize Simulati
 
 | Scenario | Agents | Concept |
 |---|---|---|
-| `data/` (default) | 4 | Station crew with one saboteur and hidden evidence items |
+| `scenarios/default` | 4 | Station crew with one saboteur and hidden evidence items |
 | `scenarios/prisoners_dilemma` | 2 | Two detainees with sealed plea deals and no direct communication |
 | `scenarios/cascade_failure` | 8 | Dual saboteurs, 11 locations, 5 hidden forensic evidence items |
 
@@ -73,6 +75,14 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 **Hidden items** — picking up a `hidden: true` item injects its `knowledge` text into the agent's memory and places them under a one-turn drop obligation, forcing them to stay in place.
 
 **Contested items** — `contested: true` items remind agents they are valued resources that others may be competing for.
+
+**Consumable items** — items with `consumable: true` can be consumed with the `USE` action, applying `effect` fields (`perception_delta`, `emotional_state`, `memory_inject`) and deleting the item.
+
+**Whisper** — private directed communication to one agent in the room; bystanders see only that a whisper occurred.
+
+**Conceal / Produce** — agents can move items between their hand slot and concealed person slot, managing what is visible to others.
+
+**Relationship labels** — numeric trust/affinity/suspicion scores are displayed to agents as human-readable labels (`colleagues`, `rivals`, `hostile`, etc.) using nearest-neighbor matching against the preset table in `library/relationship_presets.json`.
 
 **Goal momentum** — after every reflection phase, agents assess their own progress as `advancing`, `stalled`, or `setback`. This feeds back into subsequent prompts.
 
@@ -153,11 +163,12 @@ src/
   actionparser.py          Action validation and execution
   worldstate.py            World state storage and snapshot helpers
   socialmatrix.py          Trust, affinity, and suspicion tracking
-data/
-  world_state.json         Default locations, items, and systems
-  agent_definitions.json   Reusable agent definitions
-  simulation_agents.json   Active simulation slots
+  configloader.py          Scenario loading, library resolution, agent instantiation
+library/
+  items.json               Shared reusable item definitions
+  relationship_presets.json Named relationship starting states
 scenarios/
+  default/                 Baseline 4-agent scenario
   prisoners_dilemma/       2-agent game theory scenario
   cascade_failure/         8-agent dual-saboteur scenario
 saves/                     Dashboard save files
@@ -221,6 +232,8 @@ Validates and executes every action the LLM returns. The only code that mutates 
 | `_handle_drop` | Remove item from inventory, place at current location |
 | `_handle_give` / `_handle_demand` | Transfer items between agents with slot enforcement |
 | `_handle_say` / `_handle_lie` | Validate non-empty speech; broadcasting is done by the orchestrator |
+| `_handle_whisper` | Validate presence of target agent; delivery and social update done by orchestrator |
+| `_handle_use` | Validate item is held and consumable; effect application done by orchestrator |
 | `_handle_sabotage` | Saboteur-only; requires solitude; sets system status to `BROKEN` |
 | `_handle_repair` | Any agent; sets a `BROKEN` system back to `ONLINE` |
 | `_handle_conceal` | Move item from hand slot to concealed person slot |
@@ -268,11 +281,14 @@ Tracks directional trust, affinity, and hidden suspicion between every agent pai
 
 The simulation loads from any directory containing three files:
 
-- `world_state.json` — locations, items, sabotagable systems
+- `world_state.json` — locations, items (inline or via `item_placements`), sabotagable systems
 - `agent_definitions.json` — reusable agent definitions with personas and secret goals
-- `simulation_agents.json` — active slots that assign definitions to starting positions
+- `simulation_agents.json` — active slots, starting positions, and optional relationship presets
+- `scenario.json` — optional metadata (name, description, recommended_rounds)
 
-See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flags, rogue agent setup, and dashboard controls.
+Items can reference shared definitions from `library/items.json` via an `item_placements` list instead of duplicating full item objects in each scenario. Starting relationships can be seeded using named presets from `library/relationship_presets.json`.
+
+See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flags, consumable effects, rogue agent setup, and dashboard controls.
 
 ---
 

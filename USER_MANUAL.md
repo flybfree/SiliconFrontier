@@ -72,6 +72,23 @@ Supported CLI arguments:
 - `--config-dir`, `-c`: configuration directory containing `world_state.json`, `agent_definitions.json`, and `simulation_agents.json`
 - `--url`, `-u`: OpenAI-compatible API base URL
 - `--model`, `-m`: model identifier sent to the API
+- `--no-log`: disable log file output (print to terminal only)
+
+### Logging
+
+By default, `run_simulation.py` mirrors all terminal output to a timestamped log file in the `logs/` directory:
+
+```text
+logs/20260327_183000_default.log
+```
+
+The filename uses the current timestamp and the scenario directory name. Logging is implemented as a tee — output appears in the terminal and is written to the file simultaneously.
+
+To disable logging and print to the terminal only:
+
+```powershell
+python run_simulation.py --no-log
+```
 
 ### Run the dashboard
 

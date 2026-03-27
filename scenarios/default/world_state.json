@@ -99,7 +99,7 @@
       "portable": true,
       "hidden": true,
       "knowledge": "TOOL CHECKOUT LOG: Plasma Wrench signed out by UNIT-7 at cycle 0249. Standard return window: 8 hours. Actual return: 72 hours later, signed in by UNIT-7 at 0321. Inspection note on return: tool shows signs of component removal consistent with reactor node tampering. Flagged for supervisor review — review entry is blank."
-    },
+    }
   },
   "agents": {},
   "relationships": {}

@@ -172,7 +172,7 @@
       "portable": true,
       "hidden": true,
       "knowledge": "RADIATION EXPOSURE REPORT: Two crew members have registered elevated radiation readings consistent with repeated unshielded proximity to the reactor core during off-shift hours. Crew member A: UNIT-7 (readings 340% above baseline across four separate readings). Crew member B: MX. KIM (readings 180% above baseline across two readings). Neither reading was self-reported. Both crew members were not scheduled for reactor-area work during the periods in question."
-    },
+    }
   },
   "agents": {},
   "relationships": {}
