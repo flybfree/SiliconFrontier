@@ -4,6 +4,9 @@ data/*.json
 # Simulation saves — runtime output, not source
 saves/*.json
 
+# Simulation run logs — runtime output
+logs/*.log
+
 # Python cache
 __pycache__/
 *.pyc

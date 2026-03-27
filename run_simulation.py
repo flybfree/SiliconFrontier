@@ -7,11 +7,54 @@ Run a complete simulation with the configured agents and world state.
 
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Ensure UTF-8 output on Windows terminals
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
+
+
+class _Tee:
+    """Mirror all writes to both the original stream and a log file."""
+
+    def __init__(self, stream, log_path: Path):
+        self._stream = stream
+        self._file = open(log_path, "w", encoding="utf-8")
+
+    def write(self, data):
+        self._stream.write(data)
+        self._file.write(data)
+
+    def flush(self):
+        self._stream.flush()
+        self._file.flush()
+
+    def close(self):
+        self._file.close()
+
+    # Proxy any other attribute access to the underlying stream
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+
+def _start_logging(scenario: str) -> _Tee | None:
+    """Redirect stdout to both terminal and a timestamped log file."""
+    log_dir = Path(__file__).parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    slug = Path(scenario).name.replace(" ", "_")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = log_dir / f"{timestamp}_{slug}.log"
+    tee = _Tee(sys.stdout, log_path)
+    sys.stdout = tee
+    print(f"Logging to: {log_path}")
+    return tee
+
+
+def _stop_logging(tee: _Tee | None) -> None:
+    if tee is not None:
+        sys.stdout = tee._stream
+        tee.close()
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -188,9 +231,15 @@ if __name__ == "__main__":
         default="unsloth/qwen3.5-35b-a3b",
         help="Model name to use (default: unsloth/qwen3.5-35b-a3b)"
     )
+    parser.add_argument(
+        "--no-log",
+        action="store_true",
+        help="Disable log file output (print to terminal only)"
+    )
 
     args = parser.parse_args()
 
+    tee = None if args.no_log else _start_logging(args.config_dir)
     try:
         run_demo_simulation(
             rounds=args.rounds,
@@ -203,3 +252,5 @@ if __name__ == "__main__":
         print(f"\n❌ Simulation error: {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        _stop_logging(tee)
