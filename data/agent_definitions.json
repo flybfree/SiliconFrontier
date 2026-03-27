@@ -35,6 +35,15 @@
       "perception": 70,
       "persona": "A pragmatic engineer who knows every bolt on the station. Suspicious of authority and quick to spot problems.",
       "secret_goal": "Hoard spare parts to build an escape pod in case the station becomes uninhabitable."
+    },
+    {
+      "definition_id": "marilyn",
+      "name": "Marily",
+      "role": "entertainer",
+      "archetype": "saboteur",
+      "perception": 60,
+      "persona": "A beautiful flirtatious nurse who seems to make everyone around her feel cared for",
+      "secret_goal": "disable the Reactor Control Array"
     }
   ]
 }

@@ -69,6 +69,7 @@ def load_config(
 def run_demo_simulation(
     rounds: int = 10,
     delay_seconds: float = 0.3,
+    config_dir: str = "data",
     llm_base_url: str = "http://localhost:1234/v1",
     llm_model: str = "local-model"
 ) -> tuple[list[list[dict]], dict]:
@@ -89,7 +90,7 @@ def run_demo_simulation(
     print("="*60)
 
     # Load configuration
-    world_state, agents = load_config(llm_base_url=llm_base_url, llm_model=llm_model)
+    world_state, agents = load_config(config_dir=config_dir, llm_base_url=llm_base_url, llm_model=llm_model)
 
     print(f"\n📍 World loaded: {len(world_state.locations)} locations, "
           f"{len(world_state.items)} items")
@@ -139,6 +140,7 @@ def run_demo_simulation(
 
 def run_quick_test(
     rounds: int = 5,
+    config_dir: str = "data",
     llm_base_url: str = "http://192.168.3.181:1234/v1",
     llm_model: str = "unsloth/qwen3.5-35b-a3b"
 ) -> None:
@@ -146,6 +148,7 @@ def run_quick_test(
     run_demo_simulation(
         rounds=rounds,
         delay_seconds=0,
+        config_dir=config_dir,
         llm_base_url=llm_base_url,
         llm_model=llm_model
     )
@@ -168,6 +171,12 @@ if __name__ == "__main__":
         help="Delay between cycles in seconds (default: 0.3, use 0 for fast mode)"
     )
     parser.add_argument(
+        "--config-dir", "-c",
+        type=str,
+        default="data",
+        help="Configuration directory containing world_state.json and agent config files (default: data)"
+    )
+    parser.add_argument(
         "--url", "-u",
         type=str,
         default="http://192.168.3.181:1234/v1",
@@ -186,6 +195,7 @@ if __name__ == "__main__":
         run_demo_simulation(
             rounds=args.rounds,
             delay_seconds=args.delay,
+            config_dir=args.config_dir,
             llm_base_url=args.url,
             llm_model=args.model
         )

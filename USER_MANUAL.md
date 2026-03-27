@@ -57,10 +57,17 @@ Common options:
 python run_simulation.py --rounds 10 --delay 0.3 --url http://localhost:1234/v1 --model your-model-name
 ```
 
+Run a specific scenario directory:
+
+```powershell
+python run_simulation.py --config-dir scenarios/prisoners_dilemma --rounds 12 --delay 0
+```
+
 Supported CLI arguments:
 
 - `--rounds`, `-r`: number of simulation cycles, default `10`
 - `--delay`, `-d`: pause between cycles in seconds, default `0.3`
+- `--config-dir`, `-c`: configuration directory containing `world_state.json`, `agent_definitions.json`, and `simulation_agents.json`
 - `--url`, `-u`: OpenAI-compatible API base URL
 - `--model`, `-m`: model identifier sent to the API
 
@@ -73,9 +80,10 @@ streamlit run dashboard.py
 In the sidebar:
 
 1. Set `API URL`
-2. Click `Fetch Models` if your server supports the OpenAI-compatible `/models` endpoint, or enter a model name manually
-3. Click `Initialize Simulation`
-4. Run single or multiple cycles
+2. Set `Config Directory` if you want to load a scenario other than the default `data`
+3. Click `Fetch Models` if your server supports the OpenAI-compatible `/models` endpoint, or enter a model name manually
+4. Click `Initialize Simulation`
+5. Run single or multiple cycles
 
 ## How the Simulation Works
 
@@ -217,7 +225,38 @@ Saved data includes:
 
 Loading a save restores the running dashboard state from that file.
 
+The same sidebar section can also export scenario assets from either:
+
+- the current in-memory session
+- a previously saved run
+
+Scenario export writes these files into the target directory:
+
+- `world_state.json`
+- `agent_definitions.json`
+- `simulation_agents.json`
+
+This is the quickest way to turn an edited or evolved simulation state into a reusable scenario folder under `scenarios/`.
+
 ## Editing Configuration
+
+### Scenario directories
+
+The simulation can load from any configuration directory, not just `data/`.
+
+Each scenario directory should contain:
+
+- `world_state.json`
+- `agent_definitions.json`
+- `simulation_agents.json`
+
+Example:
+
+```text
+scenarios/prisoners_dilemma/
+```
+
+Use it from the CLI with `--config-dir`, or from the dashboard by setting `Config Directory` before initialization.
 
 ### Agent definitions
 
@@ -399,12 +438,13 @@ The dashboard writes saves under a local `saves` directory relative to the proje
 
 For scenario design:
 
-1. Edit `data/world_state.json`, [`data/agent_definitions.json`](/d:/Python%20Projects/SiliconFrontier/data/agent_definitions.json), and [`data/simulation_agents.json`](/d:/Python%20Projects/SiliconFrontier/data/simulation_agents.json)
+1. Create or edit a config directory containing `world_state.json`, `agent_definitions.json`, and `simulation_agents.json`
 2. Start the dashboard
-3. Initialize with your model endpoint
-4. Run a few cycles
-5. Inspect event log, relationships, and memories
-6. Save interesting states to `saves/`
+3. Set `Config Directory` to that scenario directory
+4. Initialize with your model endpoint
+5. Run a few cycles
+6. Inspect event log, relationships, and memories
+7. Save interesting states to `saves/`
 
 For faster debugging:
 

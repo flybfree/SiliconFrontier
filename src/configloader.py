@@ -21,6 +21,7 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 def _save_json(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
 
@@ -70,6 +71,11 @@ def save_agent_definitions(definitions: dict[str, Any], config_dir: str | Path =
 def save_simulation_slots(slots: dict[str, Any], config_dir: str | Path = "data") -> None:
     """Persist active simulation slots."""
     _save_json(Path(config_dir) / SIMULATION_AGENTS_FILENAME, slots)
+
+
+def save_world_state(world_state: dict[str, Any], config_dir: str | Path = "data") -> None:
+    """Persist world_state.json for a scenario/config directory."""
+    _save_json(Path(config_dir) / "world_state.json", world_state)
 
 
 def build_agent_instances(

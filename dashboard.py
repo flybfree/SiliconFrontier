@@ -28,6 +28,7 @@ from configloader import (
     build_agent_instances,
     save_agent_definitions,
     save_simulation_slots,
+    save_world_state,
 )
 
 
@@ -74,6 +75,7 @@ class SimulationState:
         self.current_cycle = 0
         self.results_history = []
         # Settings
+        self.config_dir = "data"
         self.llm_base_url = "http://192.168.3.181:1234/v1"
         self.llm_model = "local-model"
         self.available_models: list[str] = []
@@ -86,32 +88,11 @@ class SimulationState:
         self.agent_definitions = {"agents": []}
         self.simulation_slots = {"slots": []}
 
-    def initialize(self, config_dir: str = "data", llm_url: str | None = None, llm_model: str | None = None):
-        """Initialize the simulation from JSON configs."""
-        if not Path(config_dir).exists():
-            st.error(f"Config directory '{config_dir}' not found!")
-            return False
-
-        # Update settings if provided
-        if llm_url:
-            self.llm_base_url = llm_url
-        if llm_model:
-            self.llm_model = llm_model
-
-        # Load world state
-        self.world_state = WorldState.from_json(Path(config_dir) / "world_state.json")
+    def _build_runtime_from_loaded_config(self, materialize_world_state: bool = False) -> None:
+        """Rebuild world-facing agent objects from current definitions and slots."""
         self.agents = []
-
-        self.agent_definitions, self.simulation_slots = load_agent_configuration(config_dir)
         agent_instances = build_agent_instances(self.agent_definitions, self.simulation_slots)
 
-        # Store deep-copy baselines for reset
-        import copy
-        self._baseline_world = copy.deepcopy(self.world_state._data)
-        self._baseline_agent_definitions = copy.deepcopy(self.agent_definitions)
-        self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
-
-        # Initialize agents with LLM settings
         for agent_cfg in agent_instances:
             agent_cls = RogueAgent if agent_cfg.get("archetype") == "saboteur" else FrontierAgent
             agent = agent_cls(
@@ -125,16 +106,14 @@ class SimulationState:
                 llm_base_url=self.llm_base_url,
                 llm_model=self.llm_model
             )
-
-            self.world_state.register_agent(agent.agent_id, agent_cfg["starting_location"])
-            for item_id in agent_cfg.get("inventory", []):
-                self.world_state.add_item_to_agent_inventory(agent.agent_id, item_id)
-
+            if materialize_world_state:
+                self.world_state.register_agent(agent.agent_id, agent_cfg["starting_location"])
+                for item_id in agent_cfg.get("inventory", []):
+                    self.world_state.add_item_to_agent_inventory(agent.agent_id, item_id)
             agent.definition_id = agent_cfg.get("definition_id")
             agent.slot_id = agent_cfg.get("slot_id")
             self.agents.append(agent)
 
-        # Initialize components
         action_parser = ActionParser(self.world_state)
         social_matrix = SocialMatrix()
         self.orchestrator = Orchestrator(
@@ -144,6 +123,32 @@ class SimulationState:
             social_matrix=social_matrix,
             reflection_interval=5
         )
+
+    def initialize(self, config_dir: str = "data", llm_url: str | None = None, llm_model: str | None = None):
+        """Initialize the simulation from JSON configs."""
+        if not Path(config_dir).exists():
+            st.error(f"Config directory '{config_dir}' not found!")
+            return False
+        self.config_dir = config_dir
+
+        # Update settings if provided
+        if llm_url:
+            self.llm_base_url = llm_url
+        if llm_model:
+            self.llm_model = llm_model
+
+        # Load world state
+        self.world_state = WorldState.from_json(Path(config_dir) / "world_state.json")
+
+        self.agent_definitions, self.simulation_slots = load_agent_configuration(config_dir)
+
+        # Store deep-copy baselines for reset
+        import copy
+        self._baseline_world = copy.deepcopy(self.world_state._data)
+        self._baseline_agent_definitions = copy.deepcopy(self.agent_definitions)
+        self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
+
+        self._build_runtime_from_loaded_config(materialize_world_state=True)
 
         self.current_cycle = 0
         self.results_history = []
@@ -170,7 +175,7 @@ class SimulationState:
             agent_def["archetype"] = archetype
             break
 
-        save_agent_definitions(self.agent_definitions)
+        save_agent_definitions(self.agent_definitions, self.config_dir)
         self._baseline_agent_definitions = copy.deepcopy(self.agent_definitions)
 
     def update_simulation_slot(self, slot_id: str, definition_id: str) -> None:
@@ -182,7 +187,7 @@ class SimulationState:
             slot["definition_id"] = definition_id
             break
 
-        save_simulation_slots(self.simulation_slots)
+        save_simulation_slots(self.simulation_slots, self.config_dir)
         self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
 
     def update_simulation_slot_details(
@@ -205,7 +210,7 @@ class SimulationState:
             slot["inventory"] = list(inventory)
             break
 
-        save_simulation_slots(self.simulation_slots)
+        save_simulation_slots(self.simulation_slots, self.config_dir)
         self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
 
     def create_simulation_slot(
@@ -226,7 +231,7 @@ class SimulationState:
             "starting_location": starting_location,
             "inventory": list(inventory)
         })
-        save_simulation_slots(self.simulation_slots)
+        save_simulation_slots(self.simulation_slots, self.config_dir)
         self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
 
     def remove_simulation_slot(self, slot_id: str) -> None:
@@ -236,7 +241,7 @@ class SimulationState:
             slot for slot in self.simulation_slots.get("slots", [])
             if slot.get("slot_id") != slot_id
         ]
-        save_simulation_slots(self.simulation_slots)
+        save_simulation_slots(self.simulation_slots, self.config_dir)
         self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
 
     def create_agent_definition(
@@ -261,8 +266,31 @@ class SimulationState:
             "persona": persona,
             "secret_goal": secret_goal
         })
-        save_agent_definitions(self.agent_definitions)
+        save_agent_definitions(self.agent_definitions, self.config_dir)
         self._baseline_agent_definitions = copy.deepcopy(self.agent_definitions)
+
+    def export_scenario_assets(self, export_dir: str, source_save: str | Path | None = None) -> Path:
+        """Write scenario asset files from the current session or a selected save file."""
+        import copy
+
+        target_dir = Path(export_dir)
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        if source_save:
+            with open(source_save, "r") as f:
+                data = json.load(f)
+            world_data = copy.deepcopy(data["world_state"])
+            agent_definitions = copy.deepcopy(data.get("agent_definitions", {"agents": []}))
+            simulation_slots = copy.deepcopy(data.get("simulation_slots", {"slots": []}))
+        else:
+            world_data = copy.deepcopy(self.world_state._data)
+            agent_definitions = copy.deepcopy(self.agent_definitions)
+            simulation_slots = copy.deepcopy(self.simulation_slots)
+
+        save_world_state(world_data, target_dir)
+        save_agent_definitions(agent_definitions, target_dir)
+        save_simulation_slots(simulation_slots, target_dir)
+        return target_dir
 
     def fetch_models(self, llm_url: str | None = None) -> list[str]:
         """Fetch model IDs from an OpenAI-compatible /models endpoint."""
@@ -392,20 +420,27 @@ class SimulationState:
 
     def load(self, filepath: str | Path) -> None:
         """Restore simulation state from a saved JSON file."""
+        import copy
+
         with open(filepath, "r") as f:
             data = json.load(f)
 
-        # Restore world state data in-place
-        self.world_state._data.update(data["world_state"])
+        self.llm_base_url = data.get("metadata", {}).get("llm_base_url", self.llm_base_url)
+        self.llm_model = data.get("metadata", {}).get("llm_model", self.llm_model)
+        self.world_state = WorldState(copy.deepcopy(data["world_state"]))
         self.agent_definitions = data.get("agent_definitions", self.agent_definitions)
         self.simulation_slots = data.get("simulation_slots", self.simulation_slots)
+        self._baseline_world = copy.deepcopy(self.world_state._data)
+        self._baseline_agent_definitions = copy.deepcopy(self.agent_definitions)
+        self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
+        self._build_runtime_from_loaded_config(materialize_world_state=False)
 
-        # Restore agent attributes
         saved_agents = {a["agent_id"]: a for a in data["agents"]}
         for agent in self.agents:
             saved = saved_agents.get(agent.agent_id)
             if not saved:
                 continue
+            agent.name = saved.get("name", agent.name)
             agent.persona = saved["persona"]
             agent.secret_goal = saved["secret_goal"]
             agent.role = saved.get("role", agent.role)
@@ -418,14 +453,20 @@ class SimulationState:
             agent.emotional_state = saved["emotional_state"]
 
         # Restore relationships
-        self.orchestrator.social._relationships = data["relationships"]
+        self.orchestrator.social._relationships = copy.deepcopy(data["relationships"])
+        self.orchestrator.social._suspicions = copy.deepcopy(
+            data.get("world_state", {}).get("suspicions", {})
+        )
         self.orchestrator.social.sync_to_world()
 
         # Restore log and counters
-        self.orchestrator.event_log = data["event_log"]
+        self.orchestrator.event_log = list(data["event_log"])
         self.current_cycle = data["metadata"]["cycle"]
         self.orchestrator.cycle_count = data["metadata"]["cycle"]
-        self.results_history = data["event_log"]
+        self.results_history = list(data["event_log"])
+        self.is_running = False
+        self.pending_cycles = 0
+        self.planned_cycles = 0
 
     @staticmethod
     def list_saves(save_dir: str = "saves") -> list[Path]:
@@ -882,6 +923,11 @@ def main():
             value=sim.llm_base_url,
             help="Local OpenAI-compatible API endpoint (e.g., http://localhost:1234/v1)"
         )
+        config_dir = st.text_input(
+            "Config Directory",
+            value=sim.config_dir,
+            help="Directory containing world_state.json plus agent definitions and simulation slots."
+        )
         if st.button("Fetch Models", key="fetch_models_init"):
             sim.fetch_models(llm_url)
         if sim.model_fetch_error and sim.available_models_url == llm_url:
@@ -907,7 +953,7 @@ def main():
             )
 
         if st.button("🚀 Initialize Simulation"):
-            if sim.initialize(config_dir="data", llm_url=llm_url, llm_model=llm_model):
+            if sim.initialize(config_dir=config_dir, llm_url=llm_url, llm_model=llm_model):
                 st.session_state.initialized = True
                 st.success("Simulation initialized!")
                 st.rerun()
@@ -972,7 +1018,7 @@ def main():
 
             if st.button("🔄 Reinitialize with New Settings"):
                 sim.stop()
-                sim.initialize(config_dir="data", llm_url=new_url, llm_model=new_model)
+                sim.initialize(config_dir=sim.config_dir, llm_url=new_url, llm_model=new_model)
                 st.success("Reinitialized with new settings!")
                 st.rerun()
 
@@ -1038,6 +1084,34 @@ def main():
                         st.error(f"Load failed: {e}")
             else:
                 st.caption("No saves yet.")
+
+            st.markdown("**Export Scenario Assets**")
+            export_dir = st.text_input(
+                "Scenario export directory",
+                value="scenarios/new_scenario",
+                key="scenario_export_dir",
+                help="Writes world_state.json, agent_definitions.json, and simulation_agents.json to this folder."
+            )
+            export_source = st.radio(
+                "Export source",
+                options=["Current Session", "Selected Save"],
+                key="scenario_export_source",
+                horizontal=True
+            )
+            selected_save_path = None
+            if export_source == "Selected Save" and saves:
+                selected_save_path = saves[save_labels.index(selected)]
+                st.caption(f"Using save: {selected}")
+            elif export_source == "Selected Save" and not saves:
+                st.caption("No saves available. Switch to Current Session or create a save first.")
+
+            if st.button("📦 Export Scenario Assets", key="export_scenario_assets"):
+                try:
+                    source_save = selected_save_path if export_source == "Selected Save" else None
+                    path = sim.export_scenario_assets(export_dir.strip(), source_save=source_save)
+                    st.success(f"Scenario assets written to {path}")
+                except Exception as e:
+                    st.error(f"Scenario export failed: {e}")
 
             st.divider()
 

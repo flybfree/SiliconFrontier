@@ -5,14 +5,9 @@
       "instance_id": "captain_miller",
       "definition_id": "captain_miller",
       "starting_location": "command_deck",
-      "inventory": ["id_card_commander"]
-    },
-    {
-      "slot_id": "slot_2",
-      "instance_id": "unit7",
-      "definition_id": "unit7",
-      "starting_location": "engineering",
-      "inventory": []
+      "inventory": [
+        "id_card_commander"
+      ]
     },
     {
       "slot_id": "slot_3",
@@ -26,7 +21,16 @@
       "instance_id": "engineer_torres",
       "definition_id": "engineer_torres",
       "starting_location": "engineering",
-      "inventory": ["plasma_wrench"]
+      "inventory": [
+        "plasma_wrench"
+      ]
+    },
+    {
+      "slot_id": "slot_2",
+      "instance_id": "marilyn",
+      "definition_id": "marilyn",
+      "starting_location": "crew_quarters",
+      "inventory": []
     }
   ]
 }
