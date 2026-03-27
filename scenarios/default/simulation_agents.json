@@ -1,0 +1,32 @@
+{
+  "slots": [
+    {
+      "slot_id": "slot_1",
+      "instance_id": "captain_rao",
+      "definition_id": "captain_rao",
+      "starting_location": "command_deck",
+      "inventory": ["id_card_commander"]
+    },
+    {
+      "slot_id": "slot_2",
+      "instance_id": "unit7",
+      "definition_id": "unit7",
+      "starting_location": "elevator_bay",
+      "inventory": []
+    },
+    {
+      "slot_id": "slot_3",
+      "instance_id": "dr_ishikawa",
+      "definition_id": "dr_ishikawa",
+      "starting_location": "hydroponics_bay",
+      "inventory": []
+    },
+    {
+      "slot_id": "slot_4",
+      "instance_id": "engineer_torres",
+      "definition_id": "engineer_torres",
+      "starting_location": "engineering",
+      "inventory": ["plasma_wrench"]
+    }
+  ]
+}

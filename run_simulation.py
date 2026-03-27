@@ -25,7 +25,7 @@ from configloader import load_agent_configuration, build_agent_instances
 
 
 def load_config(
-    config_dir: str = "data",
+    config_dir: str = "scenarios/default",
     llm_base_url: str = "http://192.168.3.181:1234/v1",
     llm_model: str = "unsloth/qwen3.5-35b-a3b"
 ) -> tuple[WorldState, list[FrontierAgent]]:
@@ -69,7 +69,7 @@ def load_config(
 def run_demo_simulation(
     rounds: int = 10,
     delay_seconds: float = 0.3,
-    config_dir: str = "data",
+    config_dir: str = "scenarios/default",
     llm_base_url: str = "http://localhost:1234/v1",
     llm_model: str = "local-model"
 ) -> tuple[list[list[dict]], dict]:
@@ -140,7 +140,7 @@ def run_demo_simulation(
 
 def run_quick_test(
     rounds: int = 5,
-    config_dir: str = "data",
+    config_dir: str = "scenarios/default",
     llm_base_url: str = "http://192.168.3.181:1234/v1",
     llm_model: str = "unsloth/qwen3.5-35b-a3b"
 ) -> None:
@@ -173,8 +173,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config-dir", "-c",
         type=str,
-        default="data",
-        help="Configuration directory containing world_state.json and agent config files (default: data)"
+        default="scenarios/default",
+        help="Configuration directory containing world_state.json and agent config files (default: scenarios/default)"
     )
     parser.add_argument(
         "--url", "-u",

@@ -1,6 +1,10 @@
-data/agent_definitions.json
+# Runtime working directory — populated at runtime, not authored content
+data/*.json
 
-data/simulation_agents.json
-src/__pycache__/orchestrator.cpython-313.pyc
-data/agent_definitions.json
-data/simulation_agents.json
+# Simulation saves — runtime output, not source
+saves/*.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo

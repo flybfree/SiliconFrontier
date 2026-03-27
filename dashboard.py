@@ -75,7 +75,7 @@ class SimulationState:
         self.current_cycle = 0
         self.results_history = []
         # Settings
-        self.config_dir = "data"
+        self.config_dir = "scenarios/default"
         self.llm_base_url = "http://192.168.3.181:1234/v1"
         self.llm_model = "local-model"
         self.available_models: list[str] = []
