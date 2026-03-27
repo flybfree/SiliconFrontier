@@ -98,6 +98,14 @@ class ActionParser:
 
         return True, f"Success: You said '{target}' to everyone in the room."
 
+    def _hand_items(self, agent_id: str) -> list[dict]:
+        """Return the agent's non-hidden (in-hand) inventory items."""
+        return [i for i in self.world.find_items_by_owner(agent_id) if not i.get("hidden")]
+
+    def _person_items(self, agent_id: str) -> list[dict]:
+        """Return the agent's hidden (on-person) inventory items."""
+        return [i for i in self.world.find_items_by_owner(agent_id) if i.get("hidden")]
+
     def _handle_pickup(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
         """Handle PICKUP action."""
         current_loc = self.world.get_agent_location(agent.agent_id)
@@ -124,6 +132,21 @@ class ActionParser:
         # Check if portable
         if not matching_item.get("portable", True):
             return False, f"Failure: The {matching_item['name']} is too heavy to move."
+
+        # Enforce two-slot inventory (one in hand, one concealed on person)
+        hand = self._hand_items(agent.agent_id)
+        person = self._person_items(agent.agent_id)
+
+        if matching_item.get("hidden"):
+            # Hidden items require a free hand to handle and a free person slot to conceal
+            if hand:
+                return False, f"Failure: You need a free hand to handle {matching_item['name']}. Drop {hand[0]['name']} first."
+            if person:
+                return False, f"Failure: You're already concealing something on your person. You can't hide another item."
+        else:
+            # Regular items go in hand — hand must be free
+            if hand:
+                return False, f"Failure: Your hand is already full (holding {hand[0]['name']}). Drop it first."
 
         # Execute pickup
         self.world.add_item_to_agent_inventory(agent.agent_id, matching_item["id"])
@@ -194,6 +217,11 @@ class ActionParser:
             owned = [item["name"] for item in owned_items]
             return False, f"Failure: You are not carrying '{item_name}'. Carrying: {', '.join(owned) if owned else 'nothing'}."
 
+        # Check receiver has a free hand slot
+        receiver_hand = self._hand_items(target_agent_id)
+        if receiver_hand:
+            return False, f"Failure: {target_agent_id}'s hands are full. They need to drop something first."
+
         if not self.world.transfer_item_between_agents(agent.agent_id, target_agent_id, matching_item["id"]):
             return False, "Failure: The handoff did not complete."
 
@@ -216,6 +244,11 @@ class ActionParser:
         )
         if not matching_item:
             return False, f"Failure: {target_agent_id} does not appear to be carrying '{item_name}'."
+
+        # Check the demander has a free hand slot to receive
+        my_hand = self._hand_items(agent.agent_id)
+        if my_hand:
+            return False, f"Failure: Your hand is full (holding {my_hand[0]['name']}). Drop it before demanding something."
 
         if not self.world.transfer_item_between_agents(target_agent_id, agent.agent_id, matching_item["id"]):
             return False, "Failure: The demanded transfer did not complete."

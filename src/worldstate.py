@@ -261,6 +261,14 @@ class WorldState:
                 for system_id, system_data in self.get_location_systems(loc).items()
             } if loc else {},
             "visible_agents": visible_agents,
+            "visible_agent_hands": {
+                other_id: [
+                    item["name"]
+                    for item in self.find_items_by_owner(other_id)
+                    if not item.get("hidden")
+                ]
+                for other_id in visible_agents
+            },
             "relationship_impressions": {
                 other_id: {
                     **self.get_relationship_view(agent_id, other_id),

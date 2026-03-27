@@ -83,6 +83,11 @@ class FrontierAgent:
         # Goal momentum: agent's sense of whether they're making progress
         self.goal_momentum: str = "unknown"
 
+        # Pending drop obligation: set when agent picks up a hidden knowledge item.
+        # Agent must DROP this item next turn before taking any other action.
+        self.pending_drop: str | None = None        # item id
+        self.pending_drop_name: str | None = None   # item name (for prompts)
+
     def sense(self, world_snapshot: dict[str, Any]) -> str:
         """
         Generate a subjective view of the world for the agent.
@@ -113,8 +118,13 @@ class FrontierAgent:
         ]
         systems_str = ", ".join(visible_systems) if visible_systems else "None"
 
-        nearby_agents = [f"'{aid}'" for aid in world_snapshot["visible_agents"]]
-        agents_str = ", ".join(nearby_agents) if nearby_agents else "no one"
+        agent_hands = world_snapshot.get("visible_agent_hands", {})
+        nearby_agent_parts = []
+        for aid in world_snapshot["visible_agents"]:
+            held = agent_hands.get(aid, [])
+            holding_str = f" (holding: {', '.join(held)})" if held else " (hands empty)"
+            nearby_agent_parts.append(f"'{aid}'{holding_str}")
+        agents_str = ", ".join(nearby_agent_parts) if nearby_agent_parts else "no one"
         relationship_lines = []
         for other_id, rel in world_snapshot.get("relationship_impressions", {}).items():
             relationship_lines.append(
@@ -145,8 +155,9 @@ class FrontierAgent:
 
     def _build_system_prompt(self, world_snapshot: dict[str, Any]) -> str:
         """Construct the master system prompt for this agent."""
-        inventory = [item["name"] for item in world_snapshot["agent_inventory"]]
-        inventory_str = ", ".join(inventory) if inventory else "nothing"
+        hand_items = [item["name"] for item in world_snapshot["agent_inventory"] if not item.get("hidden")]
+        person_items = [item["name"] for item in world_snapshot["agent_inventory"] if item.get("hidden")]
+        inventory_str = f"In hand: {hand_items[0] if hand_items else 'empty'} | Concealed on person: {person_items[0] if person_items else 'empty'}"
         nearby_agents = world_snapshot["visible_agents"]
         visible_systems = world_snapshot.get("visible_systems", {})
         relationship_impressions = world_snapshot.get("relationship_impressions", {})
@@ -173,6 +184,7 @@ Current Emotional State: {self.emotional_state} — let this genuinely color you
 THE SIMULATION RULES
 - The World is Discrete: You can only interact with things in your current location. To go elsewhere, you must use the MOVE command.
 - Movement: You can only MOVE to locations listed under "Exits (valid MOVE targets)" in your situation report. Do not attempt to move anywhere else.
+- Inventory: You have two slots — one item in hand (visible to others) and one item concealed on your person (hidden items only). You must have a free hand to pick up any item. Hidden items also require your person slot to be free.
 - Persistence: Your memories are long-term. Refer to previous events to build trust or hold grudges.
 - Truth Constraint: Do NOT invent items or people that are not in your "Current Situation" report.
 - Interaction: You can talk to other agents in the same room using the SAY command.
@@ -191,7 +203,11 @@ YOUR KNOWLEDGE SO FAR
 Long-term memories: {self.long_term_memory}
 Your current sense of progress toward your secret goal: {self.goal_momentum}.
 
-BEFORE YOU ACT
+{f"""URGENT — ITEM OBLIGATION
+You just read the contents of the {self.pending_drop_name}. It contains sensitive information.
+You MUST return it — your action this turn MUST be: DROP {self.pending_drop_name}
+You cannot move or take any other action until you have put it back.
+""" if self.pending_drop else ""}BEFORE YOU ACT
 {f"You are alone. No one will witness your actions here." if not nearby_agents else f"{', '.join(nearby_agents)} {'is' if len(nearby_agents) == 1 else 'are'} watching. Consider whether you would act differently if you were alone."}
 
 OUTPUT FORMAT

@@ -1292,8 +1292,11 @@ def main():
             with st.expander(f"📦 {item_data['name']} — {loc} (owner: {owner})"):
                 new_item_name = st.text_input("Name", value=item_data["name"], key=f"item_name_{item_id}")
                 new_item_desc = st.text_area("Description", value=item_data.get("description", ""), key=f"item_desc_{item_id}", height=80)
-                new_item_portable = st.checkbox("Portable", value=item_data.get("portable", True), key=f"item_port_{item_id}")
-                new_item_contested = st.checkbox("Contested (agents will treat this as a valued resource)", value=item_data.get("contested", False), key=f"item_contested_{item_id}")
+                _col_port, _col_contested, _col_hidden = st.columns(3)
+                new_item_portable = _col_port.checkbox("Portable", value=item_data.get("portable", True), key=f"item_port_{item_id}")
+                new_item_contested = _col_contested.checkbox("Contested", value=item_data.get("contested", False), key=f"item_contested_{item_id}", help="Agents will treat this as a valued resource others may want.")
+                new_item_hidden = _col_hidden.checkbox("Hidden", value=item_data.get("hidden", False), key=f"item_hidden_{item_id}", help="Picking up this item reveals its knowledge and forces the agent to drop it next turn.")
+                new_item_knowledge = st.text_area("Knowledge (revealed on pickup)", value=item_data.get("knowledge", ""), key=f"item_knowledge_{item_id}", height=80, help="Information injected into the agent's memory when they pick this item up.")
                 loc_options = all_loc_ids + [a.agent_id for a in sim.agents]
                 cur_loc = item_data.get("location", all_loc_ids[0])
                 loc_index = loc_options.index(cur_loc) if cur_loc in loc_options else 0
@@ -1303,6 +1306,8 @@ def main():
                     item_data["description"] = new_item_desc
                     item_data["portable"] = new_item_portable
                     item_data["contested"] = new_item_contested
+                    item_data["hidden"] = new_item_hidden
+                    item_data["knowledge"] = new_item_knowledge
                     item_data["location"] = new_item_loc
                     st.success("Item updated.")
 

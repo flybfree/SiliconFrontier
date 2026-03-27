@@ -101,18 +101,35 @@ Agents are constrained to these actions:
 - `SABOTAGE`
 - `WAIT`
 
-These are enforced in [`src/agent.py`](/d:/Python%20Projects/SiliconFrontier/src/agent.py#L25) and validated by [`src/actionparser.py`](/d:/Python%20Projects/SiliconFrontier/src/actionparser.py#L35).
+These are enforced in [src/agent.py](src/agent.py) and validated by [src/actionparser.py](src/actionparser.py).
 
 ### World rules
 
-The world state is authoritative. If a location or item is not in [`data/world_state.json`](/d:/Python%20Projects/SiliconFrontier/data/world_state.json), agents are not supposed to be able to use it.
+The world state is authoritative. If a location or item is not in [data/world_state.json](data/world_state.json), agents are not supposed to be able to use it.
 
 Important constraints:
 
 - Agents can only see items in their current location.
 - Agents can only talk to agents in the same location.
-- Movement only succeeds if the destination is directly connected.
+- Movement only succeeds if the destination is listed under the current location's `connected_to`. Valid exits are shown explicitly in each agent's situation report.
 - Pickup only succeeds if the item is in the current room and is portable.
+- Each agent has a two-slot inventory: one item in hand and one concealed on their person. See [Inventory](#inventory) below.
+
+### Inventory
+
+Each agent carries at most two items:
+
+- **In hand**: one regular (non-hidden) item, visible to other agents in the same room.
+- **Concealed on person**: one hidden item only.
+
+Rules enforced by the action parser:
+
+- `PICKUP` of any item requires the hand slot to be free.
+- `PICKUP` of a hidden item additionally requires the person slot to be free.
+- `GIVE` fails if the receiver's hand is already occupied.
+- `DEMAND` fails if your own hand is already occupied.
+
+Agents can see what others are holding in hand. Concealed items are not visible to others.
 
 ### Memory and reflection
 
@@ -120,8 +137,11 @@ Each agent has:
 
 - short-term memory in `memory_buffer`
 - long-term memory in `long_term_memory`
+- a `goal_momentum` state: `advancing`, `stalled`, or `setback`
 
-The orchestrator triggers reflection every 5 cycles in both the CLI and dashboard setup, which causes the agent to summarize recent experience into long-term memory.
+The orchestrator triggers reflection every 5 cycles. During reflection the agent summarizes recent experience into long-term memory and updates `goal_momentum` based on honest self-assessment of progress toward their secret goal. `goal_momentum` is injected into every subsequent system prompt, giving the model a sense of whether its current approach is working.
+
+Memory entries are written as experiential consequence records rather than bare mechanical logs. For example: *"You demanded the manifest and got it, though it likely cost you something. (Nova saw this.)"*
 
 ### Social scores
 
@@ -132,15 +152,31 @@ Relationships are tracked per observer-target pair with:
 - `notes` as a qualitative running impression
 - hidden `suspicion` from `0` to `100`
 
-They begin effectively neutral at `50/50` and change through observed interactions. The current heuristics are simple:
+They begin effectively neutral at `50/50` and change through observed interactions:
 
-- agents maintain a directional vibe toward each other
-- visible agents are included in the snapshot with current trust, affinity, and notes
-- agents also track a hidden suspicion score that influences reasoning but is not shown in the default relationship matrix
 - `SAY`, `LIE`, `GIVE`, and `DEMAND` trigger a hidden critic-style relationship update, with heuristic fallback if the critic call fails
-- witnessed `PICKUP` actions reduce trust slightly
+- Witnessed `PICKUP` actions reduce trust slightly
 - `GIVE` significantly improves the receiver's affinity and trust
 - `DEMAND` sharply lowers the target's trust and affinity
+
+Broadcasts for significant actions (`SAY`, `LIE`, `PICKUP`, `GIVE`, `DEMAND`) are emotionally toned per witness. Each observer receives a version of the event memory coloured by their current trust and suspicion toward the actor. For example, a suspicious witness watching a `PICKUP` gets *"It struck you as opportunistic"* appended to their memory, while a trusting witness sees *"It seemed harmless enough coming from them."*
+
+### Emotional state
+
+Each agent tracks a single-word `emotional_state` that is set by the LLM each turn. It is injected into the system prompt of the following turn as a behavioral context:
+
+> *"Current Emotional State: Angry — let this genuinely color your reasoning, tone, and choices."*
+
+This creates emotional continuity across turns. A betrayal that produces an `Angry` state will influence how the agent reasons and speaks next turn, which in turn affects how others respond to them.
+
+### Audience awareness
+
+Before each action the agent's system prompt includes a note about who is present:
+
+- *"You are alone. No one will witness your actions here."*
+- *"Nova, Silas are watching. Consider whether you would act differently if you were alone."*
+
+This primes divergent public and private behavior and makes agents more likely to act differently when unobserved.
 
 ## Using the Dashboard
 
@@ -168,7 +204,7 @@ You can also edit:
 - rogue archetype
 - long-term memory
 
-Persona, secret goal, and rogue archetype are persisted back to [`data/agent_definitions.json`](/d:/Python%20Projects/SiliconFrontier/data/agent_definitions.json). Long-term memory remains part of the running simulation state and save files.
+Persona, secret goal, and rogue archetype are persisted back to [data/agent_definitions.json](data/agent_definitions.json). Long-term memory remains part of the running simulation state and save files.
 
 The sidebar also exposes an `Agent Library` section where you can:
 
@@ -198,6 +234,14 @@ The dashboard lets you:
 - reset agents to their baseline config values
 
 These changes affect the running session unless you manually write them back to the JSON files yourself.
+
+Each item expander has three checkboxes on one row:
+
+- **Portable**: whether the item can be picked up at all
+- **Contested**: marks the item as a valued resource; agents are reminded that others may want it when it is in view or in hand
+- **Hidden**: enables the hidden-item knowledge mechanic (see [Hidden Items](#hidden-items))
+
+A **Knowledge** text area below the checkboxes holds the information revealed when the item is picked up.
 
 ### God Console
 
@@ -262,8 +306,8 @@ Use it from the CLI with `--config-dir`, or from the dashboard by setting `Confi
 
 The repository includes a prisoner's dilemma example as both:
 
-- a scenario directory under [`scenarios/prisoners_dilemma`](/d:/Python%20Projects/SiliconFrontier/scenarios/prisoners_dilemma)
-- a loadable dashboard save at [`saves/prisoners_dilemma.json`](/d:/Python%20Projects/SiliconFrontier/saves/prisoners_dilemma.json)
+- a scenario directory under [scenarios/prisoners_dilemma](scenarios/prisoners_dilemma)
+- a loadable dashboard save at [saves/prisoners_dilemma.json](saves/prisoners_dilemma.json)
 
 Scenario concept:
 
@@ -296,7 +340,7 @@ Why this works:
 
 ### Agent definitions
 
-Edit [`data/agent_definitions.json`](/d:/Python%20Projects/SiliconFrontier/data/agent_definitions.json).
+Edit [data/agent_definitions.json](data/agent_definitions.json).
 
 Each reusable definition requires:
 
@@ -324,7 +368,7 @@ Example:
 
 ### Active simulation slots
 
-Edit [`data/simulation_agents.json`](/d:/Python%20Projects/SiliconFrontier/data/simulation_agents.json).
+Edit [data/simulation_agents.json](data/simulation_agents.json).
 
 Each slot chooses which reusable definition participates in the current simulation and where that instance starts.
 
@@ -348,7 +392,7 @@ Example:
 
 ### Add or change locations
 
-Edit the `locations` object in [`data/world_state.json`](/d:/Python%20Projects/SiliconFrontier/data/world_state.json).
+Edit the `locations` object in [data/world_state.json](data/world_state.json).
 
 Each location should define:
 
@@ -374,7 +418,7 @@ Example system block:
 
 ### Add or change items
 
-Edit the `items` object in [`data/world_state.json`](/d:/Python%20Projects/SiliconFrontier/data/world_state.json).
+Edit the `items` object in [data/world_state.json](data/world_state.json).
 
 Each item supports:
 
@@ -383,15 +427,52 @@ Each item supports:
 - `owner`
 - `description`
 - `portable`
+- `contested` — optional boolean; marks the item as a valued resource
+- `hidden` — optional boolean; enables the knowledge-reveal mechanic on pickup
+- `knowledge` — optional string; the information injected into an agent's memory when they pick up a hidden item
 
 For baseline content, keep `owner` as `null` unless you intend the item to start in an agent inventory.
+
+### Hidden items
+
+Setting `hidden: true` on an item activates a risk/reward mechanic:
+
+1. The item appears in the room's visible items list normally. Agents can choose to pick it up.
+2. On `PICKUP`, the item's `knowledge` text is injected into the agent's memory as a `[Discovered]` entry.
+3. The agent is placed under a **drop obligation**: their next turn's system prompt contains an `URGENT` block instructing them to `DROP` the item immediately. The orchestrator also enforces this mechanically if the LLM ignores the instruction.
+4. Once dropped, the obligation clears and the agent is free to act normally.
+
+The risk is that picking up a hidden item consumes the agent's hand slot (requiring them to drop whatever they were holding first) and forces them to remain in the same location for an extra turn — creating a window for witnesses to arrive.
+
+Example:
+
+```json
+"station_log_fragment": {
+  "name": "Station Log Fragment",
+  "location": "command_deck",
+  "owner": null,
+  "description": "A torn page from the station maintenance log.",
+  "portable": true,
+  "hidden": true,
+  "knowledge": "The log shows that engineering was accessed at 0300 hours by someone whose ID badge was not recorded."
+}
+```
+
+### Contested items
+
+Setting `contested: true` on an item causes agents to be reminded of its value whenever it is in their view or in their hand:
+
+- *"Contested resource(s) here: repair_manifest. These are valuable and others may seek them."*
+- *"You are holding contested resource(s): plasma_wrench. Others may want these."*
+
+This primes competitive reasoning without adding hard game rules.
 
 ## Rogue Agents
 
 The simulation supports an optional rogue-agent framework.
 
-- Set an agent definition's `archetype` to `saboteur` in [`data/agent_definitions.json`](/d:/Python%20Projects/SiliconFrontier/data/agent_definitions.json)
-- Add sabotagable `systems` to locations in [`data/world_state.json`](/d:/Python%20Projects/SiliconFrontier/data/world_state.json)
+- Set an agent definition's `archetype` to `saboteur` in [data/agent_definitions.json](data/agent_definitions.json)
+- Add sabotagable `systems` to locations in [data/world_state.json](data/world_state.json)
 - Use `perception` to control which agents are likely to receive covert suspicion memories
 
 Architecture notes:
@@ -414,7 +495,7 @@ Dashboard support:
 
 ### Example: Four-Agent Rogue Scenario
 
-The repository also includes a rogue-focused save at [`saves/rogue_quartet.json`](/d:/Python%20Projects/SiliconFrontier/saves/rogue_quartet.json).
+The repository also includes a rogue-focused save at [saves/rogue_quartet.json](saves/rogue_quartet.json).
 
 Scenario concept:
 
@@ -437,7 +518,7 @@ Why this is useful:
 
 ### Example: Four-Agent Cooperative Scenario
 
-The repository also includes a cooperative save at [`saves/cooperative_quartet.json`](/d:/Python%20Projects/SiliconFrontier/saves/cooperative_quartet.json).
+The repository also includes a cooperative save at [saves/cooperative_quartet.json](saves/cooperative_quartet.json).
 
 Scenario concept:
 
@@ -462,7 +543,7 @@ Why this is useful:
 
 ### LLM integration
 
-The agent code uses the OpenAI Python client against a custom `base_url`, not the hosted OpenAI service by default. The actual call happens in [`src/agent.py`](/d:/Python%20Projects/SiliconFrontier/src/agent.py#L158).
+The agent code uses the OpenAI Python client against a custom `base_url`, not the hosted OpenAI service by default. The actual call happens in [src/agent.py](src/agent.py).
 
 The model is expected to return JSON containing:
 
@@ -473,6 +554,13 @@ The model is expected to return JSON containing:
 
 If the model returns malformed output, the current code falls back to an empty dict, which effectively becomes a `WAIT` turn in practice once defaults are applied in the orchestrator.
 
+Reflection calls return JSON with two fields:
+
+- `summary`: updated long-term memory text
+- `goal_momentum`: one of `advancing`, `stalled`, or `setback`
+
+If the reflection response cannot be parsed as JSON, the entire text is treated as the summary and `goal_momentum` is left unchanged.
+
 ### Terminal output
 
 The CLI prints:
@@ -481,7 +569,7 @@ The CLI prints:
 - each agent's internal monologue preview
 - chosen action
 - action result
-- final location and inventory summary
+- goal momentum updates at each reflection phase
 - relationship summary
 
 This makes `run_simulation.py` useful for quick debugging even without the dashboard.
@@ -490,8 +578,8 @@ This makes `run_simulation.py` useful for quick debugging even without the dashb
 
 These are current implementation details worth knowing while operating the project:
 
-- Reinitializing the dashboard does not clear `self.agents` before appending new agent objects in [`dashboard.py`](/d:/Python%20Projects/SiliconFrontier/dashboard.py#L74). Repeated reinitialization in one Streamlit session may duplicate agents in memory.
 - The dashboard edits world and agent state in memory. They are not automatically written back to `data/*.json`.
+- A pending drop obligation (`pending_drop`) is part of agent runtime state. It is included in save files but if you manually edit a save to give an agent a hidden item without setting this flag, the drop constraint will not trigger.
 
 ## Troubleshooting
 
@@ -507,10 +595,15 @@ Check:
 
 Check:
 
-- the target location is directly connected
+- the target location is listed under the current location's exits
 - the item exists in the same room
 - the item is portable
+- the agent's hand slot is free before attempting `PICKUP`
 - the model is returning valid JSON with one of the allowed actions
+
+### Agents are stuck dropping an item every turn
+
+An agent with `pending_drop` set will be forced to drop a hidden item before doing anything else. If the drop keeps failing (e.g. because the item ID no longer exists in the world state), the obligation cannot clear. Use the God Console to relocate the agent or inject a memory to break the loop, then fix the item data.
 
 ### Save files do not appear
 

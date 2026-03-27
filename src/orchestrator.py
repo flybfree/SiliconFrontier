@@ -302,6 +302,13 @@ class Orchestrator:
             emotional_state = decision.get("emotional_state", "Neutral")
             structured_output_status = decision.get("structured_output_status", "unknown")
 
+            # Enforce pending_drop obligation: agent must DROP the hidden item this turn
+            if agent.pending_drop and agent.pending_drop_name:
+                if action != "DROP" or agent.pending_drop_name.lower() not in target.lower():
+                    action = "DROP"
+                    target = agent.pending_drop_name
+                    print(f"  [Obligation enforced] {agent.name} must DROP {agent.pending_drop_name}")
+
             agent.set_emotional_state(emotional_state)
 
             # 3. LOG FOR OBSERVERS - Show reasoning and action
@@ -358,10 +365,23 @@ class Orchestrator:
                         notes=f"Witnessed {agent.name} take {target}"
                     )
                 self._sync_relationships()
+                # Check if a hidden knowledge item was just picked up
+                if agent.pending_drop is None:
+                    for item in self.world.find_items_by_owner(agent.agent_id):
+                        if item.get("hidden") and item.get("knowledge"):
+                            agent.add_to_memory(f"[Discovered] {item['knowledge']}")
+                            agent.pending_drop = item["id"]
+                            agent.pending_drop_name = item["name"]
+                            print(f"  [Hidden Knowledge] {agent.name} reads: {item['knowledge'][:80]}...")
+                            break
 
             elif action == "DROP" and success:
                 event_msg = f"You saw {agent.name} drop the {target}"
                 self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
+                # Clear pending_drop obligation if the right item was returned
+                if agent.pending_drop and agent.pending_drop_name and agent.pending_drop_name.lower() in target.lower():
+                    agent.pending_drop = None
+                    agent.pending_drop_name = None
 
             elif action == "GIVE" and success:
                 parsed = self._extract_social_target(target)
