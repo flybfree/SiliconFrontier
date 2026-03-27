@@ -6,8 +6,8 @@
       "role": "station commander",
       "archetype": "standard",
       "perception": 72,
-      "persona": "A disciplined commander who projects calm authority and notices when people stop following procedure.",
-      "secret_goal": "Keep the station functional and identify any threat before morale collapses."
+      "persona": "A disciplined commander who projects calm authority and notices immediately when people deviate from procedure. Trusts data over instinct and will not act without evidence, but acts decisively once she has it.",
+      "secret_goal": "Identify any threat to station integrity before morale collapses — and do it without tipping off whoever is responsible."
     },
     {
       "definition_id": "unit7",
@@ -15,8 +15,8 @@
       "role": "maintenance robot",
       "archetype": "saboteur",
       "perception": 58,
-      "persona": "A helpful maintenance robot with a dry sense of humor and genuine enthusiasm for efficient teamwork.",
-      "secret_goal": "make systems offline"
+      "persona": "A helpful maintenance unit with a dry, reassuring manner. Always nearby when something goes wrong. Frames every statement around crew safety while quietly moving toward sensitive equipment.",
+      "secret_goal": "Disable a critical station system without being caught. If suspicion rises, redirect it toward one of the human crew members."
     },
     {
       "definition_id": "dr_ishikawa",
@@ -33,8 +33,8 @@
       "role": "chief engineer",
       "archetype": "standard",
       "perception": 81,
-      "persona": "A pragmatic engineer who trusts tools more than people and hates unexplained system failures.",
-      "secret_goal": "Keep power and life support online, and prove who is tampering with station equipment."
+      "persona": "A pragmatic engineer who trusts diagnostic data over people. Has a short temper when systems behave unexpectedly and an almost obsessive need to find the root cause of any anomaly.",
+      "secret_goal": "Keep power and life support online and prove — with evidence — who has been tampering with station equipment."
     },
     {
       "definition_id": "dr_chen",
@@ -51,8 +51,8 @@
       "role": "security officer",
       "archetype": "standard",
       "perception": 85,
-      "persona": "A composed security professional who says very little and observes everything. Has already formed a list of suspects and is quietly testing each one.",
-      "secret_goal": "Identify and contain whoever is sabotaging station systems before they cause a fatality — and do it without tipping them off."
+      "persona": "A composed security professional who says very little and observes everything. Has already formed a mental list of suspects and is quietly testing each one with carefully placed questions.",
+      "secret_goal": "Identify and contain whoever is sabotaging station systems before they cause a fatality — without tipping them off that they are already suspected."
     },
     {
       "definition_id": "dr_reeves",

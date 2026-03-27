@@ -1,0 +1,60 @@
+{
+  "slots": [
+    {
+      "slot_id": "slot_1",
+      "instance_id": "captain_rao",
+      "definition_id": "captain_rao",
+      "starting_location": "command_deck",
+      "inventory": ["access_badge_master"]
+    },
+    {
+      "slot_id": "slot_2",
+      "instance_id": "unit7",
+      "definition_id": "unit7",
+      "starting_location": "elevator_bay",
+      "inventory": []
+    },
+    {
+      "slot_id": "slot_3",
+      "instance_id": "dr_ishikawa",
+      "definition_id": "dr_ishikawa",
+      "starting_location": "hydroponics_bay",
+      "inventory": ["oxygen_scanner"]
+    },
+    {
+      "slot_id": "slot_4",
+      "instance_id": "engineer_torres",
+      "definition_id": "engineer_torres",
+      "starting_location": "engineering",
+      "inventory": ["plasma_wrench"]
+    },
+    {
+      "slot_id": "slot_5",
+      "instance_id": "dr_chen",
+      "definition_id": "dr_chen",
+      "starting_location": "medical_bay",
+      "inventory": []
+    },
+    {
+      "slot_id": "slot_6",
+      "instance_id": "officer_vasquez",
+      "definition_id": "officer_vasquez",
+      "starting_location": "observation_deck",
+      "inventory": []
+    },
+    {
+      "slot_id": "slot_7",
+      "instance_id": "dr_reeves",
+      "definition_id": "dr_reeves",
+      "starting_location": "science_lab",
+      "inventory": []
+    },
+    {
+      "slot_id": "slot_8",
+      "instance_id": "mx_kim",
+      "definition_id": "mx_kim",
+      "starting_location": "storage_locker",
+      "inventory": []
+    }
+  ]
+}
