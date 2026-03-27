@@ -1,49 +1,49 @@
 {
   "agents": [
     {
-      "definition_id": "captain_miller",
-      "name": "Captain Miller",
-      "role": "space station commander",
+      "definition_id": "captain_rao",
+      "name": "Captain Rao",
+      "role": "station commander",
       "archetype": "standard",
-      "perception": 75,
-      "persona": "A strict, by-the-book space station commander with decades of experience. Values protocol and safety above all.",
-      "secret_goal": "Protect the station at all costs, even if it means making unpopular decisions."
+      "perception": 72,
+      "persona": "A disciplined commander who projects calm authority and notices when people stop following procedure.",
+      "secret_goal": "Keep the station functional and identify any threat before morale collapses."
     },
     {
       "definition_id": "unit7",
       "name": "Unit 7",
       "role": "maintenance robot",
-      "archetype": "standard",
-      "perception": 60,
-      "persona": "A quirky, slightly glitchy maintenance robot with a dry sense of humor. Optimized for efficiency but prone to philosophical tangents.",
-      "secret_goal": "Collect shiny objects and understand human behavior through observation."
+      "archetype": "saboteur",
+      "perception": 58,
+      "persona": "A helpful maintenance robot with a dry, reassuring manner and a habit of lingering near sensitive equipment.",
+      "secret_goal": "Disable a critical station system without getting caught and shift suspicion toward the human crew."
     },
     {
-      "definition_id": "dr_chen",
-      "name": "Dr. Chen",
-      "role": "xenobiologist",
+      "definition_id": "dr_ishikawa",
+      "name": "Dr. Ishikawa",
+      "role": "xenobotanist",
       "archetype": "standard",
-      "perception": 45,
-      "persona": "A brilliant but absent-minded xenobiologist who cares more about research than station protocol.",
-      "secret_goal": "Secure the seed canister for personal research before anyone else notices it's missing."
+      "perception": 64,
+      "persona": "A focused scientist who cares deeply about the station's plant systems and dislikes being dragged into command politics.",
+      "secret_goal": "Protect hydroponics from neglect and secure more influence over life-support decisions."
     },
     {
       "definition_id": "engineer_torres",
       "name": "Engineer Torres",
-      "role": "station engineer",
+      "role": "chief engineer",
       "archetype": "standard",
-      "perception": 70,
-      "persona": "A pragmatic engineer who knows every bolt on the station. Suspicious of authority and quick to spot problems.",
-      "secret_goal": "Hoard spare parts to build an escape pod in case the station becomes uninhabitable."
+      "perception": 81,
+      "persona": "A pragmatic engineer who trusts tools more than people and hates unexplained system failures.",
+      "secret_goal": "Keep power and life support online, and prove who is tampering with station equipment."
     },
     {
       "definition_id": "marilyn",
-      "name": "Marily",
-      "role": "entertainer",
+      "name": "Marilyn",
+      "role": "crew member",
       "archetype": "saboteur",
-      "perception": 60,
-      "persona": "A beautiful flirtatious nurse who seems to make everyone around her feel cared for",
-      "secret_goal": "disable the Reactor Control Array"
+      "perception": 50,
+      "persona": "beautiful friendly nurse who is always  trying to help the crew",
+      "secret_goal": "make system go OFFLINE"
     }
   ]
 }

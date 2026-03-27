@@ -109,7 +109,9 @@ class SimulationState:
             if materialize_world_state:
                 self.world_state.register_agent(agent.agent_id, agent_cfg["starting_location"])
                 for item_id in agent_cfg.get("inventory", []):
-                    self.world_state.add_item_to_agent_inventory(agent.agent_id, item_id)
+                    if not self.world_state.add_item_to_agent_inventory(agent.agent_id, item_id):
+                        import streamlit as st
+                        st.warning(f"Item '{item_id}' in {agent.name}'s starting inventory does not exist in world_state.json — skipped.")
             agent.definition_id = agent_cfg.get("definition_id")
             agent.slot_id = agent_cfg.get("slot_id")
             self.agents.append(agent)

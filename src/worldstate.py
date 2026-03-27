@@ -176,6 +176,8 @@ class WorldState:
         """Add an item to an agent's inventory."""
         if agent_id not in self._data["agents"]:
             return False
+        if item_id not in self._data["items"]:
+            return False
         agents = self._data["agents"]
         items = self._data["items"]
 
