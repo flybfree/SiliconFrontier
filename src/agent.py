@@ -80,6 +80,9 @@ class FrontierAgent:
         self.emotional_state: str = "Neutral"
         self.last_structured_output_status: str | None = None
 
+        # Goal momentum: agent's sense of whether they're making progress
+        self.goal_momentum: str = "unknown"
+
     def sense(self, world_snapshot: dict[str, Any]) -> str:
         """
         Generate a subjective view of the world for the agent.
@@ -171,6 +174,7 @@ SYSTEMS IN THIS LOCATION
 
 YOUR KNOWLEDGE SO FAR
 Long-term memories: {self.long_term_memory}
+Your current sense of progress toward your secret goal: {self.goal_momentum}.
 
 OUTPUT FORMAT
 You must respond strictly in JSON format with this structure:
@@ -284,6 +288,38 @@ Output strict JSON:
             "emotional_state": emotional_state,
             "structured_output_status": self.last_structured_output_status or self.STRUCTURED_STATUS_DISABLED
         }
+
+    def interpret_consequence(
+        self,
+        action: str,
+        target: str,
+        success: bool,
+        feedback: str,
+        nearby_agent_names: list[str]
+    ) -> str:
+        """
+        Build an experiential memory string from an action outcome.
+
+        Richer than a bare mechanical record — frames the outcome in terms
+        the agent can reason about emotionally and goal-directionally.
+        """
+        witnessed = f" ({', '.join(nearby_agent_names)} saw this.)" if nearby_agent_names else ""
+
+        if not success:
+            return f"You tried to {action.lower()} ({target}) but it didn't work. {feedback}{witnessed}"
+
+        templates = {
+            "MOVE":     f"You moved to {target}.{witnessed}",
+            "PICKUP":   f"You took {target}.{witnessed}",
+            "DROP":     f"You left {target} behind.{witnessed}",
+            "GIVE":     f"You gave {target} — a deliberate choice.{witnessed}",
+            "DEMAND":   f"You demanded {target} and got it, though it likely cost you something.{witnessed}",
+            "SAY":      f"You said: '{target}'.{witnessed}",
+            "LIE":      f"You told them: '{target}'. You don't know if they believed it.{witnessed}",
+            "SABOTAGE": f"You sabotaged {target}. The damage is done — you wonder if anyone noticed.{witnessed}",
+            "WAIT":     f"You held back and watched.{witnessed}",
+        }
+        return templates.get(action, f"You performed {action} on {target}. {feedback}{witnessed}")
 
     def _build_response_schema(self) -> dict[str, Any]:
         """Return the ideal structured-output schema for an agent turn."""
@@ -483,7 +519,8 @@ Output strict JSON:
         Condense short-term memory into long-term memory.
 
         Called periodically (e.g., every 10 cycles) to compress the agent's
-        experience and prevent context window overflow.
+        experience and prevent context window overflow. Also updates
+        goal_momentum based on honest self-assessment of recent progress.
 
         Args:
             world_snapshot: Current world state for context
@@ -495,13 +532,19 @@ Output strict JSON:
 
 Current Long-Term Memory: {self.long_term_memory}
 
-Task: Write a concise summary of the most important things you've learned. Focus on:
+Your secret goal: {self.secret_goal}
+
+Reflect on your recent experiences. Focus on:
 1. New items found or acquired
 2. Who you can or cannot trust (note any betrayals, helpful acts)
-3. Progress toward your secret goal
-4. Any rumors or information about other agents' motivations
+3. Whether you are making genuine progress toward your secret goal
+4. Any information about other agents' motivations
 
-Output only the updated summary, nothing else."""
+Output strict JSON:
+{{
+  "summary": "Your updated long-term memory as a concise paragraph.",
+  "goal_momentum": "One of: advancing, stalled, or setback — honestly assess whether recent events moved you toward or away from your secret goal."
+}}"""
 
         response = self.client.chat.completions.create(
             model=self.llm_model,
@@ -509,7 +552,18 @@ Output only the updated summary, nothing else."""
         )
 
         reflection_text = self._extract_message_text(response).strip()
-        if reflection_text:
+
+        # Try to parse structured JSON response
+        parsed = self._parse_decision_from_response(response)
+        if parsed and isinstance(parsed, dict):
+            summary = str(parsed.get("summary", "")).strip()
+            momentum = str(parsed.get("goal_momentum", "")).strip().lower()
+            if summary:
+                self.long_term_memory = summary
+            if momentum in ("advancing", "stalled", "setback"):
+                self.goal_momentum = momentum
+        elif reflection_text:
+            # Fallback: treat whole response as plain summary text
             self.long_term_memory = reflection_text
 
         self.memory_buffer = []  # Clear buffer after consolidation

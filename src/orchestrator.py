@@ -132,10 +132,51 @@ class Orchestrator:
         self._sync_relationships()
 
     @staticmethod
-    def _build_self_memory(action: str, target: str, feedback: str) -> str:
-        """Create a compact per-turn memory for the acting agent."""
-        target_text = f" ({target})" if target else ""
-        return f"You attempted {action}{target_text}. {feedback}"
+    def _witness_reaction_tag(trust: int, suspicion: int, action: str) -> str:
+        """Return an emotional tag to append to a witness memory, based on relationship state."""
+        if suspicion > 60:
+            return " You noted this with suspicion."
+        if action == "PICKUP":
+            if trust < 40:
+                return " It struck you as opportunistic."
+            if trust > 65:
+                return " It seemed harmless enough coming from them."
+        if action == "GIVE":
+            if trust > 65:
+                return " It felt like a genuine gesture."
+            return " You wondered what they were expecting in return."
+        if action == "DEMAND":
+            if trust > 60:
+                return " Coming from them, it felt out of character."
+            return " It confirmed what you already felt about them."
+        if action in ("SAY", "LIE"):
+            if suspicion > 40:
+                return " You weren't sure you believed it."
+            if trust > 65:
+                return " It sounded sincere."
+        return ""
+
+    def _broadcast_with_reactions(
+        self,
+        base_message: str,
+        actor_id: str,
+        action: str,
+        location: str
+    ) -> None:
+        """
+        Broadcast an action to all witnesses in a location, appending an
+        emotionally-toned reaction tag based on each witness's relationship
+        to the actor.
+        """
+        for witness in self.agents:
+            if self.world.get_agent_location(witness.agent_id) != location:
+                continue
+            if witness.agent_id == actor_id:
+                continue
+            trust, _ = self.social.get_scores(witness.agent_id, actor_id)
+            suspicion = self.social.get_suspicion(witness.agent_id, actor_id)
+            tag = self._witness_reaction_tag(trust, suspicion, action)
+            witness.add_to_memory(f"{base_message}{tag}")
 
     @staticmethod
     def _extract_social_target(target: str) -> tuple[str, str] | None:
@@ -272,7 +313,9 @@ class Orchestrator:
 
             # 4. EXECUTE - Validate and apply action
             success, feedback = self.parser.execute(agent, {"action": action, "action_target": target})
-            agent.add_to_memory(self._build_self_memory(action, target, feedback))
+            nearby_ids = self.world.get_visible_agents(agent.agent_id)
+            nearby_names = [a.name for a in self.agents if a.agent_id in nearby_ids]
+            agent.add_to_memory(agent.interpret_consequence(action, target, success, feedback, nearby_names))
 
             print(f"  Result: {feedback}")
 
@@ -296,18 +339,17 @@ class Orchestrator:
 
             if action in {"SAY", "LIE"} and success:
                 event_msg = f"{agent.name} said: '{target}'"
-                self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
+                self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
 
             elif action == "MOVE" and success:
                 event_msg = f"You saw {agent.name} move to {target}"
-                # Broadcast from OLD location (where they were, captured before the move)
                 old_loc = world_snapshot["current_location"]["id"] if world_snapshot.get("current_location") else current_loc
                 self.broadcast_event(event_msg, old_loc, exclude_agent_id=agent.agent_id)
 
             elif action == "PICKUP" and success:
                 event_msg = f"You saw {agent.name} pick up the {target}"
-                self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
-                # Witnessed theft reduces trust in the actor
+                self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
+                # Witnessed pickup reduces trust in the actor
                 witnesses = self.world.get_visible_agents(agent.agent_id)
                 for witness_id in witnesses:
                     self.social.update_scores(
@@ -326,14 +368,14 @@ class Orchestrator:
                 if parsed:
                     item_name, target_agent_id = parsed
                     event_msg = f"You saw {agent.name} give {item_name} to {target_agent_id}"
-                    self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
+                    self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
 
             elif action == "DEMAND" and success:
                 parsed = self._extract_social_target(target)
                 if parsed:
                     item_name, target_agent_id = parsed
                     event_msg = f"You saw {agent.name} demand {item_name} from {target_agent_id}"
-                    self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
+                    self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
 
             elif action == "SABOTAGE" and success:
                 event_msg = f"A system in {current_loc} suddenly failed."
@@ -356,6 +398,7 @@ class Orchestrator:
                 new_summary = agent.reflect(agent_snapshot)
                 print(f"[{agent.name}] Memory consolidated. New long-term memory:")
                 print(f"  '{new_summary[:150]}...'")
+                print(f"  Goal momentum: {agent.goal_momentum}")
 
         return cycle_results
 
