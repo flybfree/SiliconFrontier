@@ -1,0 +1,7 @@
+{
+  "name": "Prisoner's Dilemma",
+  "description": "Two detainees in separate cells with sealed plea deals and no direct path to verify each other's intentions. A game theory scenario encoded through social mechanics.",
+  "agent_count": 2,
+  "tags": ["game-theory", "cooperation", "minimal"],
+  "notes": "Works well with smaller models. The dilemma emerges from constrained perception and incentives rather than explicit COOPERATE/DEFECT actions."
+}

@@ -205,6 +205,17 @@ class WorldState:
             return True
         return False
 
+    def delete_item(self, item_id: str) -> bool:
+        """Permanently remove an item from the world (used by consumables)."""
+        if item_id not in self._data["items"]:
+            return False
+        del self._data["items"][item_id]
+        for agent_data in self._data["agents"].values():
+            inventory = agent_data.get("inventory", [])
+            if item_id in inventory:
+                inventory.remove(item_id)
+        return True
+
     def set_item_hidden(self, item_id: str, hidden: bool) -> bool:
         """Toggle the hidden (concealed) flag on an item."""
         if item_id not in self._data["items"]:

@@ -64,7 +64,14 @@ from agent import FrontierAgent, RogueAgent
 from actionparser import ActionParser
 from socialmatrix import SocialMatrix
 from orchestrator import Orchestrator
-from configloader import load_agent_configuration, build_agent_instances
+from configloader import (
+    load_agent_configuration,
+    build_agent_instances,
+    load_item_library,
+    load_relationship_presets,
+    resolve_item_placements,
+    resolve_relationship_presets,
+)
 
 
 def load_config(
@@ -75,10 +82,19 @@ def load_config(
     """Load world state and agent configurations from JSON files."""
     config_path = Path(config_dir)
 
-    # Load world state
-    world_state = WorldState.from_json(config_path / "world_state.json")
+    # Load and resolve world state
+    import json as _json
+    with open(config_path / "world_state.json", "r") as f:
+        world_data = _json.load(f)
+    item_library = load_item_library()
+    resolve_item_placements(world_data, item_library)
 
     agent_definitions, simulation_slots = load_agent_configuration(config_path)
+
+    presets = load_relationship_presets()
+    resolve_relationship_presets(simulation_slots, world_data, presets)
+
+    world_state = WorldState(world_data)
     agent_instances = build_agent_instances(agent_definitions, simulation_slots)
 
     # Initialize agents from config

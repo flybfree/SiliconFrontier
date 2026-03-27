@@ -190,6 +190,37 @@ class Orchestrator:
                     return left, right
         return None
 
+    def _apply_item_effect(self, agent: Any, item: dict) -> None:
+        """Apply an item's effect fields to the picking agent, then delete it if consumable."""
+        effect = item.get("effect")
+        if not effect:
+            return
+
+        item_name = item.get("name", item.get("id", "item"))
+
+        perception_delta = effect.get("perception_delta", 0)
+        if perception_delta:
+            agent.perception = max(0, min(100, agent.perception + perception_delta))
+            direction = "sharpened" if perception_delta > 0 else "dulled"
+            agent.add_to_memory(f"[Effect] Your perception has {direction} ({perception_delta:+d}) after {item_name}.")
+            print(f"  [Effect] {agent.name} perception {perception_delta:+d} → {agent.perception}")
+
+        forced_state = effect.get("emotional_state")
+        if forced_state:
+            agent.set_emotional_state(forced_state)
+            agent.add_to_memory(f"[Effect] {item_name} left you feeling {forced_state}.")
+            print(f"  [Effect] {agent.name} emotional state → {forced_state}")
+
+        memory_text = effect.get("memory_inject")
+        if memory_text:
+            agent.add_to_memory(f"[Effect] {memory_text}")
+            print(f"  [Effect] {agent.name} memory injected: {memory_text[:80]}...")
+
+        if item.get("consumable"):
+            self.world.delete_item(item["id"])
+            agent.add_to_memory(f"[Consumed] The {item_name} is gone — used up.")
+            print(f"  [Consumed] {item_name} removed from world.")
+
     def _heuristic_social_update(self, action: str, message: str) -> tuple[int, int]:
         """Fallback heuristic if the social critic is unavailable."""
         message_lower = message.lower()
@@ -389,6 +420,12 @@ class Orchestrator:
                             agent.pending_drop_name = item["name"]
                             print(f"  [Hidden Knowledge] {agent.name} reads: {item['knowledge'][:80]}...")
                             break
+
+                # Apply item effects (and remove consumables)
+                for item in self.world.find_items_by_owner(agent.agent_id):
+                    if item.get("effect") or item.get("consumable"):
+                        self._apply_item_effect(agent, item)
+                        break
 
             elif action == "DROP" and success:
                 event_msg = f"You saw {agent.name} drop the {target}"

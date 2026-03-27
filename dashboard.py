@@ -29,6 +29,11 @@ from configloader import (
     save_agent_definitions,
     save_simulation_slots,
     save_world_state,
+    load_item_library,
+    load_relationship_presets,
+    load_scenario_manifest,
+    resolve_item_placements,
+    resolve_relationship_presets,
 )
 
 
@@ -139,10 +144,13 @@ class SimulationState:
         if llm_model:
             self.llm_model = llm_model
 
-        # Load world state
-        self.world_state = WorldState.from_json(Path(config_dir) / "world_state.json")
-
+        # Load and resolve world state
+        with open(Path(config_dir) / "world_state.json", "r") as f:
+            world_data = json.load(f)
+        resolve_item_placements(world_data, load_item_library())
         self.agent_definitions, self.simulation_slots = load_agent_configuration(config_dir)
+        resolve_relationship_presets(self.simulation_slots, world_data, load_relationship_presets())
+        self.world_state = WorldState(world_data)
 
         # Store deep-copy baselines for reset
         import copy
@@ -965,16 +973,29 @@ def main():
             value=sim.llm_base_url,
             help="Local OpenAI-compatible API endpoint (e.g., http://localhost:1234/v1)"
         )
-        scenario_dirs = ["data"] + sorted([
-            str(p.relative_to(Path(".")))
+        scenario_dirs = sorted([
+            str(p.relative_to(Path("."))).replace("\\", "/")
             for p in Path("scenarios").iterdir()
             if p.is_dir() and (p / "world_state.json").exists()
-        ]) if Path("scenarios").exists() else ["data"]
-        current_dir = sim.config_dir if sim.config_dir in scenario_dirs else "data"
+        ]) if Path("scenarios").exists() else []
+        if not scenario_dirs:
+            scenario_dirs = ["scenarios/default"]
+        current_dir = sim.config_dir if sim.config_dir in scenario_dirs else scenario_dirs[0]
+
+        def _scenario_label(path: str) -> str:
+            manifest = load_scenario_manifest(path)
+            name = manifest.get("name")
+            count = manifest.get("agent_count")
+            tags = manifest.get("tags", [])
+            tag_str = f"  [{', '.join(tags)}]" if tags else ""
+            count_str = f"  ({count} agents)" if count else ""
+            return f"{name}{count_str}{tag_str}" if name else path
+
         config_dir = st.selectbox(
             "Scenario",
             options=scenario_dirs,
             index=scenario_dirs.index(current_dir),
+            format_func=_scenario_label,
             help="Directory containing world_state.json plus agent definitions and simulation slots."
         )
         if st.button("Fetch Models", key="fetch_models_init"):

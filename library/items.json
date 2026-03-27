@@ -1,0 +1,72 @@
+{
+  "items": {
+    "plasma_wrench": {
+      "name": "Plasma Wrench",
+      "description": "A heavy industrial tool used for repairing reactor components. The only tool capable of field-repairing a failed reactor node.",
+      "portable": true,
+      "contested": true
+    },
+    "reactor_key": {
+      "name": "Reactor Key",
+      "description": "A physical key required for emergency reactor shutdown. Without it, a runaway reactor cannot be safely stopped.",
+      "portable": true,
+      "contested": true
+    },
+    "access_badge": {
+      "name": "Access Badge",
+      "description": "A badge encoding command-level clearance. Grants access to secured areas.",
+      "portable": true,
+      "contested": true
+    },
+    "oxygen_scanner": {
+      "name": "Oxygen Scanner",
+      "description": "A handheld device that measures atmospheric composition. Useful for detecting if life support has been tampered with.",
+      "portable": true
+    },
+    "emergency_rations": {
+      "name": "Emergency Rations",
+      "description": "A sealed package of nutrient paste. Lasts indefinitely if unopened.",
+      "portable": true
+    },
+    "medical_kit": {
+      "name": "Medical Kit",
+      "description": "A field kit containing basic trauma supplies and a mild stimulant.",
+      "portable": true,
+      "consumable": true,
+      "effect": {
+        "emotional_state": "Calm",
+        "memory_inject": "The kit steadied your hands and cleared your head."
+      }
+    },
+    "stimulant_patch": {
+      "name": "Stimulant Patch",
+      "description": "A neural stimulant patch. Single use. Sharpens perception noticeably.",
+      "portable": true,
+      "consumable": true,
+      "effect": {
+        "perception_delta": 20,
+        "emotional_state": "Alert",
+        "memory_inject": "Your thoughts are suddenly faster, edges sharper."
+      }
+    },
+    "sedative_patch": {
+      "name": "Sedative Patch",
+      "description": "A fast-acting sedative patch. Dulls threat assessment and produces a sense of calm compliance.",
+      "portable": true,
+      "consumable": true,
+      "effect": {
+        "perception_delta": -15,
+        "emotional_state": "Calm",
+        "memory_inject": "A quiet warmth spreads through your thoughts. The urgency feels distant."
+      }
+    },
+    "encrypted_comm": {
+      "name": "Encrypted Comm Device",
+      "description": "A one-time-use encrypted communicator. Reading the pre-loaded message takes a full turn.",
+      "portable": true,
+      "hidden": true,
+      "consumable": true,
+      "knowledge": "No pre-loaded message. Override with scenario-specific knowledge."
+    }
+  }
+}
