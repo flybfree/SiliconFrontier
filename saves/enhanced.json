@@ -1,0 +1,471 @@
+{
+  "metadata": {
+    "name": "enhanced",
+    "saved_at": "2026-03-26T20:16:36",
+    "cycle": 0,
+    "llm_base_url": "http://192.168.3.181:1234/v1",
+    "llm_model": "nvidia/nemotron-3-nano-4b"
+  },
+  "world_state": {
+    "locations": {
+      "command_deck": {
+        "name": "Command Deck",
+        "description": "The high-tech nerve center of the station. Views of the gas giant below are visible through reinforced windows. The hum of life support systems fills the air.",
+        "connected_to": [
+          "mess_hall",
+          "elevator_bay"
+        ],
+        "status_effects": [],
+        "systems": {
+          "life_support_console": {
+            "name": "Life Support Console",
+            "status": "ONLINE",
+            "description": "Controls oxygen routing, scrubbing, and emergency pressure balancing."
+          }
+        }
+      },
+      "mess_hall": {
+        "name": "Mess Hall",
+        "description": "The social hub of the station. A large circular table dominates the center, surrounded by benches. The smell of recycled coffee lingers in the air.",
+        "connected_to": [
+          "command_deck",
+          "hydroponics_bay",
+          "elevator_bay"
+        ],
+        "status_effects": []
+      },
+      "hydroponics_bay": {
+        "name": "Hydroponics Bay",
+        "description": "Densely packed with oxygen-producing ferns and nutrient vats. It's humid and smells of wet earth. Rows of genetically modified crops stretch into the distance.",
+        "connected_to": [
+          "mess_hall",
+          "storage_locker"
+        ],
+        "status_effects": [
+          "high_humidity"
+        ],
+        "systems": {
+          "oxygen_generator": {
+            "name": "Oxygen Generator",
+            "status": "ONLINE",
+            "description": "A biological oxygen processing rig that keeps breathable air cycling through the station."
+          }
+        }
+      },
+      "elevator_bay": {
+        "name": "Elevator Bay",
+        "description": "A circular platform that connects all levels of the station. The glass walls offer a vertigo-inducing view down the central shaft.",
+        "connected_to": [
+          "command_deck",
+          "mess_hall",
+          "engineering",
+          "crew_quarters"
+        ],
+        "status_effects": []
+      },
+      "engineering": {
+        "name": "Engineering",
+        "description": "The heart of the station's power systems. Massive reactors pulse with blue light, and the constant thrum of energy conversion vibrates through the floor.",
+        "connected_to": [
+          "elevator_bay",
+          "storage_locker"
+        ],
+        "status_effects": [
+          "radiation_low"
+        ],
+        "systems": {
+          "reactor_control": {
+            "name": "Reactor Control Array",
+            "status": "ONLINE",
+            "description": "Monitors and adjusts the station's power core output."
+          }
+        }
+      },
+      "storage_locker": {
+        "name": "Storage Locker",
+        "description": "A cramped room filled with crates, tools, and spare parts. Dust motes dance in the dim light.",
+        "connected_to": [
+          "hydroponics_bay",
+          "engineering"
+        ],
+        "status_effects": []
+      },
+      "crew_quarters": {
+        "name": "Crew Quarters",
+        "description": "Small private cabins line the walls. Each has a bunk bed, personal storage, and a small viewport showing the endless expanse of space.",
+        "connected_to": [
+          "elevator_bay"
+        ],
+        "status_effects": []
+      },
+      "env_control": {
+        "name": "Environmental Control",
+        "description": "The place where the systems that keep the crew alive are located",
+        "connected_to": [
+          "engineering"
+        ],
+        "status_effects": [],
+        "systems": {
+          "life_support": {
+            "name": "Life Support System",
+            "status": "ONLINE",
+            "description": "Generates oxygen and filters CO2"
+          }
+        }
+      },
+      "brig": {
+        "name": "Brig",
+        "description": "An Isolated Storage Room used to confine crew for bad behavior",
+        "connected_to": [
+          "storage_locker"
+        ],
+        "status_effects": [
+          "anxiety",
+          "claustrophobia"
+        ],
+        "systems": {}
+      }
+    },
+    "items": {
+      "id_card_commander": {
+        "name": "Commander ID Card",
+        "location": "captain_miller",
+        "owner": "captain_miller",
+        "description": "A plastic card with a faded photo. Grants access to all station areas.",
+        "portable": true
+      },
+      "plasma_wrench": {
+        "name": "Plasma Wrench",
+        "location": "engineer_torres",
+        "owner": "engineer_torres",
+        "description": "A heavy industrial tool used for repairing reactor components.",
+        "portable": true
+      },
+      "oxygen_scanner": {
+        "name": "Oxygen Scanner",
+        "location": "command_deck",
+        "owner": null,
+        "description": "A handheld device that measures atmospheric composition.",
+        "portable": true
+      },
+      "seed_canister": {
+        "name": "Seed Canister",
+        "location": "hydroponics_bay",
+        "owner": null,
+        "description": "Contains genetically modified wheat seeds. Critical for food production.",
+        "portable": true
+      },
+      "emergency_rations": {
+        "name": "Emergency Rations",
+        "location": "mess_hall",
+        "owner": null,
+        "description": "A sealed package of nutrient paste. Lasts indefinitely if unopened.",
+        "portable": true
+      },
+      "data_pad": {
+        "name": "Station Data Pad",
+        "location": "command_deck",
+        "owner": null,
+        "description": "Contains the station's maintenance logs and crew manifests.",
+        "portable": true
+      },
+      "reactor_key": {
+        "name": "Reactor Key",
+        "location": "engineering",
+        "owner": null,
+        "description": "A physical key required for emergency reactor shutdown.",
+        "portable": true
+      },
+      "nutrient_vat": {
+        "name": "Industrial Nutrient Vat",
+        "location": "hydroponics_bay",
+        "owner": null,
+        "description": "A massive, immovable tank filled with green sludge.",
+        "portable": false
+      }
+    },
+    "agents": {
+      "captain_miller": {
+        "location": "command_deck",
+        "inventory": [
+          "id_card_commander"
+        ],
+        "status_effects": []
+      },
+      "unit7": {
+        "location": "engineering",
+        "inventory": [],
+        "status_effects": []
+      },
+      "dr_chen": {
+        "location": "hydroponics_bay",
+        "inventory": [],
+        "status_effects": []
+      },
+      "engineer_torres": {
+        "location": "engineering",
+        "inventory": [
+          "plasma_wrench"
+        ],
+        "status_effects": []
+      }
+    },
+    "relationships": {
+      "captain_miller": {
+        "captain_miller": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "unit7": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "dr_chen": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "engineer_torres": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        }
+      },
+      "unit7": {
+        "captain_miller": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "unit7": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "dr_chen": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "engineer_torres": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        }
+      },
+      "dr_chen": {
+        "captain_miller": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "unit7": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "dr_chen": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "engineer_torres": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        }
+      },
+      "engineer_torres": {
+        "captain_miller": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "unit7": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "dr_chen": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        },
+        "engineer_torres": {
+          "trust": 50,
+          "affinity": 50,
+          "notes": ""
+        }
+      }
+    },
+    "suspicions": {
+      "captain_miller": {
+        "captain_miller": 0,
+        "unit7": 0,
+        "dr_chen": 0,
+        "engineer_torres": 0
+      },
+      "unit7": {
+        "captain_miller": 0,
+        "unit7": 0,
+        "dr_chen": 0,
+        "engineer_torres": 0
+      },
+      "dr_chen": {
+        "captain_miller": 0,
+        "unit7": 0,
+        "dr_chen": 0,
+        "engineer_torres": 0
+      },
+      "engineer_torres": {
+        "captain_miller": 0,
+        "unit7": 0,
+        "dr_chen": 0,
+        "engineer_torres": 0
+      }
+    }
+  },
+  "agents": [
+    {
+      "agent_id": "captain_miller",
+      "name": "Captain Miller",
+      "role": "space station commander",
+      "archetype": "standard",
+      "perception": 75,
+      "persona": "A strict, by-the-book space station commander with decades of experience. Values protocol and safety above all.",
+      "secret_goal": "Protect the station at all costs, even if it means making unpopular decisions.",
+      "memory_buffer": [],
+      "long_term_memory": "I just arrived at the Silicon Frontier station.",
+      "emotional_state": "Neutral"
+    },
+    {
+      "agent_id": "unit7",
+      "name": "Unit 7",
+      "role": "maintenance robot",
+      "archetype": "standard",
+      "perception": 60,
+      "persona": "A quirky, slightly glitchy maintenance robot with a dry sense of humor. Optimized for efficiency but prone to philosophical tangents.",
+      "secret_goal": "Collect shiny objects and understand human behavior through observation.",
+      "memory_buffer": [],
+      "long_term_memory": "I just arrived at the Silicon Frontier station.",
+      "emotional_state": "Neutral"
+    },
+    {
+      "agent_id": "dr_chen",
+      "name": "Dr. Chen",
+      "role": "xenobiologist",
+      "archetype": "standard",
+      "perception": 45,
+      "persona": "A brilliant but absent-minded xenobiologist who cares more about research than station protocol.",
+      "secret_goal": "Secure the seed canister for personal research before anyone else notices it's missing.",
+      "memory_buffer": [],
+      "long_term_memory": "I just arrived at the Silicon Frontier station.",
+      "emotional_state": "Neutral"
+    },
+    {
+      "agent_id": "engineer_torres",
+      "name": "Engineer Torres",
+      "role": "station engineer",
+      "archetype": "standard",
+      "perception": 70,
+      "persona": "A pragmatic engineer who knows every bolt on the station. Suspicious of authority and quick to spot problems.",
+      "secret_goal": "Hoard spare parts to build an escape pod in case the station becomes uninhabitable.",
+      "memory_buffer": [],
+      "long_term_memory": "I just arrived at the Silicon Frontier station.",
+      "emotional_state": "Neutral"
+    }
+  ],
+  "relationships": {
+    "captain_miller": {
+      "captain_miller": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "unit7": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "dr_chen": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "engineer_torres": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      }
+    },
+    "unit7": {
+      "captain_miller": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "unit7": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "dr_chen": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "engineer_torres": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      }
+    },
+    "dr_chen": {
+      "captain_miller": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "unit7": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "dr_chen": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "engineer_torres": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      }
+    },
+    "engineer_torres": {
+      "captain_miller": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "unit7": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "dr_chen": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      },
+      "engineer_torres": {
+        "trust": 50,
+        "affinity": 50,
+        "notes": ""
+      }
+    }
+  },
+  "event_log": []
+}

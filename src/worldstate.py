@@ -25,8 +25,14 @@ class WorldState:
             "locations": {},
             "items": {},
             "agents": {},
-            "relationships": {}
+            "relationships": {},
+            "suspicions": {}
         }
+        self._data.setdefault("locations", {})
+        self._data.setdefault("items", {})
+        self._data.setdefault("agents", {})
+        self._data.setdefault("relationships", {})
+        self._data.setdefault("suspicions", {})
 
     @classmethod
     def from_json(cls, filepath: str | Path) -> "WorldState":
@@ -56,6 +62,22 @@ class WorldState:
     def relationships(self) -> dict[str, Any]:
         return self._data["relationships"]
 
+    @property
+    def suspicions(self) -> dict[str, Any]:
+        return self._data["suspicions"]
+
+    def get_relationship_view(self, agent_id: str, other_agent_id: str) -> dict[str, Any]:
+        """Return one agent's current relationship view of another."""
+        return self._data["relationships"].get(agent_id, {}).get(other_agent_id, {
+            "trust": 50,
+            "affinity": 50,
+            "notes": ""
+        })
+
+    def get_suspicion_view(self, agent_id: str, other_agent_id: str) -> int:
+        """Return one agent's hidden suspicion score toward another."""
+        return int(self._data["suspicions"].get(agent_id, {}).get(other_agent_id, 0))
+
     # Location operations
     def add_location(
         self,
@@ -63,19 +85,34 @@ class WorldState:
         name: str,
         description: str,
         connected_to: list[str] | None = None,
-        status_effects: list[str] | None = None
+        status_effects: list[str] | None = None,
+        systems: dict[str, Any] | None = None
     ) -> None:
         """Add a new location to the world."""
         self._data["locations"][loc_id] = {
             "name": name,
             "description": description,
             "connected_to": connected_to or [],
-            "status_effects": status_effects or []
+            "status_effects": status_effects or [],
+            "systems": systems or {}
         }
 
     def get_location(self, loc_id: str) -> dict[str, Any] | None:
         """Get location details by ID."""
         return self._data["locations"].get(loc_id)
+
+    def get_location_systems(self, loc_id: str) -> dict[str, Any]:
+        """Get the system map for a location."""
+        location = self._data["locations"].get(loc_id, {})
+        return location.get("systems", {})
+
+    def set_system_status(self, loc_id: str, system_id: str, status: str) -> bool:
+        """Update a named system in a location."""
+        systems = self.get_location_systems(loc_id)
+        if system_id not in systems:
+            return False
+        systems[system_id]["status"] = status
+        return True
 
     def is_adjacent(self, from_loc: str, to_loc: str) -> bool:
         """Check if two locations are connected."""
@@ -166,6 +203,12 @@ class WorldState:
             return True
         return False
 
+    def transfer_item_between_agents(self, from_agent_id: str, to_agent_id: str, item_id: str) -> bool:
+        """Move an item directly from one agent's inventory to another's."""
+        if not self.remove_item_from_agent_inventory(from_agent_id, item_id):
+            return False
+        return self.add_item_to_agent_inventory(to_agent_id, item_id)
+
     def register_agent(self, agent_id: str, location: str) -> None:
         """Register a new agent in the world state."""
         self._data["agents"][agent_id] = {
@@ -200,6 +243,8 @@ class WorldState:
         loc = self.get_agent_location(agent_id)
         location_data = self.get_location(loc) if loc else None
 
+        visible_agents = self.get_visible_agents(agent_id)
+
         return {
             "agent_id": agent_id,
             "current_location": {
@@ -211,7 +256,18 @@ class WorldState:
                 for iid, item in self.items.items()
                 if item.get("location") == loc
             ],
-            "visible_agents": self.get_visible_agents(agent_id),
+            "visible_systems": {
+                system_id: dict(system_data)
+                for system_id, system_data in self.get_location_systems(loc).items()
+            } if loc else {},
+            "visible_agents": visible_agents,
+            "relationship_impressions": {
+                other_id: {
+                    **self.get_relationship_view(agent_id, other_id),
+                    "suspicion": self.get_suspicion_view(agent_id, other_id)
+                }
+                for other_id in visible_agents
+            },
             "agent_inventory": [
                 {"id": iid, **self.items[iid]}
                 for iid in self._data["agents"].get(agent_id, {}).get("inventory", [])

@@ -17,10 +17,11 @@ if hasattr(sys.stdout, "reconfigure"):
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from worldstate import WorldState
-from agent import FrontierAgent
+from agent import FrontierAgent, RogueAgent
 from actionparser import ActionParser
 from socialmatrix import SocialMatrix
 from orchestrator import Orchestrator
+from configloader import load_agent_configuration, build_agent_instances
 
 
 def load_config(
@@ -34,19 +35,21 @@ def load_config(
     # Load world state
     world_state = WorldState.from_json(config_path / "world_state.json")
 
-    # Load agents configuration
-    with open(config_path / "agents_config.json", "r") as f:
-        agents_config = json.load(f)
+    agent_definitions, simulation_slots = load_agent_configuration(config_path)
+    agent_instances = build_agent_instances(agent_definitions, simulation_slots)
 
     # Initialize agents from config
     agents = []
-    for agent_cfg in agents_config["agents"]:
-        agent = FrontierAgent(
+    for agent_cfg in agent_instances:
+        agent_cls = RogueAgent if agent_cfg.get("archetype") == "saboteur" else FrontierAgent
+        agent = agent_cls(
             agent_id=agent_cfg["agent_id"],
             name=agent_cfg["name"],
             persona=agent_cfg["persona"],
             secret_goal=agent_cfg["secret_goal"],
             role=agent_cfg.get("role"),
+            archetype=agent_cfg.get("archetype"),
+            perception=agent_cfg.get("perception", 50),
             llm_base_url=llm_base_url,
             llm_model=llm_model
         )
@@ -56,6 +59,8 @@ def load_config(
         for item_id in agent_cfg.get("inventory", []):
             world_state.add_item_to_agent_inventory(agent.agent_id, item_id)
 
+        agent.definition_id = agent_cfg.get("definition_id")
+        agent.slot_id = agent_cfg.get("slot_id")
         agents.append(agent)
 
     return world_state, agents

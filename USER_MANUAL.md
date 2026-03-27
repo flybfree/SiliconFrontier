@@ -24,7 +24,8 @@ The project has two main ways to use it:
 - `src/socialmatrix.py`: trust and affinity tracking
 - `src/orchestrator.py`: simulation loop, event broadcast, reflection phase
 - `data/world_state.json`: locations, items, and baseline world data
-- `data/agents_config.json`: agent identities, starting locations, and starting inventory
+- `data/agent_definitions.json`: reusable agent definitions
+- `data/simulation_agents.json`: active simulation slots and selected agent definitions
 
 ## Requirements
 
@@ -80,12 +81,16 @@ In the sidebar:
 
 ### Agent actions
 
-Agents are constrained to five actions:
+Agents are constrained to these actions:
 
 - `MOVE`
 - `SAY`
 - `PICKUP`
 - `DROP`
+- `GIVE`
+- `DEMAND`
+- `LIE`
+- `SABOTAGE`
 - `WAIT`
 
 These are enforced in [`src/agent.py`](/d:/Python%20Projects/SiliconFrontier/src/agent.py#L25) and validated by [`src/actionparser.py`](/d:/Python%20Projects/SiliconFrontier/src/actionparser.py#L35).
@@ -116,12 +121,18 @@ Relationships are tracked per observer-target pair with:
 
 - `trust` from `0` to `100`
 - `affinity` from `0` to `100`
+- `notes` as a qualitative running impression
+- hidden `suspicion` from `0` to `100`
 
 They begin effectively neutral at `50/50` and change through observed interactions. The current heuristics are simple:
 
-- polite `SAY` messages can improve affinity slightly
-- demanding or aggressive `SAY` messages can reduce trust and affinity
+- agents maintain a directional vibe toward each other
+- visible agents are included in the snapshot with current trust, affinity, and notes
+- agents also track a hidden suspicion score that influences reasoning but is not shown in the default relationship matrix
+- `SAY`, `LIE`, `GIVE`, and `DEMAND` trigger a hidden critic-style relationship update, with heuristic fallback if the critic call fails
 - witnessed `PICKUP` actions reduce trust slightly
+- `GIVE` significantly improves the receiver's affinity and trust
+- `DEMAND` sharply lowers the target's trust and affinity
 
 ## Using the Dashboard
 
@@ -140,14 +151,23 @@ Each agent card shows:
 - current location
 - current emotional state
 - current inventory
+- inspectable long-term and short-term memory
 
 You can also edit:
 
 - persona
 - secret goal
+- rogue archetype
 - long-term memory
 
-These edits apply to the in-memory simulation state in the running dashboard session.
+Persona, secret goal, and rogue archetype are persisted back to [`data/agent_definitions.json`](/d:/Python%20Projects/SiliconFrontier/data/agent_definitions.json). Long-term memory remains part of the running simulation state and save files.
+
+The sidebar also exposes an `Agent Library` section where you can:
+
+- assign a reusable agent definition to each active simulation slot
+- create new reusable agent definitions without editing JSON manually
+- create and remove active simulation slots
+- edit slot instance IDs, starting locations, and starting inventory
 
 ### Relationship Matrix
 
@@ -199,17 +219,43 @@ Loading a save restores the running dashboard state from that file.
 
 ## Editing Configuration
 
-### Add or change agents
+### Agent definitions
 
-Edit [`data/agents_config.json`](/d:/Python%20Projects/SiliconFrontier/data/agents_config.json).
+Edit [`data/agent_definitions.json`](/d:/Python%20Projects/SiliconFrontier/data/agent_definitions.json).
 
-Each agent requires:
+Each reusable definition requires:
 
-- `agent_id`
+- `definition_id`
 - `name`
 - `role`
+- optional `archetype`
+- optional `perception`
 - `persona`
 - `secret_goal`
+
+Example:
+
+```json
+{
+  "definition_id": "new_agent",
+  "name": "New Agent",
+  "role": "research specialist",
+  "archetype": "standard",
+  "perception": 50,
+  "persona": "A cautious researcher with a habit of overexplaining.",
+  "secret_goal": "Find the station logs before anyone else."
+}
+```
+
+### Active simulation slots
+
+Edit [`data/simulation_agents.json`](/d:/Python%20Projects/SiliconFrontier/data/simulation_agents.json).
+
+Each slot chooses which reusable definition participates in the current simulation and where that instance starts.
+
+- `slot_id`
+- `instance_id`
+- `definition_id`
 - `starting_location`
 - optional `inventory`
 
@@ -217,11 +263,9 @@ Example:
 
 ```json
 {
-  "agent_id": "new_agent",
-  "name": "New Agent",
-  "role": "research specialist",
-  "persona": "A cautious researcher with a habit of overexplaining.",
-  "secret_goal": "Find the station logs before anyone else.",
+  "slot_id": "slot_5",
+  "instance_id": "new_agent_instance",
+  "definition_id": "new_agent",
   "starting_location": "mess_hall",
   "inventory": []
 }
@@ -237,8 +281,21 @@ Each location should define:
 - `description`
 - `connected_to`
 - `status_effects`
+- optional `systems`
 
 Connections should be kept logically consistent. If `A` connects to `B`, add the reverse link too unless you intentionally want one-way travel semantics in the data.
+
+Example system block:
+
+```json
+"systems": {
+  "oxygen_generator": {
+    "name": "Oxygen Generator",
+    "status": "ONLINE",
+    "description": "A biological oxygen processing rig."
+  }
+}
+```
 
 ### Add or change items
 
@@ -253,6 +310,32 @@ Each item supports:
 - `portable`
 
 For baseline content, keep `owner` as `null` unless you intend the item to start in an agent inventory.
+
+## Rogue Agents
+
+The simulation supports an optional rogue-agent framework.
+
+- Set an agent definition's `archetype` to `saboteur` in [`data/agent_definitions.json`](/d:/Python%20Projects/SiliconFrontier/data/agent_definitions.json)
+- Add sabotagable `systems` to locations in [`data/world_state.json`](/d:/Python%20Projects/SiliconFrontier/data/world_state.json)
+- Use `perception` to control which agents are likely to receive covert suspicion memories
+
+Architecture notes:
+
+- `RogueAgent` is a specialized subclass of `FrontierAgent`
+- `SystemStatus` lives in each location's `systems` map
+- `SuspectMatrix` is implemented as a hidden suspicion layer inside the social model and world state
+
+Rogue mechanics:
+
+- `SABOTAGE` can break a local system by setting its status to `BROKEN`
+- `SABOTAGE` only succeeds when the saboteur is alone in the room
+- Saboteur prompts include a "mask" of helpful speech and a scapegoat-oriented internal reasoning pattern
+
+Dashboard support:
+
+- location editors can inspect and edit systems JSON
+- `Audit Tools` shows discrepancy alerts when apparently helpful public speech conflicts with deceptive monologue
+- `Proximity Log` records who was recently in a room before a system failure
 
 ## Operational Notes
 
@@ -316,7 +399,7 @@ The dashboard writes saves under a local `saves` directory relative to the proje
 
 For scenario design:
 
-1. Edit `data/world_state.json` and `data/agents_config.json`
+1. Edit `data/world_state.json`, [`data/agent_definitions.json`](/d:/Python%20Projects/SiliconFrontier/data/agent_definitions.json), and [`data/simulation_agents.json`](/d:/Python%20Projects/SiliconFrontier/data/simulation_agents.json)
 2. Start the dashboard
 3. Initialize with your model endpoint
 4. Run a few cycles

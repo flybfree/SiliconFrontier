@@ -53,6 +53,10 @@ class ActionParser:
             "SAY": self._handle_say,
             "PICKUP": self._handle_pickup,
             "DROP": self._handle_drop,
+            "GIVE": self._handle_give,
+            "DEMAND": self._handle_demand,
+            "LIE": self._handle_lie,
+            "SABOTAGE": self._handle_sabotage,
             "WAIT": self._handle_wait
         }
 
@@ -151,6 +155,109 @@ class ActionParser:
     def _handle_wait(self, agent, _, __) -> tuple[bool, str]:
         """Handle WAIT action."""
         return True, "You waited patiently for the next cycle."
+
+    @staticmethod
+    def _parse_social_target(target: str) -> tuple[str, str] | None:
+        """Parse an action target into (item, agent_id)."""
+        for separator in ["->", "|", "@", ":"]:
+            if separator in target:
+                item_part, agent_part = target.split(separator, 1)
+                item_name = item_part.strip()
+                agent_id = agent_part.strip()
+                if item_name and agent_id:
+                    return item_name, agent_id
+        return None
+
+    def _resolve_visible_agent(self, actor_id: str, target_agent_id: str):
+        """Resolve a target agent only if they are currently visible."""
+        visible = self.world.get_visible_agents(actor_id)
+        if target_agent_id not in visible:
+            return None
+        return self.world.agents.get(target_agent_id)
+
+    def _handle_give(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Handle GIVE action: GIVE item -> agent_id."""
+        parsed = self._parse_social_target(target)
+        if not parsed:
+            return False, "Failure: GIVE requires 'item -> agent_id'."
+
+        item_name, target_agent_id = parsed
+        if not self._resolve_visible_agent(agent.agent_id, target_agent_id):
+            return False, f"Failure: '{target_agent_id}' is not here to receive anything."
+
+        owned_items = self.world.find_items_by_owner(agent.agent_id)
+        matching_item = next(
+            (item for item in owned_items if item_name.lower() in item["name"].lower() or item["id"] == item_name),
+            None
+        )
+        if not matching_item:
+            owned = [item["name"] for item in owned_items]
+            return False, f"Failure: You are not carrying '{item_name}'. Carrying: {', '.join(owned) if owned else 'nothing'}."
+
+        if not self.world.transfer_item_between_agents(agent.agent_id, target_agent_id, matching_item["id"]):
+            return False, "Failure: The handoff did not complete."
+
+        return True, f"Success: You gave {matching_item['name']} to {target_agent_id}."
+
+    def _handle_demand(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Handle DEMAND action: DEMAND item -> agent_id."""
+        parsed = self._parse_social_target(target)
+        if not parsed:
+            return False, "Failure: DEMAND requires 'item -> agent_id'."
+
+        item_name, target_agent_id = parsed
+        if not self._resolve_visible_agent(agent.agent_id, target_agent_id):
+            return False, f"Failure: '{target_agent_id}' is not here."
+
+        held_items = self.world.find_items_by_owner(target_agent_id)
+        matching_item = next(
+            (item for item in held_items if item_name.lower() in item["name"].lower() or item["id"] == item_name),
+            None
+        )
+        if not matching_item:
+            return False, f"Failure: {target_agent_id} does not appear to be carrying '{item_name}'."
+
+        if not self.world.transfer_item_between_agents(target_agent_id, agent.agent_id, matching_item["id"]):
+            return False, "Failure: The demanded transfer did not complete."
+
+        return True, f"Success: You forced {target_agent_id} to hand over {matching_item['name']}."
+
+    def _handle_lie(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Handle LIE action as a flagged speech act."""
+        if not target or len(target.strip()) < 2:
+            return False, "Failure: You can't lie without saying anything."
+
+        return True, f"Success: You lied to everyone in the room: '{target}'."
+
+    def _handle_sabotage(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Handle SABOTAGE action on a local system."""
+        if getattr(agent, "archetype", "").lower() != "saboteur":
+            return False, "Failure: You are not equipped to perform sabotage."
+
+        current_loc = self.world.get_agent_location(agent.agent_id)
+        if not current_loc:
+            return False, "Failure: You don't know where you are."
+
+        if self.world.get_visible_agents(agent.agent_id):
+            return False, "Failure: Someone else is here. Sabotage would be too obvious."
+
+        systems_here = self.world.get_location_systems(current_loc)
+        matching_system_id = None
+        for system_id, system_data in systems_here.items():
+            system_name = system_data.get("name", system_id)
+            if target.lower() in system_name.lower() or system_id == target:
+                matching_system_id = system_id
+                break
+
+        if not matching_system_id:
+            available = [data.get("name", system_id) for system_id, data in systems_here.items()]
+            return False, f"Failure: No sabotagable system '{target}' here. Systems: {', '.join(available) if available else 'none'}."
+
+        if systems_here[matching_system_id].get("status") == "BROKEN":
+            return False, f"Failure: {matching_system_id} is already broken."
+
+        self.world.set_system_status(current_loc, matching_system_id, "BROKEN")
+        return True, f"Success: You disabled the {matching_system_id}."
 
     # Validation utilities for Orchestrator to use before executing actions
     @staticmethod

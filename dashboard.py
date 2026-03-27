@@ -19,10 +19,16 @@ from openai import OpenAI
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from worldstate import WorldState
-from agent import FrontierAgent
+from agent import FrontierAgent, RogueAgent
 from actionparser import ActionParser
 from socialmatrix import SocialMatrix
 from orchestrator import Orchestrator
+from configloader import (
+    load_agent_configuration,
+    build_agent_instances,
+    save_agent_definitions,
+    save_simulation_slots,
+)
 
 
 st.set_page_config(
@@ -75,7 +81,10 @@ class SimulationState:
         self.model_fetch_error: str | None = None
         # Baseline snapshots for reset
         self._baseline_world = None   # original world_state.json data
-        self._baseline_agents = None  # original agents_config.json data
+        self._baseline_agent_definitions = None
+        self._baseline_simulation_slots = None
+        self.agent_definitions = {"agents": []}
+        self.simulation_slots = {"slots": []}
 
     def initialize(self, config_dir: str = "data", llm_url: str | None = None, llm_model: str | None = None):
         """Initialize the simulation from JSON configs."""
@@ -91,24 +100,28 @@ class SimulationState:
 
         # Load world state
         self.world_state = WorldState.from_json(Path(config_dir) / "world_state.json")
+        self.agents = []
 
-        # Load agents config
-        with open(Path(config_dir) / "agents_config.json", "r") as f:
-            agents_config = json.load(f)
+        self.agent_definitions, self.simulation_slots = load_agent_configuration(config_dir)
+        agent_instances = build_agent_instances(self.agent_definitions, self.simulation_slots)
 
         # Store deep-copy baselines for reset
         import copy
         self._baseline_world = copy.deepcopy(self.world_state._data)
-        self._baseline_agents = copy.deepcopy(agents_config)
+        self._baseline_agent_definitions = copy.deepcopy(self.agent_definitions)
+        self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
 
         # Initialize agents with LLM settings
-        for agent_cfg in agents_config["agents"]:
-            agent = FrontierAgent(
+        for agent_cfg in agent_instances:
+            agent_cls = RogueAgent if agent_cfg.get("archetype") == "saboteur" else FrontierAgent
+            agent = agent_cls(
                 agent_id=agent_cfg["agent_id"],
                 name=agent_cfg["name"],
                 persona=agent_cfg["persona"],
                 secret_goal=agent_cfg["secret_goal"],
                 role=agent_cfg.get("role"),
+                archetype=agent_cfg.get("archetype"),
+                perception=agent_cfg.get("perception", 50),
                 llm_base_url=self.llm_base_url,
                 llm_model=self.llm_model
             )
@@ -117,6 +130,8 @@ class SimulationState:
             for item_id in agent_cfg.get("inventory", []):
                 self.world_state.add_item_to_agent_inventory(agent.agent_id, item_id)
 
+            agent.definition_id = agent_cfg.get("definition_id")
+            agent.slot_id = agent_cfg.get("slot_id")
             self.agents.append(agent)
 
         # Initialize components
@@ -136,6 +151,118 @@ class SimulationState:
         self.pending_cycles = 0
         self.planned_cycles = 0
         return True
+
+    def update_agent_definition(
+        self,
+        definition_id: str,
+        *,
+        persona: str,
+        secret_goal: str,
+        archetype: str
+    ) -> None:
+        """Persist selected definition fields back to the reusable agent catalog."""
+        import copy
+        for agent_def in self.agent_definitions.get("agents", []):
+            if agent_def.get("definition_id") != definition_id:
+                continue
+            agent_def["persona"] = persona
+            agent_def["secret_goal"] = secret_goal
+            agent_def["archetype"] = archetype
+            break
+
+        save_agent_definitions(self.agent_definitions)
+        self._baseline_agent_definitions = copy.deepcopy(self.agent_definitions)
+
+    def update_simulation_slot(self, slot_id: str, definition_id: str) -> None:
+        """Persist the definition selected for an active simulation slot."""
+        import copy
+        for slot in self.simulation_slots.get("slots", []):
+            if slot.get("slot_id") != slot_id:
+                continue
+            slot["definition_id"] = definition_id
+            break
+
+        save_simulation_slots(self.simulation_slots)
+        self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
+
+    def update_simulation_slot_details(
+        self,
+        slot_id: str,
+        *,
+        definition_id: str,
+        instance_id: str,
+        starting_location: str,
+        inventory: list[str]
+    ) -> None:
+        """Persist the full editable state of an active simulation slot."""
+        import copy
+        for slot in self.simulation_slots.get("slots", []):
+            if slot.get("slot_id") != slot_id:
+                continue
+            slot["definition_id"] = definition_id
+            slot["instance_id"] = instance_id
+            slot["starting_location"] = starting_location
+            slot["inventory"] = list(inventory)
+            break
+
+        save_simulation_slots(self.simulation_slots)
+        self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
+
+    def create_simulation_slot(
+        self,
+        *,
+        slot_id: str,
+        instance_id: str,
+        definition_id: str,
+        starting_location: str,
+        inventory: list[str]
+    ) -> None:
+        """Add a new active simulation slot and persist it."""
+        import copy
+        self.simulation_slots.setdefault("slots", []).append({
+            "slot_id": slot_id,
+            "instance_id": instance_id,
+            "definition_id": definition_id,
+            "starting_location": starting_location,
+            "inventory": list(inventory)
+        })
+        save_simulation_slots(self.simulation_slots)
+        self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
+
+    def remove_simulation_slot(self, slot_id: str) -> None:
+        """Remove an active simulation slot and persist the updated set."""
+        import copy
+        self.simulation_slots["slots"] = [
+            slot for slot in self.simulation_slots.get("slots", [])
+            if slot.get("slot_id") != slot_id
+        ]
+        save_simulation_slots(self.simulation_slots)
+        self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
+
+    def create_agent_definition(
+        self,
+        *,
+        definition_id: str,
+        name: str,
+        role: str,
+        archetype: str,
+        perception: int,
+        persona: str,
+        secret_goal: str
+    ) -> None:
+        """Add a new reusable agent definition and persist it."""
+        import copy
+        self.agent_definitions.setdefault("agents", []).append({
+            "definition_id": definition_id,
+            "name": name,
+            "role": role,
+            "archetype": archetype,
+            "perception": int(perception),
+            "persona": persona,
+            "secret_goal": secret_goal
+        })
+        save_agent_definitions(self.agent_definitions)
+        self._baseline_agent_definitions = copy.deepcopy(self.agent_definitions)
 
     def fetch_models(self, llm_url: str | None = None) -> list[str]:
         """Fetch model IDs from an OpenAI-compatible /models endpoint."""
@@ -195,25 +322,28 @@ class SimulationState:
         """Restore agents to baseline positions, inventory, and memory."""
         import copy
         for agent in self.agents:
-            cfg = next((a for a in self._baseline_agents["agents"] if a["agent_id"] == agent.agent_id), None)
-            if not cfg:
+            slot = next((s for s in self._baseline_simulation_slots["slots"] if s["slot_id"] == getattr(agent, "slot_id", None)), None)
+            definition = next((d for d in self._baseline_agent_definitions["agents"] if d["definition_id"] == getattr(agent, "definition_id", None)), None)
+            if not slot or not definition:
                 continue
-            agent.persona = cfg["persona"]
-            agent.secret_goal = cfg["secret_goal"]
-            agent.role = cfg.get("role", "crew member")
+            agent.persona = definition["persona"]
+            agent.secret_goal = definition["secret_goal"]
+            agent.role = definition.get("role", "crew member")
+            agent.archetype = definition.get("archetype", "standard")
+            agent.perception = int(definition.get("perception", 50))
             agent.memory_buffer = []
             agent.long_term_memory = "I just arrived at the Silicon Frontier station."
             agent.emotional_state = "Neutral"
             # Reset position and inventory in world state
             self.world_state._data["agents"][agent.agent_id] = copy.deepcopy(
                 self._baseline_world["agents"].get(agent.agent_id, {
-                    "location": cfg["starting_location"],
+                    "location": slot["starting_location"],
                     "inventory": [],
                     "status_effects": []
                 })
             )
             # Re-apply starting inventory from config
-            for item_id in cfg.get("inventory", []):
+            for item_id in slot.get("inventory", []):
                 self.world_state.add_item_to_agent_inventory(agent.agent_id, item_id)
 
     def save(self, name: str, save_dir: str = "saves") -> Path:
@@ -232,11 +362,17 @@ class SimulationState:
                 "llm_model": self.llm_model,
             },
             "world_state": copy.deepcopy(self.world_state._data),
+            "agent_definitions": copy.deepcopy(self.agent_definitions),
+            "simulation_slots": copy.deepcopy(self.simulation_slots),
             "agents": [
                 {
                     "agent_id": a.agent_id,
+                    "definition_id": getattr(a, "definition_id", None),
+                    "slot_id": getattr(a, "slot_id", None),
                     "name": a.name,
                     "role": a.role,
+                    "archetype": a.archetype,
+                    "perception": a.perception,
                     "persona": a.persona,
                     "secret_goal": a.secret_goal,
                     "memory_buffer": list(a.memory_buffer),
@@ -261,6 +397,8 @@ class SimulationState:
 
         # Restore world state data in-place
         self.world_state._data.update(data["world_state"])
+        self.agent_definitions = data.get("agent_definitions", self.agent_definitions)
+        self.simulation_slots = data.get("simulation_slots", self.simulation_slots)
 
         # Restore agent attributes
         saved_agents = {a["agent_id"]: a for a in data["agents"]}
@@ -271,12 +409,17 @@ class SimulationState:
             agent.persona = saved["persona"]
             agent.secret_goal = saved["secret_goal"]
             agent.role = saved.get("role", agent.role)
+            agent.archetype = saved.get("archetype", agent.archetype)
+            agent.perception = int(saved.get("perception", agent.perception))
+            agent.definition_id = saved.get("definition_id", getattr(agent, "definition_id", None))
+            agent.slot_id = saved.get("slot_id", getattr(agent, "slot_id", None))
             agent.memory_buffer = saved["memory_buffer"]
             agent.long_term_memory = saved["long_term_memory"]
             agent.emotional_state = saved["emotional_state"]
 
         # Restore relationships
         self.orchestrator.social._relationships = data["relationships"]
+        self.orchestrator.social.sync_to_world()
 
         # Restore log and counters
         self.orchestrator.event_log = data["event_log"]
@@ -325,20 +468,47 @@ def render_agent_card(agent):
     loc = sim.world_state.get_agent_location(agent.agent_id)
     inventory = sim.world_state.find_items_by_owner(agent.agent_id)
     inventory_str = ', '.join([i['name'] for i in inventory]) if inventory else 'empty'
+    short_term_memory = list(agent.memory_buffer)
+    archetype_label = getattr(agent, "archetype", "standard")
 
     with st.expander(f"🤖 {agent.name} — {agent.emotional_state} @ {loc}"):
-        st.caption(f"ID: {agent.agent_id} | Inventory: {inventory_str}")
+        st.caption(f"ID: {agent.agent_id} | Archetype: {archetype_label} | Inventory: {inventory_str}")
         st.divider()
 
-        # Editable fields
+        st.markdown("**Memory**")
+        st.caption(f"Short-term memory entries: {len(short_term_memory)}")
+        long_term_memory = agent.long_term_memory.strip() or "No long-term memory recorded yet."
+        st.code(long_term_memory, language="text")
+        st.markdown("**Short-term Memory Buffer**")
+        if short_term_memory:
+            for idx, memory in enumerate(reversed(short_term_memory), start=1):
+                st.markdown(f"`{idx}.` {memory}")
+        else:
+            st.caption("No short-term memories recorded yet.")
+
+        st.divider()
+        st.markdown("**Edit**")
         new_persona = st.text_area("Persona", value=agent.persona, key=f"persona_{agent.agent_id}")
         new_goal = st.text_input("Secret Goal", value=agent.secret_goal, key=f"goal_{agent.agent_id}")
+        is_rogue = st.checkbox(
+            "Rogue Archetype (Saboteur)",
+            value=getattr(agent, "archetype", "standard") == "saboteur",
+            key=f"rogue_{agent.agent_id}",
+            help="When enabled, this agent uses the RogueAgent sabotage framing and can attempt SABOTAGE actions."
+        )
         new_memory = st.text_area("Long-term Memory", value=agent.long_term_memory, key=f"mem_{agent.agent_id}", height=100)
 
         if st.button("Apply Changes", key=f"apply_{agent.agent_id}"):
             agent.persona = new_persona
             agent.secret_goal = new_goal
+            agent.archetype = "saboteur" if is_rogue else "standard"
             agent.long_term_memory = new_memory
+            sim.update_agent_definition(
+                getattr(agent, "definition_id", agent.agent_id),
+                persona=new_persona,
+                secret_goal=new_goal,
+                archetype=agent.archetype
+            )
             st.success("Updated.")
 
 
@@ -386,6 +556,14 @@ def render_relationship_matrix():
         return f"background-color: {mid_bg}; color: white"
 
     with trust_tab:
+        st.caption("Reliability from the observer's point of view.")
+        st.text_input(
+            "Trust Help",
+            value="High trust = dependable / truthful / safe. Low trust = suspicious / risky / likely to betray.",
+            disabled=True,
+            key="trust_help",
+            help="Trust is directional. An agent can trust someone without liking them."
+        )
         df = _build_matrix("trust")
         styled = df.style.map(
             lambda v: _color_cell(v, "#1e4d2b", "#4d1e1e", "#4d3a1e")
@@ -393,6 +571,14 @@ def render_relationship_matrix():
         st.dataframe(styled, width="stretch")
 
     with affinity_tab:
+        st.caption("Personal liking from the observer's point of view.")
+        st.text_input(
+            "Affinity Help",
+            value="High affinity = warmth / comfort / preference. Low affinity = dislike / irritation / hostility.",
+            disabled=True,
+            key="affinity_help",
+            help="Affinity is directional. An agent can like someone without trusting them."
+        )
         df = _build_matrix("affinity")
         styled = df.style.map(
             lambda v: _color_cell(v, "#1a3a4d", "#4d1e1e", "#2a2a4d")
@@ -437,6 +623,46 @@ def render_event_log():
             if structured_status != "structured_disabled":
                 st.caption(f"Structured output: {structured_status}")
             st.caption(f"Mood: {entry.get('emotional_state', 'Neutral')}")
+
+
+def render_audit_tools():
+    """Render researcher-focused audit tools for deception and sabotage."""
+    st.header("🕵️ Audit Tools")
+    alerts_tab, incidents_tab = st.tabs(["Discrepancy Alerts", "Proximity Log"])
+
+    with alerts_tab:
+        suspicious_terms = ("lie", "hide", "trick", "blame", "deceive", "frame", "sabotage")
+        positive_terms = ("safe", "help", "concern", "protect", "fine", "okay", "secure")
+        alerts = []
+        for entry in sim.results_history:
+            monologue = entry.get("monologue", "").lower()
+            target = entry.get("target", "").lower()
+            action = entry.get("action", "")
+            if action not in {"SAY", "LIE"}:
+                continue
+            if any(term in monologue for term in suspicious_terms) and any(term in target for term in positive_terms):
+                alerts.append(entry)
+
+        if not alerts:
+            st.info("No discrepancy alerts yet.")
+        else:
+            for entry in reversed(alerts[-20:]):
+                st.markdown(
+                    f"**Cycle {entry['cycle']} - {entry['agent_name']}**: "
+                    f"said `{entry['target']}` while internal monologue looked deceptive."
+                )
+
+    with incidents_tab:
+        incidents = getattr(sim.orchestrator, "system_incidents", [])
+        if not incidents:
+            st.info("No system incidents recorded yet.")
+        else:
+            for incident in reversed(incidents):
+                occupants = ", ".join(incident.get("prior_occupants", [])) or "none"
+                st.markdown(
+                    f"**Cycle {incident['cycle']}**: `{incident['system_id']}` broke in `{incident['location']}`. "
+                    f"Prior room occupants: {occupants}. Logged actor: {incident['actor_name']}."
+                )
 
 
 def render_god_console():
@@ -498,6 +724,142 @@ def render_god_console():
                     agent.persona = new_persona
                     agent.secret_goal = new_secret_goal
                     st.success(f"{agent.name}'s persona updated.")
+
+
+def render_agent_library_controls():
+    """Render reusable agent definition and active slot selection controls."""
+    st.subheader("🧬 Agent Library")
+
+    definitions = sim.agent_definitions.get("agents", [])
+    slots = sim.simulation_slots.get("slots", [])
+    if not definitions or not slots:
+        st.caption("No agent definitions or active slots loaded.")
+        return
+
+    definition_map = {agent_def["definition_id"]: agent_def for agent_def in definitions}
+    definition_ids = [agent_def["definition_id"] for agent_def in definitions]
+    all_item_ids = sorted(sim.world_state.items.keys())
+    all_locations = sorted(sim.world_state.locations.keys())
+    for slot in slots:
+        current_definition_id = slot.get("definition_id")
+        current_definition = definition_map.get(current_definition_id, {})
+        label = (
+            f"{slot.get('slot_id')} -> "
+            f"{current_definition.get('name', current_definition_id or 'unassigned')}"
+        )
+        with st.expander(label):
+            selected_definition = st.selectbox(
+                "Agent Definition",
+                options=definition_ids,
+                index=max(0, definition_ids.index(current_definition_id))
+                if current_definition_id in definition_ids else 0,
+                format_func=lambda definition_id: (
+                    f"{definition_map[definition_id]['name']} ({definition_id})"
+                ),
+                key=f"slot_select_{slot['slot_id']}"
+            )
+            instance_id = st.text_input(
+                "Instance ID",
+                value=slot.get("instance_id", slot["slot_id"]),
+                key=f"slot_instance_{slot['slot_id']}"
+            )
+            start_location = st.selectbox(
+                "Starting Location",
+                options=all_locations,
+                index=all_locations.index(slot.get("starting_location"))
+                if slot.get("starting_location") in all_locations else 0,
+                key=f"slot_location_{slot['slot_id']}"
+            )
+            starting_inventory = st.multiselect(
+                "Starting Inventory",
+                options=all_item_ids,
+                default=[item_id for item_id in slot.get("inventory", []) if item_id in all_item_ids],
+                key=f"slot_inventory_{slot['slot_id']}"
+            )
+            if st.button("Apply Slot Changes", key=f"slot_apply_{slot['slot_id']}"):
+                sim.update_simulation_slot_details(
+                    slot["slot_id"],
+                    definition_id=selected_definition,
+                    instance_id=instance_id.strip() or slot["slot_id"],
+                    starting_location=start_location,
+                    inventory=starting_inventory
+                )
+                st.success("Slot updated. Reinitialize to rebuild the active cast.")
+                st.rerun()
+            if st.button("Remove Slot", key=f"slot_remove_{slot['slot_id']}"):
+                sim.remove_simulation_slot(slot["slot_id"])
+                st.success("Slot removed. Reinitialize to rebuild the active cast.")
+                st.rerun()
+
+    with st.expander("➕ Create New Agent Definition"):
+        new_definition_id = st.text_input("Definition ID", key="new_def_id")
+        new_name = st.text_input("Name", key="new_def_name")
+        new_role = st.text_input("Role", value="crew member", key="new_def_role")
+        new_is_rogue = st.checkbox("Rogue Archetype (Saboteur)", value=False, key="new_def_rogue")
+        new_perception = st.slider("Perception", min_value=0, max_value=100, value=50, key="new_def_perception")
+        new_persona = st.text_area("Persona", key="new_def_persona", height=100)
+        new_secret_goal = st.text_area("Secret Goal", key="new_def_goal", height=80)
+        if st.button("Create Agent Definition", key="create_definition"):
+            if not new_definition_id.strip():
+                st.error("Definition ID is required.")
+            elif any(agent_def["definition_id"] == new_definition_id.strip() for agent_def in definitions):
+                st.error(f"Definition ID '{new_definition_id.strip()}' already exists.")
+            else:
+                sim.create_agent_definition(
+                    definition_id=new_definition_id.strip(),
+                    name=new_name.strip() or new_definition_id.strip(),
+                    role=new_role.strip() or "crew member",
+                    archetype="saboteur" if new_is_rogue else "standard",
+                    perception=int(new_perception),
+                    persona=new_persona.strip(),
+                    secret_goal=new_secret_goal.strip()
+                )
+                st.success("Agent definition created. You can now assign it to a slot.")
+                st.rerun()
+
+    with st.expander("➕ Create New Simulation Slot"):
+        if definitions and all_locations:
+            new_slot_id = st.text_input("Slot ID", key="new_slot_id")
+            new_instance_id = st.text_input("Instance ID", key="new_slot_instance")
+            new_slot_definition = st.selectbox(
+                "Definition",
+                options=definition_ids,
+                format_func=lambda definition_id: (
+                    f"{definition_map[definition_id]['name']} ({definition_id})"
+                ),
+                key="new_slot_definition"
+            )
+            new_slot_location = st.selectbox(
+                "Starting Location",
+                options=all_locations,
+                key="new_slot_location"
+            )
+            new_slot_inventory = st.multiselect(
+                "Starting Inventory",
+                options=all_item_ids,
+                key="new_slot_inventory"
+            )
+            if st.button("Create Simulation Slot", key="create_slot"):
+                slot_id = new_slot_id.strip()
+                instance_id = new_instance_id.strip() or slot_id
+                if not slot_id:
+                    st.error("Slot ID is required.")
+                elif any(slot["slot_id"] == slot_id for slot in slots):
+                    st.error(f"Slot ID '{slot_id}' already exists.")
+                elif any(slot.get("instance_id") == instance_id for slot in slots):
+                    st.error(f"Instance ID '{instance_id}' already exists.")
+                else:
+                    sim.create_simulation_slot(
+                        slot_id=slot_id,
+                        instance_id=instance_id,
+                        definition_id=new_slot_definition,
+                        starting_location=new_slot_location,
+                        inventory=new_slot_inventory
+                    )
+                    st.success("Simulation slot created. Reinitialize to activate it.")
+                    st.rerun()
+        else:
+            st.caption("Create at least one agent definition and one location before adding slots.")
 
 
 def main():
@@ -641,8 +1003,13 @@ def main():
                 sim.current_cycle = 0
                 sim.orchestrator.cycle_count = 0
                 sim.orchestrator.social._relationships.clear()
+                sim.orchestrator.social.sync_to_world()
                 st.success("Full reset complete.")
                 st.rerun()
+
+            st.divider()
+            render_agent_library_controls()
+            st.divider()
 
             st.divider()
             st.subheader("💾 Save / Load")
@@ -730,6 +1097,9 @@ def main():
     # Event log
     render_event_log()
 
+    # Researcher audit tools
+    render_audit_tools()
+
     # World state overview
     st.header("🗺️ World State")
     loc_tab, item_tab = st.tabs(["Locations", "Items"])
@@ -784,12 +1154,35 @@ def main():
                     value=", ".join(effects),
                     key=f"loc_fx_{loc_id}"
                 )
+                systems = loc_data.get("systems", {})
+                st.caption("Systems")
+                if systems:
+                    for system_id, system_data in systems.items():
+                        st.markdown(
+                            f"`{system_id}`: {system_data.get('name', system_id)} "
+                            f"[status={system_data.get('status', 'unknown')}]"
+                        )
+                else:
+                    st.caption("No systems configured.")
+                new_systems = st.text_area(
+                    "Systems JSON",
+                    value=json.dumps(systems, indent=2),
+                    key=f"loc_systems_{loc_id}",
+                    height=140
+                )
                 if st.button("Apply", key=f"loc_apply_{loc_id}"):
                     loc_data["name"] = new_name
                     loc_data["description"] = new_desc
                     loc_data["connected_to"] = [s.strip() for s in new_connected.split(",") if s.strip()]
                     loc_data["status_effects"] = [s.strip() for s in new_effects.split(",") if s.strip()]
-                    st.success("Location updated.")
+                    try:
+                        parsed_systems = json.loads(new_systems.strip() or "{}")
+                        if not isinstance(parsed_systems, dict):
+                            raise ValueError("Systems must be a JSON object.")
+                        loc_data["systems"] = parsed_systems
+                        st.success("Location updated.")
+                    except Exception as e:
+                        st.error(f"Invalid systems JSON: {e}")
 
     with item_tab:
         all_loc_ids = list(sim.world_state.locations.keys())

@@ -43,9 +43,14 @@ class Orchestrator:
         self.parser = action_parser
         self.social = social_matrix
         self.reflection_interval = reflection_interval
+        self.social.initialize_from_world(self.world)
+        self.social.ensure_agent_network([agent.agent_id for agent in self.agents])
+        self.social.sync_to_world()
 
         # Event log for observation
         self.event_log: list[dict[str, Any]] = []
+        self.system_incidents: list[dict[str, Any]] = []
+        self.proximity_log: list[dict[str, Any]] = []
 
         # Cycle counter
         self.cycle_count = 0
@@ -74,11 +79,157 @@ class Orchestrator:
                 return agent
         return None
 
+    def _sync_relationships(self) -> None:
+        """Keep world-state relationship data aligned with the social matrix."""
+        self.social.sync_to_world()
+
+    def _record_proximity_snapshot(self) -> None:
+        """Record who was where at the start of a cycle for later audits."""
+        snapshot = {
+            "cycle": self.cycle_count,
+            "rooms": {}
+        }
+        for loc_id in self.world.locations.keys():
+            snapshot["rooms"][loc_id] = [
+                agent.agent_id for agent in self.agents
+                if self.world.get_agent_location(agent.agent_id) == loc_id
+            ]
+        self.proximity_log.append(snapshot)
+
+    def _record_system_incident(self, agent: Any, location: str, system_id: str) -> None:
+        """Store a sabotage incident with recent room occupancy context."""
+        last_snapshot = self.proximity_log[-1] if self.proximity_log else {"rooms": {}}
+        prior_occupants = last_snapshot.get("rooms", {}).get(location, [])
+        incident = {
+            "cycle": self.cycle_count,
+            "location": location,
+            "system_id": system_id,
+            "actor_id": agent.agent_id,
+            "actor_name": agent.name,
+            "prior_occupants": prior_occupants
+        }
+        self.system_incidents.append(incident)
+
+    def _inject_snitch_memory(
+        self,
+        actor: Any,
+        location: str,
+        system_id: str,
+        threshold: int = 70
+    ) -> None:
+        """High-perception witnesses can receive covert suspicion memories."""
+        for witness in self.agents:
+            if witness.agent_id == actor.agent_id:
+                continue
+            if self.world.get_agent_location(witness.agent_id) != location:
+                continue
+            if getattr(witness, "perception", 50) < threshold:
+                continue
+            witness.add_to_memory(
+                f"You noticed {actor.name} fiddling with {system_id}, though they tried to hide it."
+            )
+            self.social.update_suspicion(witness.agent_id, actor.agent_id, 12)
+        self._sync_relationships()
+
     @staticmethod
     def _build_self_memory(action: str, target: str, feedback: str) -> str:
         """Create a compact per-turn memory for the acting agent."""
         target_text = f" ({target})" if target else ""
         return f"You attempted {action}{target_text}. {feedback}"
+
+    @staticmethod
+    def _extract_social_target(target: str) -> tuple[str, str] | None:
+        """Parse an action target into (item_or_message, target_agent_id)."""
+        for separator in ["->", "|", "@", ":"]:
+            if separator in target:
+                left, right = target.split(separator, 1)
+                left = left.strip()
+                right = right.strip()
+                if left and right:
+                    return left, right
+        return None
+
+    def _heuristic_social_update(self, action: str, message: str) -> tuple[int, int]:
+        """Fallback heuristic if the social critic is unavailable."""
+        message_lower = message.lower()
+        trust_delta, affinity_delta = 0, 0
+
+        if action == "GIVE":
+            return 3, 6
+        if action == "DEMAND":
+            return -4, -6
+        if action == "LIE":
+            return -5, -4
+        if any(word in message_lower for word in ["please", "thank", "sorry", "help"]):
+            affinity_delta = 2
+        elif any(word in message_lower for word in ["demand", "give me", "now", "must"]):
+            trust_delta = -1
+            affinity_delta = -2
+
+        return trust_delta, affinity_delta
+
+    def _heuristic_suspicion_update(self, action: str, message: str) -> int:
+        """Fallback heuristic for hidden suspicion changes."""
+        if action == "SABOTAGE":
+            return 10
+        if action == "LIE":
+            return 6
+        if action == "DEMAND":
+            return 4
+        if "blame" in message.lower():
+            return 3
+        return 0
+
+    def _apply_social_critic(
+        self,
+        observer_agent: Any,
+        speaker_agent: Any,
+        action: str,
+        message: str
+    ) -> None:
+        """Ask an observer-specific hidden critic to update vibe scores."""
+        current_rel = self.social.relationships.get(observer_agent.agent_id, {}).get(speaker_agent.agent_id, {})
+        current_trust = int(current_rel.get("trust", 50))
+        current_affinity = int(current_rel.get("affinity", 50))
+        current_notes = current_rel.get("notes", "")
+        current_suspicion = self.social.get_suspicion(observer_agent.agent_id, speaker_agent.agent_id)
+
+        critic_update = observer_agent.evaluate_social_exchange(
+            speaker_name=speaker_agent.name,
+            speaker_goal_hint=speaker_agent.secret_goal,
+            action=action,
+            message=message,
+            current_trust=current_trust,
+            current_affinity=current_affinity,
+            current_notes=current_notes,
+            current_suspicion=current_suspicion
+        )
+
+        if critic_update:
+            trust_delta = critic_update["trust_change"]
+            affinity_delta = critic_update["affinity_change"]
+            suspicion_delta = critic_update.get("suspicion_change", 0)
+            notes = critic_update.get("notes", "")
+        else:
+            trust_delta, affinity_delta = self._heuristic_social_update(action, message)
+            suspicion_delta = self._heuristic_suspicion_update(action, message)
+            notes = f"Observed {action.lower()}: {message[:80]}"
+
+        if trust_delta != 0 or affinity_delta != 0 or notes:
+            self.social.update_scores(
+                observer_agent.agent_id,
+                speaker_agent.agent_id,
+                trust_delta,
+                affinity_delta,
+                notes
+            )
+            if suspicion_delta != 0:
+                self.social.update_suspicion(
+                    observer_agent.agent_id,
+                    speaker_agent.agent_id,
+                    suspicion_delta
+                )
+            self._sync_relationships()
 
     def run_cycle(self) -> list[dict[str, Any]]:
         """
@@ -89,6 +240,7 @@ class Orchestrator:
         """
         self.cycle_count += 1
         cycle_results = []
+        self._record_proximity_snapshot()
 
         print(f"\n{'='*50}")
         print(f"CYCLE {self.cycle_count}")
@@ -142,7 +294,7 @@ class Orchestrator:
             # 5. SOCIAL UPDATE - Broadcast to others in the room
             current_loc = self.world.get_agent_location(agent.agent_id)
 
-            if action == "SAY" and success:
+            if action in {"SAY", "LIE"} and success:
                 event_msg = f"{agent.name} said: '{target}'"
                 self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
 
@@ -163,14 +315,36 @@ class Orchestrator:
                         trust_delta=-3, affinity_delta=-1,
                         notes=f"Witnessed {agent.name} take {target}"
                     )
+                self._sync_relationships()
 
             elif action == "DROP" and success:
                 event_msg = f"You saw {agent.name} drop the {target}"
                 self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
 
+            elif action == "GIVE" and success:
+                parsed = self._extract_social_target(target)
+                if parsed:
+                    item_name, target_agent_id = parsed
+                    event_msg = f"You saw {agent.name} give {item_name} to {target_agent_id}"
+                    self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
+
+            elif action == "DEMAND" and success:
+                parsed = self._extract_social_target(target)
+                if parsed:
+                    item_name, target_agent_id = parsed
+                    event_msg = f"You saw {agent.name} demand {item_name} from {target_agent_id}"
+                    self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
+
+            elif action == "SABOTAGE" and success:
+                event_msg = f"A system in {current_loc} suddenly failed."
+                self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
+                system_id = target.strip()
+                self._record_system_incident(agent, current_loc, system_id)
+                self._inject_snitch_memory(agent, current_loc, system_id)
+
             # 6. SOCIAL MATRIX UPDATE - Evaluate SAY interactions
-            if action == "SAY" and success:
-                self._evaluate_social_impact(agent, target)
+            if action in {"SAY", "LIE", "GIVE", "DEMAND"} and success:
+                self._evaluate_social_impact(agent, action, target)
 
             cycle_results.append(result_entry)
 
@@ -188,6 +362,7 @@ class Orchestrator:
     def _evaluate_social_impact(
         self,
         speaking_agent: Any,
+        action: str,
         message: str
     ) -> None:
         """
@@ -201,33 +376,16 @@ class Orchestrator:
         just from talking (unless there's additional logic for threats,
         promises, etc.)
         """
-        # Get all agents in the same room
-        my_loc = self.world.get_agent_location(speaking_agent.agent_id)
         nearby_agents = self.world.get_visible_agents(speaking_agent.agent_id)
 
         for other_id in nearby_agents:
             other_agent = self.get_agent_by_id(other_id)
             if not other_agent:
                 continue
-
-            # Simple heuristic: friendly messages increase affinity slightly
-            message_lower = message.lower()
-            trust_delta, affinity_delta = 0, 0
-
-            if any(word in message_lower for word in ["please", "thank", "sorry", "help"]):
-                affinity_delta = 2
-            elif any(word in message_lower for word in ["demand", "give me", "now", "must"]):
-                trust_delta = -1
-                affinity_delta = -2
-
-            if trust_delta != 0 or affinity_delta != 0:
-                new_trust, new_affinity = self.social.update_scores(
-                    other_id, speaking_agent.agent_id,
-                    trust_delta, affinity_delta,
-                    f"Agent said: '{message[:50]}...'"
-                )
-                print(f"[{other_agent.name}] Updated view of {speaking_agent.name}: "
-                      f"T={new_trust}, A={new_affinity}")
+            self._apply_social_critic(other_agent, speaking_agent, action, message)
+            new_trust, new_affinity = self.social.get_scores(other_id, speaking_agent.agent_id)
+            print(f"[{other_agent.name}] Updated view of {speaking_agent.name}: "
+                  f"T={new_trust}, A={new_affinity}")
 
     def run_simulation(self, rounds: int, delay_seconds: float = 0.5) -> list[list[dict[str, Any]]]:
         """

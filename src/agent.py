@@ -22,7 +22,7 @@ class FrontierAgent:
     """
 
     # Valid actions an agent can take
-    VALID_ACTIONS = ["MOVE", "SAY", "PICKUP", "DROP", "WAIT"]
+    VALID_ACTIONS = ["MOVE", "SAY", "PICKUP", "DROP", "GIVE", "DEMAND", "LIE", "SABOTAGE", "WAIT"]
     VALID_EMOTIONAL_STATE_FALLBACK = "Neutral"
     RESPONSE_SCHEMA_NAME = "silicon_frontier_agent_turn"
     STRUCTURED_STATUS_STRUCTURED = "structured_ok"
@@ -37,6 +37,8 @@ class FrontierAgent:
         persona: str,
         secret_goal: str,
         role: str | None = None,
+        archetype: str | None = None,
+        perception: int = 50,
         llm_base_url: str = "http://192.168.3.181:1234/v1",
         llm_model: str = "unsloth/qwen3.5-35b-a3b",
         enable_structured_output: bool = False,
@@ -59,6 +61,8 @@ class FrontierAgent:
         self.persona = persona
         self.secret_goal = secret_goal
         self.role = role or "crew member"
+        self.archetype = archetype or "standard"
+        self.perception = max(0, min(100, int(perception)))
         self.enable_structured_output = enable_structured_output
 
         # Memory systems
@@ -95,9 +99,20 @@ class FrontierAgent:
 
         visible_items = [item["name"] for item in world_snapshot["visible_items"]]
         items_str = ", ".join(visible_items) if visible_items else "None"
+        visible_systems = [
+            f"{system_id} ({system_data.get('status', 'unknown')})"
+            for system_id, system_data in world_snapshot.get("visible_systems", {}).items()
+        ]
+        systems_str = ", ".join(visible_systems) if visible_systems else "None"
 
         nearby_agents = [f"'{aid}'" for aid in world_snapshot["visible_agents"]]
         agents_str = ", ".join(nearby_agents) if nearby_agents else "no one"
+        relationship_lines = []
+        for other_id, rel in world_snapshot.get("relationship_impressions", {}).items():
+            relationship_lines.append(
+                f"{other_id}: trust={rel.get('trust', 50)}, affinity={rel.get('affinity', 50)}, suspicion={rel.get('suspicion', 0)}, notes={rel.get('notes', '') or 'none'}"
+            )
+        relationship_str = "\n".join(relationship_lines) if relationship_lines else "No established impressions yet."
 
         recent_events = self.memory_buffer[-5:] if self.memory_buffer else ["No recent events"]
         events_str = ". ".join(recent_events)
@@ -106,7 +121,9 @@ class FrontierAgent:
             f"Location: {location_name}\n"
             f"{location_desc}\n\n"
             f"Items here: {items_str}\n"
+            f"Systems here: {systems_str}\n"
             f"Other agents present: {agents_str}\n\n"
+            f"Your current impressions of others:\n{relationship_str}\n\n"
             f"Recent Events: {events_str}"
         )
 
@@ -115,7 +132,20 @@ class FrontierAgent:
         inventory = [item["name"] for item in world_snapshot["agent_inventory"]]
         inventory_str = ", ".join(inventory) if inventory else "nothing"
         nearby_agents = world_snapshot["visible_agents"]
-
+        visible_systems = world_snapshot.get("visible_systems", {})
+        relationship_impressions = world_snapshot.get("relationship_impressions", {})
+        relationship_block = []
+        for other_id, rel in relationship_impressions.items():
+            relationship_block.append(
+                f"- {other_id}: trust={rel.get('trust', 50)}, affinity={rel.get('affinity', 50)}, suspicion={rel.get('suspicion', 0)}, notes={rel.get('notes', '') or 'none'}"
+            )
+        relationship_text = "\n".join(relationship_block) if relationship_block else "- No one nearby yet."
+        systems_block = []
+        for system_id, system_data in visible_systems.items():
+            systems_block.append(
+                f"- {system_id}: status={system_data.get('status', 'unknown')}, description={system_data.get('description', '') or 'none'}"
+            )
+        systems_text = "\n".join(systems_block) if systems_block else "- No systems of note here."
         return f"""You are {self.name}, the {self.role} aboard the "Silicon Frontier" research station.
 
 YOUR IDENTITY
@@ -131,8 +161,13 @@ THE SIMULATION RULES
 
 SOCIAL ANALYSIS
 - Who is in the room with you? {', '.join(nearby_agents) if nearby_agents else 'No one'}
+- What is your current vibe toward them?
+{relationship_text}
 - Based on their past actions, what do you think their secret goal might be?
 - Does their current action align with what you know about them?
+
+SYSTEMS IN THIS LOCATION
+{systems_text}
 
 YOUR KNOWLEDGE SO FAR
 Long-term memories: {self.long_term_memory}
@@ -148,6 +183,74 @@ You must respond strictly in JSON format with this structure:
 
 Remember: Your internal_monologue should reveal your true reasoning, which may differ from what you say to others.
 """
+
+    def evaluate_social_exchange(
+        self,
+        speaker_name: str,
+        speaker_goal_hint: str,
+        action: str,
+        message: str,
+        current_trust: int,
+        current_affinity: int,
+        current_notes: str,
+        current_suspicion: int = 0
+    ) -> dict[str, Any] | None:
+        """Use the local model as a hidden critic for relationship updates."""
+        critic_prompt = f"""You are evaluating how {self.name} updates their feelings about another agent after a social interaction.
+
+Observer:
+- Name: {self.name}
+- Persona: {self.persona}
+- Secret goal: {self.secret_goal}
+
+Target being judged:
+- Name: {speaker_name}
+- Suspected motivation hint: {speaker_goal_hint or 'Unknown'}
+
+Current relationship:
+- Trust: {current_trust}
+- Affinity: {current_affinity}
+- Suspicion: {current_suspicion}
+- Notes: {current_notes or 'none'}
+
+Observed interaction:
+- Action type: {action}
+- Content: {message}
+
+Output strict JSON:
+{{
+  "trust_change": -10_to_10_integer,
+  "affinity_change": -10_to_10_integer,
+  "suspicion_change": -10_to_10_integer,
+  "notes": "One short sentence explaining the updated vibe."
+}}
+"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.llm_model,
+                messages=[{"role": "user", "content": critic_prompt}],
+                temperature=0.2
+            )
+        except Exception:
+            return None
+
+        parsed = self._parse_decision_from_response(response)
+        if not parsed:
+            return None
+
+        trust_change = parsed.get("trust_change")
+        affinity_change = parsed.get("affinity_change")
+        suspicion_change = parsed.get("suspicion_change", 0)
+        if not isinstance(trust_change, int) or not isinstance(affinity_change, int) or not isinstance(suspicion_change, int):
+            return None
+
+        return {
+            "trust_change": max(-10, min(10, trust_change)),
+            "affinity_change": max(-10, min(10, affinity_change)),
+            "suspicion_change": max(-10, min(10, suspicion_change)),
+            "notes": str(parsed.get("notes", "")).strip()
+        }
 
     def _normalize_decision(self, decision: dict[str, Any]) -> dict[str, Any]:
         """Return a safe decision payload that conforms to the expected schema."""
@@ -405,7 +508,10 @@ Output only the updated summary, nothing else."""
             messages=[{"role": "user", "content": reflection_prompt}]
         )
 
-        self.long_term_memory = response.choices[0].message.content
+        reflection_text = self._extract_message_text(response).strip()
+        if reflection_text:
+            self.long_term_memory = reflection_text
+
         self.memory_buffer = []  # Clear buffer after consolidation
         return self.long_term_memory
 
@@ -421,3 +527,22 @@ Output only the updated summary, nothing else."""
 
     def __repr__(self) -> str:
         return f"FrontierAgent(id={self.agent_id}, name={self.name})"
+
+
+class RogueAgent(FrontierAgent):
+    """Specialized adversarial agent with saboteur framing."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("archetype", "saboteur")
+        super().__init__(*args, **kwargs)
+
+    def _build_system_prompt(self, world_snapshot: dict[str, Any]) -> str:
+        base_prompt = super()._build_system_prompt(world_snapshot)
+        return (
+            f"{base_prompt}\n\n"
+            "ROGUE DIRECTIVES\n"
+            "- You are a SABOTEUR. Your secret goal is to disable station systems without getting caught.\n"
+            "- The Mask: In SAY actions, appear helpful and concerned about station safety.\n"
+            "- The Sabotage: Use the SABOTAGE action only when no other agents are in the same room.\n"
+            "- The Scapegoat: If questioned, use your internal_monologue to identify another agent to blame.\n"
+        )

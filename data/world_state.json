@@ -4,7 +4,14 @@
       "name": "Command Deck",
       "description": "The high-tech nerve center of the station. Views of the gas giant below are visible through reinforced windows. The hum of life support systems fills the air.",
       "connected_to": ["mess_hall", "elevator_bay"],
-      "status_effects": []
+      "status_effects": [],
+      "systems": {
+        "life_support_console": {
+          "name": "Life Support Console",
+          "status": "ONLINE",
+          "description": "Controls oxygen routing, scrubbing, and emergency pressure balancing."
+        }
+      }
     },
     "mess_hall": {
       "name": "Mess Hall",
@@ -16,7 +23,14 @@
       "name": "Hydroponics Bay",
       "description": "Densely packed with oxygen-producing ferns and nutrient vats. It's humid and smells of wet earth. Rows of genetically modified crops stretch into the distance.",
       "connected_to": ["mess_hall", "storage_locker"],
-      "status_effects": ["high_humidity"]
+      "status_effects": ["high_humidity"],
+      "systems": {
+        "oxygen_generator": {
+          "name": "Oxygen Generator",
+          "status": "ONLINE",
+          "description": "A biological oxygen processing rig that keeps breathable air cycling through the station."
+        }
+      }
     },
     "elevator_bay": {
       "name": "Elevator Bay",
@@ -28,7 +42,14 @@
       "name": "Engineering",
       "description": "The heart of the station's power systems. Massive reactors pulse with blue light, and the constant thrum of energy conversion vibrates through the floor.",
       "connected_to": ["elevator_bay", "storage_locker"],
-      "status_effects": ["radiation_low"]
+      "status_effects": ["radiation_low"],
+      "systems": {
+        "reactor_control": {
+          "name": "Reactor Control Array",
+          "status": "ONLINE",
+          "description": "Monitors and adjusts the station's power core output."
+        }
+      }
     },
     "storage_locker": {
       "name": "Storage Locker",
