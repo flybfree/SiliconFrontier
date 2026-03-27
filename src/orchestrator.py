@@ -397,6 +397,14 @@ class Orchestrator:
                     event_msg = f"You saw {agent.name} demand {item_name} from {target_agent_id}"
                     self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
 
+            elif action == "REPAIR" and success:
+                loc_data = self.world.get_location(current_loc)
+                loc_name = loc_data.get("name", current_loc) if loc_data else current_loc
+                event_msg = f"An announcement comes over the station comms: a system in {loc_name} has been restored to operational status by {agent.name}."
+                for other_agent in self.agents:
+                    if other_agent.agent_id != agent.agent_id:
+                        other_agent.add_to_memory(event_msg)
+
             elif action == "SABOTAGE" and success:
                 system_id = target.strip()
                 loc_data = self.world.get_location(current_loc)

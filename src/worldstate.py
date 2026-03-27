@@ -205,6 +205,13 @@ class WorldState:
             return True
         return False
 
+    def set_item_hidden(self, item_id: str, hidden: bool) -> bool:
+        """Toggle the hidden (concealed) flag on an item."""
+        if item_id not in self._data["items"]:
+            return False
+        self._data["items"][item_id]["hidden"] = hidden
+        return True
+
     def transfer_item_between_agents(self, from_agent_id: str, to_agent_id: str, item_id: str) -> bool:
         """Move an item directly from one agent's inventory to another's."""
         if not self.remove_item_from_agent_inventory(from_agent_id, item_id):

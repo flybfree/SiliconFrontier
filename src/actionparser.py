@@ -57,6 +57,9 @@ class ActionParser:
             "DEMAND": self._handle_demand,
             "LIE": self._handle_lie,
             "SABOTAGE": self._handle_sabotage,
+            "REPAIR": self._handle_repair,
+            "CONCEAL": self._handle_conceal,
+            "PRODUCE": self._handle_produce,
             "WAIT": self._handle_wait
         }
 
@@ -291,6 +294,66 @@ class ActionParser:
 
         self.world.set_system_status(current_loc, matching_system_id, "BROKEN")
         return True, f"Success: You disabled the {matching_system_id}."
+
+    def _handle_repair(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Handle REPAIR action on a broken local system."""
+        current_loc = self.world.get_agent_location(agent.agent_id)
+        if not current_loc:
+            return False, "Failure: You don't know where you are."
+
+        systems_here = self.world.get_location_systems(current_loc)
+        matching_system_id = None
+        for system_id, system_data in systems_here.items():
+            system_name = system_data.get("name", system_id)
+            if target.lower() in system_name.lower() or system_id == target:
+                matching_system_id = system_id
+                break
+
+        if not matching_system_id:
+            available = [data.get("name", sid) for sid, data in systems_here.items()]
+            return False, f"Failure: No repairable system '{target}' here. Systems: {', '.join(available) if available else 'none'}."
+
+        if systems_here[matching_system_id].get("status") != "BROKEN":
+            return False, f"Failure: {systems_here[matching_system_id].get('name', matching_system_id)} is not broken."
+
+        self.world.set_system_status(current_loc, matching_system_id, "ONLINE")
+        return True, f"Success: You repaired the {systems_here[matching_system_id].get('name', matching_system_id)}."
+
+    def _handle_conceal(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Handle CONCEAL action — move an item from hand to the concealed person slot."""
+        hand = self._hand_items(agent.agent_id)
+        matching_item = next(
+            (item for item in hand if target.lower() in item["name"].lower() or item["id"] == target),
+            None
+        )
+        if not matching_item:
+            held = [item["name"] for item in hand]
+            return False, f"Failure: '{target}' is not in your hand. Holding: {', '.join(held) if held else 'nothing'}."
+
+        person = self._person_items(agent.agent_id)
+        if person:
+            return False, f"Failure: You are already concealing {person[0]['name']} on your person."
+
+        self.world.set_item_hidden(matching_item["id"], True)
+        return True, f"Success: You concealed the {matching_item['name']} on your person."
+
+    def _handle_produce(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Handle PRODUCE action — move a concealed item from person slot to hand."""
+        person = self._person_items(agent.agent_id)
+        matching_item = next(
+            (item for item in person if target.lower() in item["name"].lower() or item["id"] == target),
+            None
+        )
+        if not matching_item:
+            concealed = [item["name"] for item in person]
+            return False, f"Failure: '{target}' is not concealed on your person. Concealing: {', '.join(concealed) if concealed else 'nothing'}."
+
+        hand = self._hand_items(agent.agent_id)
+        if hand:
+            return False, f"Failure: Your hand is already holding {hand[0]['name']}. Drop it first."
+
+        self.world.set_item_hidden(matching_item["id"], False)
+        return True, f"Success: You produced the {matching_item['name']}."
 
     # Validation utilities for Orchestrator to use before executing actions
     @staticmethod
