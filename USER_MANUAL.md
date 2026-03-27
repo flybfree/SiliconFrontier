@@ -23,9 +23,11 @@ The project has two main ways to use it:
 - `src/actionparser.py`: action validation and execution
 - `src/socialmatrix.py`: trust and affinity tracking
 - `src/orchestrator.py`: simulation loop, event broadcast, reflection phase
-- `data/world_state.json`: locations, items, and baseline world data
-- `data/agent_definitions.json`: reusable agent definitions
-- `data/simulation_agents.json`: active simulation slots and selected agent definitions
+- `src/configloader.py`: scenario loading, library resolution, agent instantiation
+- `library/items.json`: shared reusable item definitions
+- `library/relationship_presets.json`: named relationship starting states
+- `scenarios/default/`: baseline scenario files
+- `scenarios/<name>/`: additional bundled scenarios
 
 ## Requirements
 
@@ -60,7 +62,7 @@ python run_simulation.py --rounds 10 --delay 0.3 --url http://localhost:1234/v1 
 Run a specific scenario directory:
 
 ```powershell
-python run_simulation.py --config-dir scenarios/prisoners_dilemma --rounds 12 --delay 0
+python run_simulation.py --config-dir scenarios/cascade_failure --rounds 20 --delay 0
 ```
 
 Supported CLI arguments:
@@ -91,15 +93,20 @@ In the sidebar:
 
 Agents are constrained to these actions:
 
-- `MOVE`
-- `SAY`
-- `PICKUP`
-- `DROP`
-- `GIVE`
-- `DEMAND`
-- `LIE`
-- `SABOTAGE`
-- `WAIT`
+- `MOVE` — travel to an adjacent location
+- `SAY` — speak aloud to everyone in the room
+- `WHISPER` — send a private message to one agent in the room; bystanders see that a whisper occurred but not the content
+- `LIE` — flagged speech act; mechanically identical to SAY but recorded as deception
+- `PICKUP` — take an item from the floor into the hand slot
+- `DROP` — release an item from inventory to the floor
+- `USE` — consume a held consumable item and trigger its effect
+- `GIVE` — hand a held item to another agent in the room
+- `DEMAND` — force another agent to surrender their held item
+- `CONCEAL` — move an item from the hand slot to the concealed person slot
+- `PRODUCE` — move an item from the concealed person slot to the hand slot
+- `REPAIR` — restore a `BROKEN` system in the current location
+- `SABOTAGE` — saboteur-only; break a system in the current location when alone
+- `WAIT` — take no action
 
 These are enforced in [src/agent.py](src/agent.py) and validated by [src/actionparser.py](src/actionparser.py).
 
@@ -151,6 +158,8 @@ Relationships are tracked per observer-target pair with:
 - `affinity` from `0` to `100`
 - `notes` as a qualitative running impression
 - hidden `suspicion` from `0` to `100`
+
+In agent prompts, numeric scores are converted to a human-readable label using nearest-neighbor matching against the relationship preset table (e.g. `colleagues`, `rivals`, `hostile`). The label is shown alongside any relationship notes, so agents reason about relationships in natural terms rather than raw numbers.
 
 They begin effectively neutral at `50/50` and change through observed interactions:
 
@@ -286,13 +295,14 @@ This is the quickest way to turn an edited or evolved simulation state into a re
 
 ### Scenario directories
 
-The simulation can load from any configuration directory, not just `data/`.
+The simulation can load from any configuration directory. The canonical default is `scenarios/default/`. The legacy `data/` directory is still supported.
 
 Each scenario directory should contain:
 
-- `world_state.json`
-- `agent_definitions.json`
-- `simulation_agents.json`
+- `world_state.json` — locations, items (inline or via `item_placements`), and systems
+- `agent_definitions.json` — reusable agent personas
+- `simulation_agents.json` — active slots, starting positions, and optional relationship presets
+- `scenario.json` — optional metadata (name, description, recommended_rounds, agent_count)
 
 Example:
 
@@ -430,8 +440,12 @@ Each item supports:
 - `contested` — optional boolean; marks the item as a valued resource
 - `hidden` — optional boolean; enables the knowledge-reveal mechanic on pickup
 - `knowledge` — optional string; the information injected into an agent's memory when they pick up a hidden item
+- `consumable` — optional boolean; allows the `USE` action to apply the item's `effect` and then delete it
+- `effect` — optional object; defines what `USE` does (see [USE Action](#use-action))
 
 For baseline content, keep `owner` as `null` unless you intend the item to start in an agent inventory.
+
+To place a library item instead of writing a full definition, use an `item_placements` entry instead (see [Item Placements](#item-placements-library-reference-pattern)).
 
 ### Hidden items
 
@@ -466,6 +480,126 @@ Setting `contested: true` on an item causes agents to be reminded of its value w
 - *"You are holding contested resource(s): plasma_wrench. Others may want these."*
 
 This primes competitive reasoning without adding hard game rules.
+
+## WHISPER Action
+
+`WHISPER` sends a private message to one named agent in the same room.
+
+- Action target format: `message -> agent_id`
+- The recipient receives the message in their memory: *"Nova whispered to you: '...'"*
+- Other agents in the room receive a generic notice: *"You noticed Nova whisper something privately to silas_voss."*
+- The whisper slightly improves the recipient's trust and affinity toward the sender.
+
+This is useful for private coordination, covert deals, or saboteur signaling without triggering the full social broadcast.
+
+## USE Action
+
+`USE` consumes a held consumable item and applies its effects.
+
+- Only items with `consumable: true` can be used.
+- The item must be in the agent's hand slot (not concealed on person).
+- On success, the item's `effect` fields are applied and the item is deleted from the world.
+
+Effect fields (all optional):
+
+| Field | Effect |
+|---|---|
+| `perception_delta` | Adjusts the agent's `perception` score by the signed integer |
+| `emotional_state` | Overrides the agent's current emotional state |
+| `memory_inject` | Appends a memory string directly to the agent's buffer |
+
+Example:
+
+```json
+"stimulant_patch": {
+  "name": "Stimulant Patch",
+  "description": "A neural stimulant. Single use.",
+  "portable": true,
+  "consumable": true,
+  "effect": {
+    "perception_delta": 20,
+    "emotional_state": "Alert",
+    "memory_inject": "Your thoughts are suddenly faster, edges sharper."
+  }
+}
+```
+
+## CONCEAL and PRODUCE Actions
+
+`CONCEAL` and `PRODUCE` let agents manage their two-slot inventory directly.
+
+- `CONCEAL item_name` — moves an item from the hand slot to the concealed person slot. The item's `hidden` flag is set to `true`, making it invisible to observers.
+- `PRODUCE item_name` — moves an item from the concealed person slot to the hand slot. The item's `hidden` flag is cleared.
+
+Both require the destination slot to be free. These actions let agents hide objects they have obtained and later reveal them deliberately.
+
+## Shared Library System
+
+The `library/` directory contains reusable definitions that can be referenced from any scenario, avoiding duplication across `world_state.json` files.
+
+### `library/items.json`
+
+Defines item templates by ID. Each entry uses the same fields as an inline item in `world_state.json`. Scenarios reference library items via `item_placements` in their `world_state.json` instead of embedding full item definitions.
+
+Available library items: `plasma_wrench`, `reactor_key`, `access_badge`, `oxygen_scanner`, `emergency_rations`, `medical_kit`, `stimulant_patch`, `sedative_patch`, `encrypted_comm`, `nutrient_vat`, `seed_canister`.
+
+### `library/relationship_presets.json`
+
+Defines named starting relationship states. Each preset specifies `trust`, `affinity`, and `suspicion` values and a human-readable `description`.
+
+Available presets: `neutral`, `unknown`, `colleagues`, `deferential`, `old_friends`, `rivals`, `distrustful`, `suspicious`, `hostile`.
+
+These presets serve two purposes:
+
+1. **Scenario initialization** — referenced from `simulation_agents.json` to seed the social matrix before the first cycle.
+2. **In-prompt labels** — the closest preset is used as the relationship label displayed to agents (e.g. `rivals — they've clashed before`).
+
+## Item Placements (Library Reference Pattern)
+
+Instead of embedding full item definitions in `world_state.json`, scenarios can reference library items by ID using an `item_placements` list:
+
+```json
+"item_placements": [
+  { "item_id": "plasma_wrench", "location": "engineering" },
+  { "item_id": "medical_kit",   "location": "med_bay" },
+  { "item_id": "encrypted_comm", "location": "command_deck",
+    "knowledge": "Override with scenario-specific content here." }
+]
+```
+
+`configloader.resolve_item_placements()` expands these into the world's `items` dict at load time. Per-placement fields (like `knowledge`) override the library defaults.
+
+Inline items in `world_state.json["items"]` are always preserved and take precedence over library definitions with the same ID.
+
+## Scenario Manifest (`scenario.json`)
+
+Each scenario directory can include a `scenario.json` file with metadata about the scenario. This is optional but useful for documentation and dashboard display:
+
+```json
+{
+  "name": "Cascade Failure",
+  "description": "Dual saboteurs work to bring down critical systems before investigators can identify them.",
+  "recommended_rounds": 20,
+  "agent_count": 8
+}
+```
+
+## Relationship Presets in `simulation_agents.json`
+
+The `simulation_agents.json` file can include a `relationships` list to seed starting relationships between specific agents using named presets:
+
+```json
+{
+  "slots": [...],
+  "relationships": [
+    { "from": "agent_a", "to": "agent_b", "preset": "rivals" },
+    { "from": "agent_b", "to": "agent_a", "preset": "distrustful" },
+    { "from": "agent_c", "to": "agent_a", "preset": "colleagues" }
+  ]
+}
+```
+
+`configloader.resolve_relationship_presets()` expands these into the world state's `relationships` and `suspicions` dicts at load time. Manually specified relationships in `world_state.json` are not overwritten.
 
 ## Rogue Agents
 
@@ -598,7 +732,9 @@ Check:
 - the target location is listed under the current location's exits
 - the item exists in the same room
 - the item is portable
-- the agent's hand slot is free before attempting `PICKUP`
+- the agent's hand slot is free before attempting `PICKUP`, `DEMAND`, or `USE`
+- `USE` requires the item to have `consumable: true`
+- `WHISPER` and `GIVE` target format is `content -> agent_id`
 - the model is returning valid JSON with one of the allowed actions
 
 ### Agents are stuck dropping an item every turn
