@@ -61,6 +61,7 @@ class ActionParser:
             "WHISPER": self._handle_whisper,
             "CONCEAL": self._handle_conceal,
             "PRODUCE": self._handle_produce,
+            "USE": self._handle_use,
             "WAIT": self._handle_wait
         }
 
@@ -178,6 +179,22 @@ class ActionParser:
         # Execute drop
         self.world.remove_item_from_agent_inventory(agent.agent_id, matching_item["id"])
         return True, f"Success: You dropped the {matching_item['name']}."
+
+    def _handle_use(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Handle USE action — consume a held item and trigger its effect."""
+        hand = self._hand_items(agent.agent_id)
+        matching_item = next(
+            (item for item in hand if target.lower() in item["name"].lower() or item["id"] == target),
+            None
+        )
+        if not matching_item:
+            held = [item["name"] for item in hand]
+            return False, f"Failure: '{target}' is not in your hand. Holding: {', '.join(held) if held else 'nothing'}."
+
+        if not matching_item.get("consumable"):
+            return False, f"Failure: The {matching_item['name']} is not a consumable item."
+
+        return True, f"Success: You used the {matching_item['name']}."
 
     def _handle_wait(self, agent, _, __) -> tuple[bool, str]:
         """Handle WAIT action."""

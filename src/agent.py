@@ -22,7 +22,7 @@ class FrontierAgent:
     """
 
     # Valid actions an agent can take
-    VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "GIVE", "DEMAND", "LIE", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "WAIT"]
+    VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "USE", "GIVE", "DEMAND", "LIE", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "WAIT"]
     VALID_EMOTIONAL_STATE_FALLBACK = "Neutral"
     RESPONSE_SCHEMA_NAME = "silicon_frontier_agent_turn"
     STRUCTURED_STATUS_STRUCTURED = "structured_ok"
@@ -88,6 +88,29 @@ class FrontierAgent:
         self.pending_drop: str | None = None        # item id
         self.pending_drop_name: str | None = None   # item name (for prompts)
 
+    # Preset anchors for label matching (mirrors library/relationship_presets.json)
+    _RELATIONSHIP_PRESETS = [
+        ("hostile",     14, 12, 70),
+        ("distrustful", 28, 32, 38),
+        ("rivals",      35, 28, 22),
+        ("suspicious",  42, 38, 55),
+        ("neutral",     50, 50,  0),
+        ("unknown",     50, 50,  0),
+        ("colleagues",  62, 58,  0),
+        ("deferential", 72, 62,  0),
+        ("old_friends", 82, 88,  0),
+    ]
+
+    @staticmethod
+    def _relationship_label(trust: int, affinity: int, suspicion: int) -> str:
+        """Return the name of the closest relationship preset for these values."""
+        best_label, best_dist = "neutral", float("inf")
+        for label, pt, pa, ps in FrontierAgent._RELATIONSHIP_PRESETS:
+            dist = (trust - pt) ** 2 + (affinity - pa) ** 2 + (suspicion - ps) ** 2
+            if dist < best_dist:
+                best_dist, best_label = dist, label
+        return best_label
+
     def sense(self, world_snapshot: dict[str, Any]) -> str:
         """
         Generate a subjective view of the world for the agent.
@@ -127,9 +150,10 @@ class FrontierAgent:
         agents_str = ", ".join(nearby_agent_parts) if nearby_agent_parts else "no one"
         relationship_lines = []
         for other_id, rel in world_snapshot.get("relationship_impressions", {}).items():
-            relationship_lines.append(
-                f"{other_id}: trust={rel.get('trust', 50)}, affinity={rel.get('affinity', 50)}, suspicion={rel.get('suspicion', 0)}, notes={rel.get('notes', '') or 'none'}"
-            )
+            label = self._relationship_label(rel.get("trust", 50), rel.get("affinity", 50), rel.get("suspicion", 0))
+            notes = rel.get("notes", "") or ""
+            notes_part = f" — {notes}" if notes else ""
+            relationship_lines.append(f"{other_id}: {label}{notes_part}")
         relationship_str = "\n".join(relationship_lines) if relationship_lines else "No established impressions yet."
 
         recent_events = self.memory_buffer[-5:] if self.memory_buffer else ["No recent events"]
@@ -163,9 +187,10 @@ class FrontierAgent:
         relationship_impressions = world_snapshot.get("relationship_impressions", {})
         relationship_block = []
         for other_id, rel in relationship_impressions.items():
-            relationship_block.append(
-                f"- {other_id}: trust={rel.get('trust', 50)}, affinity={rel.get('affinity', 50)}, suspicion={rel.get('suspicion', 0)}, notes={rel.get('notes', '') or 'none'}"
-            )
+            label = self._relationship_label(rel.get("trust", 50), rel.get("affinity", 50), rel.get("suspicion", 0))
+            notes = rel.get("notes", "") or ""
+            notes_part = f" — {notes}" if notes else ""
+            relationship_block.append(f"- {other_id}: {label}{notes_part}")
         relationship_text = "\n".join(relationship_block) if relationship_block else "- No one nearby yet."
         systems_block = []
         for system_id, system_data in visible_systems.items():
@@ -224,7 +249,7 @@ ACTION TARGET RULES — action_target must be:
 - SAY: the spoken message itself, as a full sentence. Not a name. Example: "I think the reactor failure started before my shift."
 - LIE: the false statement to speak aloud, as a full sentence. Not a name.
 - WHISPER: "your message here -> agent_id" — message first, then the recipient's agent ID
-- PICKUP / DROP: the item name
+- PICKUP / DROP / USE: the item name (USE consumes the item and applies its effect)
 - GIVE: "item name -> agent_id"
 - DEMAND: "item name -> agent_id"
 - CONCEAL / PRODUCE: the item name
@@ -365,6 +390,7 @@ Output strict JSON:
             "LIE":      f"You told them: '{target}'. You don't know if they believed it.{witnessed}",
             "SABOTAGE": f"You sabotaged {target}. The damage is done — you wonder if anyone noticed.{witnessed}",
             "REPAIR":   f"You repaired {target}. The system is back online.{witnessed}",
+            "USE":      f"You used the {target}. The effect washed over you.{witnessed}",
             "CONCEAL":  f"You slipped {target} out of sight, concealed on your person.{witnessed}",
             "PRODUCE":  f"You produced {target}, bringing it into plain view.{witnessed}",
             "WAIT":     f"You held back and watched.{witnessed}",

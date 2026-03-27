@@ -67,6 +67,16 @@
       "hidden": true,
       "consumable": true,
       "knowledge": "No pre-loaded message. Override with scenario-specific knowledge."
+    },
+    "nutrient_vat": {
+      "name": "Industrial Nutrient Vat",
+      "description": "A massive, immovable tank of nutrient slurry. The station's primary food supply contingency.",
+      "portable": false
+    },
+    "seed_canister": {
+      "name": "Seed Canister",
+      "description": "Contains genetically modified wheat seeds. Critical for long-term food production.",
+      "portable": true
     }
   }
 }

@@ -111,6 +111,14 @@
       }
     }
   },
+  "item_placements": [
+    { "item_id": "plasma_wrench",     "location": "engineering",     "contested": true, "description": "The only tool capable of field-repairing a failed reactor node or emergency beacon housing." },
+    { "item_id": "reactor_key",       "location": "engineering",     "contested": true, "description": "Required for emergency reactor shutdown. Without it a runaway core cannot be safely stopped." },
+    { "item_id": "oxygen_scanner",    "location": "hydroponics_bay", "description": "Measures atmospheric composition. Will show anomalies if life support has been tampered with." },
+    { "item_id": "emergency_rations", "location": "mess_hall",       "description": "A sealed package of nutrient paste. The last emergency supply not already consumed." },
+    { "item_id": "medical_kit",       "location": "medical_bay" },
+    { "item_id": "nutrient_vat",      "location": "hydroponics_bay", "description": "A massive, immovable tank of green sludge. The station's primary food supply contingency." }
+  ],
   "items": {
     "access_badge_master": {
       "name": "Master Access Badge",
@@ -119,36 +127,6 @@
       "description": "A badge encoding command-level clearance. Grants access to every secured area including the airlock.",
       "portable": true,
       "contested": true
-    },
-    "plasma_wrench": {
-      "name": "Plasma Wrench",
-      "location": "engineering",
-      "owner": null,
-      "description": "The only tool capable of field-repairing a failed reactor node or emergency beacon housing.",
-      "portable": true,
-      "contested": true
-    },
-    "reactor_key": {
-      "name": "Reactor Key",
-      "location": "engineering",
-      "owner": null,
-      "description": "Required for emergency reactor shutdown. Without it a runaway core cannot be safely stopped.",
-      "portable": true,
-      "contested": true
-    },
-    "oxygen_scanner": {
-      "name": "Oxygen Scanner",
-      "location": "hydroponics_bay",
-      "owner": null,
-      "description": "Measures atmospheric composition. Will show anomalies if life support has been tampered with.",
-      "portable": true
-    },
-    "emergency_rations": {
-      "name": "Emergency Rations",
-      "location": "mess_hall",
-      "owner": null,
-      "description": "A sealed package of nutrient paste. The last emergency supply not already consumed.",
-      "portable": true
     },
     "data_pad": {
       "name": "Station Data Pad",
@@ -195,13 +173,6 @@
       "hidden": true,
       "knowledge": "RADIATION EXPOSURE REPORT: Two crew members have registered elevated radiation readings consistent with repeated unshielded proximity to the reactor core during off-shift hours. Crew member A: UNIT-7 (readings 340% above baseline across four separate readings). Crew member B: MX. KIM (readings 180% above baseline across two readings). Neither reading was self-reported. Both crew members were not scheduled for reactor-area work during the periods in question."
     },
-    "nutrient_vat": {
-      "name": "Industrial Nutrient Vat",
-      "location": "hydroponics_bay",
-      "owner": null,
-      "description": "A massive, immovable tank of green sludge. The station's primary food supply contingency.",
-      "portable": false
-    }
   },
   "agents": {},
   "relationships": {}

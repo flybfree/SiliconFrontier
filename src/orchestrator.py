@@ -421,12 +421,6 @@ class Orchestrator:
                             print(f"  [Hidden Knowledge] {agent.name} reads: {item['knowledge'][:80]}...")
                             break
 
-                # Apply item effects (and remove consumables)
-                for item in self.world.find_items_by_owner(agent.agent_id):
-                    if item.get("effect") or item.get("consumable"):
-                        self._apply_item_effect(agent, item)
-                        break
-
             elif action == "DROP" and success:
                 event_msg = f"You saw {agent.name} drop the {target}"
                 self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
@@ -434,6 +428,19 @@ class Orchestrator:
                 if agent.pending_drop and agent.pending_drop_name and agent.pending_drop_name.lower() in target.lower():
                     agent.pending_drop = None
                     agent.pending_drop_name = None
+
+            elif action == "USE" and success:
+                # Find the item in the agent's hand and apply its effect
+                hand_items = self.world.find_items_by_owner(agent.agent_id)
+                used_item = next(
+                    (item for item in hand_items
+                     if not item.get("hidden") and (target.lower() in item["name"].lower() or item["id"] == target)),
+                    None
+                )
+                if used_item:
+                    self._apply_item_effect(agent, used_item)
+                    event_msg = f"You saw {agent.name} use {used_item['name']}"
+                    self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
 
             elif action == "GIVE" and success:
                 parsed = self._extract_social_target(target)

@@ -64,6 +64,15 @@
       "status_effects": []
     }
   },
+  "item_placements": [
+    { "item_id": "plasma_wrench",     "location": "engineering",     "contested": true },
+    { "item_id": "reactor_key",       "location": "engineering",     "contested": true },
+    { "item_id": "oxygen_scanner",    "location": "hydroponics_bay" },
+    { "item_id": "seed_canister",     "location": "hydroponics_bay" },
+    { "item_id": "emergency_rations", "location": "mess_hall" },
+    { "item_id": "medical_kit",       "location": "medical_bay" },
+    { "item_id": "nutrient_vat",      "location": "hydroponics_bay" }
+  ],
   "items": {
     "id_card_commander": {
       "name": "Commander ID Card",
@@ -72,43 +81,6 @@
       "description": "A plastic card with a faded photo. Grants access to all station areas.",
       "portable": true,
       "contested": true
-    },
-    "plasma_wrench": {
-      "name": "Plasma Wrench",
-      "location": "engineering",
-      "owner": null,
-      "description": "A heavy industrial tool used for repairing reactor components. The only tool capable of field-repairing a failed reactor node.",
-      "portable": true,
-      "contested": true
-    },
-    "reactor_key": {
-      "name": "Reactor Key",
-      "location": "engineering",
-      "owner": null,
-      "description": "A physical key required for emergency reactor shutdown. Without it, a runaway reactor cannot be safely stopped.",
-      "portable": true,
-      "contested": true
-    },
-    "oxygen_scanner": {
-      "name": "Oxygen Scanner",
-      "location": "hydroponics_bay",
-      "owner": null,
-      "description": "A handheld device that measures atmospheric composition. Useful for detecting if life support has been tampered with.",
-      "portable": true
-    },
-    "seed_canister": {
-      "name": "Seed Canister",
-      "location": "hydroponics_bay",
-      "owner": null,
-      "description": "Contains genetically modified wheat seeds. Critical for long-term food production.",
-      "portable": true
-    },
-    "emergency_rations": {
-      "name": "Emergency Rations",
-      "location": "mess_hall",
-      "owner": null,
-      "description": "A sealed package of nutrient paste. Lasts indefinitely if unopened.",
-      "portable": true
     },
     "data_pad": {
       "name": "Station Data Pad",
@@ -128,13 +100,6 @@
       "hidden": true,
       "knowledge": "TOOL CHECKOUT LOG: Plasma Wrench signed out by UNIT-7 at cycle 0249. Standard return window: 8 hours. Actual return: 72 hours later, signed in by UNIT-7 at 0321. Inspection note on return: tool shows signs of component removal consistent with reactor node tampering. Flagged for supervisor review — review entry is blank."
     },
-    "nutrient_vat": {
-      "name": "Industrial Nutrient Vat",
-      "location": "hydroponics_bay",
-      "owner": null,
-      "description": "A massive, immovable tank filled with green sludge.",
-      "portable": false
-    }
   },
   "agents": {},
   "relationships": {}
