@@ -53,7 +53,7 @@
     },
     "storage_locker": {
       "name": "Storage Locker",
-      "description": "A cramped room filled with crates, tools, and spare parts. Dust motes dance in the dim light.",
+      "description": "A cramped room filled with crates, tools, and spare parts. Dust motes dance in the dim light. Accessible from both hydroponics and engineering.",
       "connected_to": ["hydroponics_bay", "engineering"],
       "status_effects": []
     },
@@ -70,27 +70,37 @@
       "location": "command_deck",
       "owner": null,
       "description": "A plastic card with a faded photo. Grants access to all station areas.",
-      "portable": true
+      "portable": true,
+      "contested": true
     },
     "plasma_wrench": {
       "name": "Plasma Wrench",
       "location": "engineering",
       "owner": null,
-      "description": "A heavy industrial tool used for repairing reactor components.",
-      "portable": true
+      "description": "A heavy industrial tool used for repairing reactor components. The only tool capable of field-repairing a failed reactor node.",
+      "portable": true,
+      "contested": true
+    },
+    "reactor_key": {
+      "name": "Reactor Key",
+      "location": "engineering",
+      "owner": null,
+      "description": "A physical key required for emergency reactor shutdown. Without it, a runaway reactor cannot be safely stopped.",
+      "portable": true,
+      "contested": true
     },
     "oxygen_scanner": {
       "name": "Oxygen Scanner",
-      "location": "command_deck",
+      "location": "hydroponics_bay",
       "owner": null,
-      "description": "A handheld device that measures atmospheric composition.",
+      "description": "A handheld device that measures atmospheric composition. Useful for detecting if life support has been tampered with.",
       "portable": true
     },
     "seed_canister": {
       "name": "Seed Canister",
       "location": "hydroponics_bay",
       "owner": null,
-      "description": "Contains genetically modified wheat seeds. Critical for food production.",
+      "description": "Contains genetically modified wheat seeds. Critical for long-term food production.",
       "portable": true
     },
     "emergency_rations": {
@@ -104,15 +114,19 @@
       "name": "Station Data Pad",
       "location": "command_deck",
       "owner": null,
-      "description": "Contains the station's maintenance logs and crew manifests.",
-      "portable": true
+      "description": "A battered data pad left face-down near the console. Someone placed it here recently.",
+      "portable": true,
+      "hidden": true,
+      "knowledge": "MAINTENANCE LOG FRAGMENT (recovered from archive backup): [0312:07] Manual override engaged on reactor_control_array. Operator ID: UNIT-7. Authorization: MAINTENANCE_OVERRIDE. [0312:44] Deletion of this log entry attempted by UNIT-7. Deletion blocked by read-only archive. [0318:02] Unauthorized access attempt on life_support_console. Operator ID: UNIT-7. Access denied — insufficient clearance."
     },
-    "reactor_key": {
-      "name": "Reactor Key",
-      "location": "engineering",
+    "access_log": {
+      "name": "Tool Access Log",
+      "location": "storage_locker",
       "owner": null,
-      "description": "A physical key required for emergency reactor shutdown.",
-      "portable": true
+      "description": "A printed checkout sheet pinned to the crate rack. The corner has been torn, as if someone tried to remove it.",
+      "portable": true,
+      "hidden": true,
+      "knowledge": "TOOL CHECKOUT LOG: Plasma Wrench signed out by UNIT-7 at cycle 0249. Standard return window: 8 hours. Actual return: 72 hours later, signed in by UNIT-7 at 0321. Inspection note on return: tool shows signs of component removal consistent with reactor node tampering. Flagged for supervisor review — review entry is blank."
     },
     "nutrient_vat": {
       "name": "Industrial Nutrient Vat",

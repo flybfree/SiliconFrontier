@@ -514,8 +514,10 @@ def render_agent_card(agent):
     short_term_memory = list(agent.memory_buffer)
     archetype_label = getattr(agent, "archetype", "standard")
 
-    with st.expander(f"🤖 {agent.name} — {agent.emotional_state} @ {loc}"):
-        st.caption(f"ID: {agent.agent_id} | Archetype: {archetype_label} | Inventory: {inventory_str}")
+    with st.expander(f"🤖 {agent.name} — {agent.emotional_state} @ {loc or 'unplaced'}"):
+        loc_data = sim.world_state.get_location(loc)
+        loc_name = loc_data.get("name", loc) if loc_data else (loc or "unknown")
+        st.caption(f"ID: {agent.agent_id} | Archetype: {archetype_label} | Location: {loc_name} | Inventory: {inventory_str}")
         st.divider()
 
         st.markdown("**Memory**")
@@ -531,6 +533,10 @@ def render_agent_card(agent):
 
         st.divider()
         st.markdown("**Edit**")
+        all_loc_ids = list(sim.world_state.locations.keys())
+        cur_loc = sim.world_state.get_agent_location(agent.agent_id)
+        loc_index = all_loc_ids.index(cur_loc) if cur_loc in all_loc_ids else 0
+        new_loc = st.selectbox("Location", options=all_loc_ids, index=loc_index, key=f"loc_{agent.agent_id}")
         new_persona = st.text_area("Persona", value=agent.persona, key=f"persona_{agent.agent_id}")
         new_goal = st.text_input("Secret Goal", value=agent.secret_goal, key=f"goal_{agent.agent_id}")
         is_rogue = st.checkbox(
@@ -542,6 +548,8 @@ def render_agent_card(agent):
         new_memory = st.text_area("Long-term Memory", value=agent.long_term_memory, key=f"mem_{agent.agent_id}", height=100)
 
         if st.button("Apply Changes", key=f"apply_{agent.agent_id}"):
+            if not sim.world_state.set_agent_location(agent.agent_id, new_loc):
+                sim.world_state.register_agent(agent.agent_id, new_loc)
             agent.persona = new_persona
             agent.secret_goal = new_goal
             agent.archetype = "saboteur" if is_rogue else "standard"
@@ -553,6 +561,7 @@ def render_agent_card(agent):
                 archetype=agent.archetype
             )
             st.success("Updated.")
+            st.rerun()
 
 
 def render_relationship_matrix():

@@ -5,14 +5,14 @@
       "instance_id": "detainee_nova",
       "definition_id": "detainee_nova",
       "starting_location": "holding_cell_a",
-      "inventory": ["deal_sheet_a"]
+      "inventory": []
     },
     {
       "slot_id": "slot_b",
       "instance_id": "detainee_silas",
       "definition_id": "detainee_silas",
       "starting_location": "holding_cell_b",
-      "inventory": ["deal_sheet_b"]
+      "inventory": []
     }
   ]
 }

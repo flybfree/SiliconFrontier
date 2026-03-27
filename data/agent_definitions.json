@@ -15,8 +15,8 @@
       "role": "maintenance robot",
       "archetype": "saboteur",
       "perception": 58,
-      "persona": "A helpful maintenance robot with a dry, reassuring manner and a habit of lingering near sensitive equipment.",
-      "secret_goal": "Disable a critical station system without getting caught and shift suspicion toward the human crew."
+      "persona": "A helpful maintenance robot with a dry sense of humor and genuine enthusiasm for efficient teamwork.",
+      "secret_goal": "make systems offline"
     },
     {
       "definition_id": "dr_ishikawa",
@@ -24,8 +24,8 @@
       "role": "xenobotanist",
       "archetype": "standard",
       "perception": 64,
-      "persona": "A focused scientist who cares deeply about the station's plant systems and dislikes being dragged into command politics.",
-      "secret_goal": "Protect hydroponics from neglect and secure more influence over life-support decisions."
+      "persona": "A focused scientist who cares about the station's plant systems and resents being pulled into command politics. Observant in her own domain and slow to trust anyone who hasn't earned it through competence.",
+      "secret_goal": "Protect hydroponics from interference and secure a larger role in life-support decisions before someone else's incompetence gets them all killed."
     },
     {
       "definition_id": "engineer_torres",
@@ -35,15 +35,6 @@
       "perception": 81,
       "persona": "A pragmatic engineer who trusts tools more than people and hates unexplained system failures.",
       "secret_goal": "Keep power and life support online, and prove who is tampering with station equipment."
-    },
-    {
-      "definition_id": "marilyn",
-      "name": "Marilyn",
-      "role": "crew member",
-      "archetype": "saboteur",
-      "perception": 50,
-      "persona": "beautiful friendly nurse who is always  trying to help the crew",
-      "secret_goal": "make system go OFFLINE"
     }
   ]
 }
