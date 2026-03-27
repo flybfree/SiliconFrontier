@@ -215,9 +215,21 @@ You must respond strictly in JSON format with this structure:
 {{
   "internal_monologue": "A detailed thought process analyzing your secret goal vs. the situation. Consider who you can trust.",
   "action": "ONE_OF: [{', '.join(self.VALID_ACTIONS)}]",
-  "action_target": "The location, message, or item name for your action.",
+  "action_target": "See rules below.",
   "emotional_state": "A single word describing your current mood."
 }}
+
+ACTION TARGET RULES — action_target must be:
+- MOVE: the exact location ID to move to (from your valid exits list)
+- SAY: the spoken message itself, as a full sentence. Not a name. Example: "I think the reactor failure started before my shift."
+- LIE: the false statement to speak aloud, as a full sentence. Not a name.
+- WHISPER: "your message here -> agent_id" — message first, then the recipient's agent ID
+- PICKUP / DROP: the item name
+- GIVE: "item name -> agent_id"
+- DEMAND: "item name -> agent_id"
+- CONCEAL / PRODUCE: the item name
+- SABOTAGE / REPAIR: the system name
+- WAIT: leave blank or write "nothing"
 
 Remember: Your internal_monologue should reveal your true reasoning, which may differ from what you say to others.
 """
