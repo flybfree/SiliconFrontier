@@ -22,7 +22,7 @@ class FrontierAgent:
     """
 
     # Valid actions an agent can take
-    VALID_ACTIONS = ["MOVE", "SAY", "PICKUP", "DROP", "GIVE", "DEMAND", "LIE", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "WAIT"]
+    VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "GIVE", "DEMAND", "LIE", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "WAIT"]
     VALID_EMOTIONAL_STATE_FALLBACK = "Neutral"
     RESPONSE_SCHEMA_NAME = "silicon_frontier_agent_turn"
     STRUCTURED_STATUS_STRUCTURED = "structured_ok"
@@ -349,6 +349,7 @@ Output strict JSON:
             "GIVE":     f"You gave {target} — a deliberate choice.{witnessed}",
             "DEMAND":   f"You demanded {target} and got it, though it likely cost you something.{witnessed}",
             "SAY":      f"You said: '{target}'.{witnessed}",
+            "WHISPER":  f"You whispered to {target.split('->')[1].strip() if '->' in target else target}: '{target.split('->')[0].strip() if '->' in target else target}'.{witnessed}",
             "LIE":      f"You told them: '{target}'. You don't know if they believed it.{witnessed}",
             "SABOTAGE": f"You sabotaged {target}. The damage is done — you wonder if anyone noticed.{witnessed}",
             "REPAIR":   f"You repaired {target}. The system is back online.{witnessed}",

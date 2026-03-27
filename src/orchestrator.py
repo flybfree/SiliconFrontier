@@ -348,6 +348,21 @@ class Orchestrator:
                 event_msg = f"{agent.name} said: '{target}'"
                 self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
 
+            elif action == "WHISPER" and success:
+                parsed = self._extract_social_target(target)
+                if parsed:
+                    message, target_agent_id = parsed
+                    target_agent = self.get_agent_by_id(target_agent_id)
+                    if target_agent:
+                        target_agent.add_to_memory(f"{agent.name} whispered to you: '{message}'")
+                        self.social.update_scores(target_agent_id, agent.agent_id, trust_delta=4, affinity_delta=3, notes=f"{agent.name} chose to confide in you.")
+                    for witness_id in self.world.get_visible_agents(agent.agent_id):
+                        if witness_id != target_agent_id:
+                            witness = self.get_agent_by_id(witness_id)
+                            if witness:
+                                witness.add_to_memory(f"You noticed {agent.name} whisper something privately to {target_agent_id}.")
+                    self._sync_relationships()
+
             elif action == "MOVE" and success:
                 event_msg = f"You saw {agent.name} move to {target}"
                 old_loc = world_snapshot["current_location"]["id"] if world_snapshot.get("current_location") else current_loc
@@ -420,7 +435,7 @@ class Orchestrator:
                 self._inject_snitch_memory(agent, current_loc, system_id)
 
             # 6. SOCIAL MATRIX UPDATE - Evaluate SAY interactions
-            if action in {"SAY", "LIE", "GIVE", "DEMAND"} and success:
+            if action in {"SAY", "LIE", "GIVE", "DEMAND", "WHISPER"} and success:
                 self._evaluate_social_impact(agent, action, target)
 
             cycle_results.append(result_entry)

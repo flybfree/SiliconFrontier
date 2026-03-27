@@ -58,6 +58,7 @@ class ActionParser:
             "LIE": self._handle_lie,
             "SABOTAGE": self._handle_sabotage,
             "REPAIR": self._handle_repair,
+            "WHISPER": self._handle_whisper,
             "CONCEAL": self._handle_conceal,
             "PRODUCE": self._handle_produce,
             "WAIT": self._handle_wait
@@ -326,6 +327,21 @@ class ActionParser:
 
         self.world.set_system_status(current_loc, matching_system_id, "ONLINE")
         return True, f"Success: You repaired the {systems_here[matching_system_id].get('name', matching_system_id)}."
+
+    def _handle_whisper(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Handle WHISPER action: WHISPER message -> agent_id."""
+        parsed = self._parse_social_target(target)
+        if not parsed:
+            return False, "Failure: WHISPER requires 'message -> agent_id'."
+
+        message, target_agent_id = parsed
+        if not message.strip():
+            return False, "Failure: You can't whisper nothing."
+
+        if not self._resolve_visible_agent(agent.agent_id, target_agent_id):
+            return False, f"Failure: '{target_agent_id}' is not here."
+
+        return True, f"Success: You whispered to {target_agent_id}."
 
     def _handle_conceal(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
         """Handle CONCEAL action — move an item from hand to the concealed person slot."""

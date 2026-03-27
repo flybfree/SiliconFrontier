@@ -677,6 +677,37 @@ def render_event_log():
             st.caption(f"Mood: {entry.get('emotional_state', 'Neutral')}")
 
 
+def render_comms_log():
+    """Render a filtered log of all inter-agent communications."""
+    st.header("💬 Communications Log")
+
+    comms = [
+        e for e in sim.results_history
+        if e.get("action") in {"SAY", "WHISPER", "LIE"} and e.get("success")
+    ]
+
+    if not comms:
+        st.info("No communications yet.")
+        return
+
+    action_labels = {"SAY": "📢 SAY", "WHISPER": "🤫 WHISPER", "LIE": "🎭 LIE"}
+
+    for entry in reversed(comms[-50:]):
+        action = entry.get("action", "")
+        agent = entry.get("agent_name", "?")
+        cycle = entry.get("cycle", "?")
+        raw_target = entry.get("target", "")
+
+        if action == "WHISPER" and "->" in raw_target:
+            message, recipient = raw_target.split("->", 1)
+            label = f"Cycle {cycle} · {action_labels[action]} · **{agent}** → **{recipient.strip()}**: {message.strip()}"
+        else:
+            label = f"Cycle {cycle} · {action_labels[action]} · **{agent}**: {raw_target}"
+
+        with st.expander(label):
+            st.caption(f"Internal monologue: {entry.get('monologue', '')[:300]}...")
+
+
 def render_audit_tools():
     """Render researcher-focused audit tools for deception and sabotage."""
     st.header("🕵️ Audit Tools")
@@ -1185,6 +1216,9 @@ def main():
     # Render relationship matrix
     st.header("🤝 Relationship Matrix")
     render_relationship_matrix()
+
+    # Communications log
+    render_comms_log()
 
     # Event log
     render_event_log()
