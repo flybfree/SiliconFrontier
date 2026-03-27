@@ -1293,6 +1293,7 @@ def main():
                 new_item_name = st.text_input("Name", value=item_data["name"], key=f"item_name_{item_id}")
                 new_item_desc = st.text_area("Description", value=item_data.get("description", ""), key=f"item_desc_{item_id}", height=80)
                 new_item_portable = st.checkbox("Portable", value=item_data.get("portable", True), key=f"item_port_{item_id}")
+                new_item_contested = st.checkbox("Contested (agents will treat this as a valued resource)", value=item_data.get("contested", False), key=f"item_contested_{item_id}")
                 loc_options = all_loc_ids + [a.agent_id for a in sim.agents]
                 cur_loc = item_data.get("location", all_loc_ids[0])
                 loc_index = loc_options.index(cur_loc) if cur_loc in loc_options else 0
@@ -1301,6 +1302,7 @@ def main():
                     item_data["name"] = new_item_name
                     item_data["description"] = new_item_desc
                     item_data["portable"] = new_item_portable
+                    item_data["contested"] = new_item_contested
                     item_data["location"] = new_item_loc
                     st.success("Item updated.")
 

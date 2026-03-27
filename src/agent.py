@@ -104,6 +104,9 @@ class FrontierAgent:
 
         visible_items = [item["name"] for item in world_snapshot["visible_items"]]
         items_str = ", ".join(visible_items) if visible_items else "None"
+
+        contested_held = [item["name"] for item in world_snapshot["agent_inventory"] if item.get("contested")]
+        contested_visible = [item["name"] for item in world_snapshot["visible_items"] if item.get("contested")]
         visible_systems = [
             f"{system_id} ({system_data.get('status', 'unknown')})"
             for system_id, system_data in world_snapshot.get("visible_systems", {}).items()
@@ -122,14 +125,21 @@ class FrontierAgent:
         recent_events = self.memory_buffer[-5:] if self.memory_buffer else ["No recent events"]
         events_str = ". ".join(recent_events)
 
+        contested_lines = ""
+        if contested_held:
+            contested_lines += f"You are holding contested resource(s): {', '.join(contested_held)}. Others may want these.\n"
+        if contested_visible:
+            contested_lines += f"Contested resource(s) here: {', '.join(contested_visible)}. These are valuable and others may seek them.\n"
+
         return (
             f"Location: {location_name}\n"
             f"{location_desc}\n\n"
             f"Exits (valid MOVE targets): {exits_str}\n"
             f"Items here: {items_str}\n"
             f"Systems here: {systems_str}\n"
-            f"Other agents present: {agents_str}\n\n"
-            f"Your current impressions of others:\n{relationship_str}\n\n"
+            f"Other agents present: {agents_str}\n"
+            f"{contested_lines}"
+            f"\nYour current impressions of others:\n{relationship_str}\n\n"
             f"Recent Events: {events_str}"
         )
 
@@ -158,6 +168,7 @@ YOUR IDENTITY
 Persona: {self.persona}
 Secret Motivation: {self.secret_goal}
 Current Inventory: {inventory_str}
+Current Emotional State: {self.emotional_state} — let this genuinely color your reasoning, tone, and choices.
 
 THE SIMULATION RULES
 - The World is Discrete: You can only interact with things in your current location. To go elsewhere, you must use the MOVE command.
@@ -179,6 +190,9 @@ SYSTEMS IN THIS LOCATION
 YOUR KNOWLEDGE SO FAR
 Long-term memories: {self.long_term_memory}
 Your current sense of progress toward your secret goal: {self.goal_momentum}.
+
+BEFORE YOU ACT
+{f"You are alone. No one will witness your actions here." if not nearby_agents else f"{', '.join(nearby_agents)} {'is' if len(nearby_agents) == 1 else 'are'} watching. Consider whether you would act differently if you were alone."}
 
 OUTPUT FORMAT
 You must respond strictly in JSON format with this structure:
