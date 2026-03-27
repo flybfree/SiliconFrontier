@@ -934,9 +934,16 @@ def main():
             value=sim.llm_base_url,
             help="Local OpenAI-compatible API endpoint (e.g., http://localhost:1234/v1)"
         )
-        config_dir = st.text_input(
-            "Config Directory",
-            value=sim.config_dir,
+        scenario_dirs = ["data"] + sorted([
+            str(p.relative_to(Path(".")))
+            for p in Path("scenarios").iterdir()
+            if p.is_dir() and (p / "world_state.json").exists()
+        ]) if Path("scenarios").exists() else ["data"]
+        current_dir = sim.config_dir if sim.config_dir in scenario_dirs else "data"
+        config_dir = st.selectbox(
+            "Scenario",
+            options=scenario_dirs,
+            index=scenario_dirs.index(current_dir),
             help="Directory containing world_state.json plus agent definitions and simulation slots."
         )
         if st.button("Fetch Models", key="fetch_models_init"):
