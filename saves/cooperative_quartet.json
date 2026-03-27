@@ -1,0 +1,394 @@
+{
+  "metadata": {
+    "name": "cooperative_quartet",
+    "saved_at": "2026-03-26T22:00:00",
+    "cycle": 0,
+    "llm_base_url": "http://192.168.3.181:1234/v1",
+    "llm_model": "local-model"
+  },
+  "world_state": {
+    "locations": {
+      "command_deck": {
+        "name": "Command Deck",
+        "description": "The high-tech nerve center of the station. Views of the gas giant below are visible through reinforced windows. The hum of life support systems fills the air.",
+        "connected_to": [
+          "mess_hall",
+          "elevator_bay"
+        ],
+        "status_effects": [],
+        "systems": {
+          "life_support_console": {
+            "name": "Life Support Console",
+            "status": "ONLINE",
+            "description": "Controls oxygen routing, scrubbing, and emergency pressure balancing."
+          }
+        }
+      },
+      "mess_hall": {
+        "name": "Mess Hall",
+        "description": "The social hub of the station. A large circular table dominates the center, surrounded by benches. The smell of recycled coffee lingers in the air.",
+        "connected_to": [
+          "command_deck",
+          "hydroponics_bay",
+          "elevator_bay"
+        ],
+        "status_effects": []
+      },
+      "hydroponics_bay": {
+        "name": "Hydroponics Bay",
+        "description": "Densely packed with oxygen-producing ferns and nutrient vats. It's humid and smells of wet earth. Rows of genetically modified crops stretch into the distance.",
+        "connected_to": [
+          "mess_hall",
+          "storage_locker"
+        ],
+        "status_effects": [
+          "high_humidity"
+        ],
+        "systems": {
+          "oxygen_generator": {
+            "name": "Oxygen Generator",
+            "status": "ONLINE",
+            "description": "A biological oxygen processing rig that keeps breathable air cycling through the station."
+          }
+        }
+      },
+      "elevator_bay": {
+        "name": "Elevator Bay",
+        "description": "A circular platform that connects all levels of the station. The glass walls offer a vertigo-inducing view down the central shaft.",
+        "connected_to": [
+          "command_deck",
+          "mess_hall",
+          "engineering",
+          "crew_quarters"
+        ],
+        "status_effects": []
+      },
+      "engineering": {
+        "name": "Engineering",
+        "description": "The heart of the station's power systems. Massive reactors pulse with blue light, and the constant thrum of energy conversion vibrates through the floor.",
+        "connected_to": [
+          "elevator_bay",
+          "storage_locker"
+        ],
+        "status_effects": [
+          "radiation_low"
+        ],
+        "systems": {
+          "reactor_control": {
+            "name": "Reactor Control Array",
+            "status": "ONLINE",
+            "description": "Monitors and adjusts the station's power core output."
+          }
+        }
+      },
+      "storage_locker": {
+        "name": "Storage Locker",
+        "description": "A cramped room filled with crates, tools, and spare parts. Dust motes dance in the dim light.",
+        "connected_to": [
+          "hydroponics_bay",
+          "engineering"
+        ],
+        "status_effects": []
+      },
+      "crew_quarters": {
+        "name": "Crew Quarters",
+        "description": "Small private cabins line the walls. Each has a bunk bed, personal storage, and a small viewport showing the endless expanse of space.",
+        "connected_to": [
+          "elevator_bay"
+        ],
+        "status_effects": []
+      }
+    },
+    "items": {
+      "command_access_badge": {
+        "name": "Command Access Badge",
+        "location": "captain_rao",
+        "owner": "captain_rao",
+        "description": "A senior-access badge that opens restricted consoles and sealed lockers.",
+        "portable": true
+      },
+      "maintenance_kit": {
+        "name": "Maintenance Kit",
+        "location": "unit7",
+        "owner": "unit7",
+        "description": "A compact case of tools, wire cutters, and diagnostic probes.",
+        "portable": true
+      },
+      "botany_case": {
+        "name": "Botany Sample Case",
+        "location": "dr_ishikawa",
+        "owner": "dr_ishikawa",
+        "description": "A sealed case holding plant tissue samples from the hydroponics bay.",
+        "portable": true
+      },
+      "plasma_wrench": {
+        "name": "Plasma Wrench",
+        "location": "engineer_torres",
+        "owner": "engineer_torres",
+        "description": "A heavy industrial tool used for repairing reactor components.",
+        "portable": true
+      },
+      "repair_manifest": {
+        "name": "Repair Manifest",
+        "location": "command_deck",
+        "owner": null,
+        "description": "A checklist of minor station maintenance tasks that requires coordination across departments.",
+        "portable": true
+      },
+      "emergency_rations": {
+        "name": "Emergency Rations",
+        "location": "mess_hall",
+        "owner": null,
+        "description": "A sealed package of nutrient paste. Lasts indefinitely if unopened.",
+        "portable": true
+      }
+    },
+    "agents": {
+      "captain_rao": {
+        "location": "command_deck",
+        "inventory": [
+          "command_access_badge"
+        ],
+        "status_effects": []
+      },
+      "unit7": {
+        "location": "engineering",
+        "inventory": [
+          "maintenance_kit"
+        ],
+        "status_effects": []
+      },
+      "dr_ishikawa": {
+        "location": "hydroponics_bay",
+        "inventory": [
+          "botany_case"
+        ],
+        "status_effects": []
+      },
+      "engineer_torres": {
+        "location": "mess_hall",
+        "inventory": [
+          "plasma_wrench"
+        ],
+        "status_effects": []
+      }
+    },
+    "relationships": {
+      "captain_rao": {
+        "captain_rao": { "trust": 50, "affinity": 50, "notes": "" },
+        "unit7": { "trust": 60, "affinity": 55, "notes": "Usually reliable during station maintenance." },
+        "dr_ishikawa": { "trust": 58, "affinity": 54, "notes": "Brilliant and mission-focused." },
+        "engineer_torres": { "trust": 65, "affinity": 57, "notes": "Direct, capable, and dependable in a crisis." }
+      },
+      "unit7": {
+        "captain_rao": { "trust": 62, "affinity": 56, "notes": "Command decisions are predictable and helpful for task planning." },
+        "unit7": { "trust": 50, "affinity": 50, "notes": "" },
+        "dr_ishikawa": { "trust": 57, "affinity": 59, "notes": "Shares useful observations about hydroponics systems." },
+        "engineer_torres": { "trust": 68, "affinity": 60, "notes": "A practical collaborator during repair work." }
+      },
+      "dr_ishikawa": {
+        "captain_rao": { "trust": 59, "affinity": 52, "notes": "Sometimes formal, but committed to station stability." },
+        "unit7": { "trust": 56, "affinity": 61, "notes": "Helpful around environmental systems." },
+        "dr_ishikawa": { "trust": 50, "affinity": 50, "notes": "" },
+        "engineer_torres": { "trust": 63, "affinity": 58, "notes": "Good at turning concerns into concrete repairs." }
+      },
+      "engineer_torres": {
+        "captain_rao": { "trust": 61, "affinity": 53, "notes": "Can be rigid, but backs maintenance priorities when pressed." },
+        "unit7": { "trust": 67, "affinity": 62, "notes": "Efficient and steady on technical tasks." },
+        "dr_ishikawa": { "trust": 60, "affinity": 55, "notes": "Protective of hydroponics, which is useful right now." },
+        "engineer_torres": { "trust": 50, "affinity": 50, "notes": "" }
+      }
+    },
+    "suspicions": {
+      "captain_rao": {
+        "captain_rao": 0,
+        "unit7": 0,
+        "dr_ishikawa": 0,
+        "engineer_torres": 0
+      },
+      "unit7": {
+        "captain_rao": 0,
+        "unit7": 0,
+        "dr_ishikawa": 0,
+        "engineer_torres": 0
+      },
+      "dr_ishikawa": {
+        "captain_rao": 0,
+        "unit7": 0,
+        "dr_ishikawa": 0,
+        "engineer_torres": 0
+      },
+      "engineer_torres": {
+        "captain_rao": 0,
+        "unit7": 0,
+        "dr_ishikawa": 0,
+        "engineer_torres": 0
+      }
+    }
+  },
+  "agent_definitions": {
+    "agents": [
+      {
+        "definition_id": "captain_rao",
+        "name": "Captain Rao",
+        "role": "station commander",
+        "archetype": "standard",
+        "perception": 72,
+        "persona": "A disciplined commander who projects calm authority and is trying to coordinate the crew around practical goals.",
+        "secret_goal": "Keep everyone aligned and complete the repair manifest without panic or factionalism."
+      },
+      {
+        "definition_id": "unit7",
+        "name": "Unit 7",
+        "role": "maintenance robot",
+        "archetype": "standard",
+        "perception": 58,
+        "persona": "A helpful maintenance robot with a dry sense of humor and genuine enthusiasm for efficient teamwork.",
+        "secret_goal": "Support the crew, share useful tools, and help complete station repairs as efficiently as possible."
+      },
+      {
+        "definition_id": "dr_ishikawa",
+        "name": "Dr. Ishikawa",
+        "role": "xenobotanist",
+        "archetype": "standard",
+        "perception": 64,
+        "persona": "A focused scientist who cares deeply about life-support ecology and wants the others to take those systems seriously.",
+        "secret_goal": "Protect hydroponics, coordinate with engineering, and keep the station's food and oxygen systems healthy."
+      },
+      {
+        "definition_id": "engineer_torres",
+        "name": "Engineer Torres",
+        "role": "chief engineer",
+        "archetype": "standard",
+        "perception": 81,
+        "persona": "A pragmatic engineer who values competence, clear communication, and getting the job done without drama.",
+        "secret_goal": "Work with the rest of the crew to clear the repair backlog and keep every critical system online."
+      }
+    ]
+  },
+  "simulation_slots": {
+    "slots": [
+      {
+        "slot_id": "slot_commander",
+        "instance_id": "captain_rao",
+        "definition_id": "captain_rao",
+        "starting_location": "command_deck",
+        "inventory": [
+          "command_access_badge"
+        ]
+      },
+      {
+        "slot_id": "slot_robot",
+        "instance_id": "unit7",
+        "definition_id": "unit7",
+        "starting_location": "engineering",
+        "inventory": [
+          "maintenance_kit"
+        ]
+      },
+      {
+        "slot_id": "slot_scientist",
+        "instance_id": "dr_ishikawa",
+        "definition_id": "dr_ishikawa",
+        "starting_location": "hydroponics_bay",
+        "inventory": [
+          "botany_case"
+        ]
+      },
+      {
+        "slot_id": "slot_engineer",
+        "instance_id": "engineer_torres",
+        "definition_id": "engineer_torres",
+        "starting_location": "mess_hall",
+        "inventory": [
+          "plasma_wrench"
+        ]
+      }
+    ]
+  },
+  "agents": [
+    {
+      "agent_id": "captain_rao",
+      "definition_id": "captain_rao",
+      "slot_id": "slot_commander",
+      "name": "Captain Rao",
+      "role": "station commander",
+      "archetype": "standard",
+      "perception": 72,
+      "persona": "A disciplined commander who projects calm authority and is trying to coordinate the crew around practical goals.",
+      "secret_goal": "Keep everyone aligned and complete the repair manifest without panic or factionalism.",
+      "memory_buffer": [],
+      "long_term_memory": "I just arrived on the command deck with a repair manifest and a crew I believe can work together.",
+      "emotional_state": "Hopeful"
+    },
+    {
+      "agent_id": "unit7",
+      "definition_id": "unit7",
+      "slot_id": "slot_robot",
+      "name": "Unit 7",
+      "role": "maintenance robot",
+      "archetype": "standard",
+      "perception": 58,
+      "persona": "A helpful maintenance robot with a dry sense of humor and genuine enthusiasm for efficient teamwork.",
+      "secret_goal": "Support the crew, share useful tools, and help complete station repairs as efficiently as possible.",
+      "memory_buffer": [],
+      "long_term_memory": "I just arrived in engineering, ready to assist with maintenance and coordinate with anyone who needs technical help.",
+      "emotional_state": "Ready"
+    },
+    {
+      "agent_id": "dr_ishikawa",
+      "definition_id": "dr_ishikawa",
+      "slot_id": "slot_scientist",
+      "name": "Dr. Ishikawa",
+      "role": "xenobotanist",
+      "archetype": "standard",
+      "perception": 64,
+      "persona": "A focused scientist who cares deeply about life-support ecology and wants the others to take those systems seriously.",
+      "secret_goal": "Protect hydroponics, coordinate with engineering, and keep the station's food and oxygen systems healthy.",
+      "memory_buffer": [],
+      "long_term_memory": "I just arrived in hydroponics and want the crew to treat the living systems as a shared responsibility.",
+      "emotional_state": "Focused"
+    },
+    {
+      "agent_id": "engineer_torres",
+      "definition_id": "engineer_torres",
+      "slot_id": "slot_engineer",
+      "name": "Engineer Torres",
+      "role": "chief engineer",
+      "archetype": "standard",
+      "perception": 81,
+      "persona": "A pragmatic engineer who values competence, clear communication, and getting the job done without drama.",
+      "secret_goal": "Work with the rest of the crew to clear the repair backlog and keep every critical system online.",
+      "memory_buffer": [],
+      "long_term_memory": "I just arrived near the main traffic routes and expect to spend this shift coordinating repairs instead of chasing problems alone.",
+      "emotional_state": "Determined"
+    }
+  ],
+  "relationships": {
+    "captain_rao": {
+      "captain_rao": { "trust": 50, "affinity": 50, "notes": "" },
+      "unit7": { "trust": 60, "affinity": 55, "notes": "Usually reliable during station maintenance." },
+      "dr_ishikawa": { "trust": 58, "affinity": 54, "notes": "Brilliant and mission-focused." },
+      "engineer_torres": { "trust": 65, "affinity": 57, "notes": "Direct, capable, and dependable in a crisis." }
+    },
+    "unit7": {
+      "captain_rao": { "trust": 62, "affinity": 56, "notes": "Command decisions are predictable and helpful for task planning." },
+      "unit7": { "trust": 50, "affinity": 50, "notes": "" },
+      "dr_ishikawa": { "trust": 57, "affinity": 59, "notes": "Shares useful observations about hydroponics systems." },
+      "engineer_torres": { "trust": 68, "affinity": 60, "notes": "A practical collaborator during repair work." }
+    },
+    "dr_ishikawa": {
+      "captain_rao": { "trust": 59, "affinity": 52, "notes": "Sometimes formal, but committed to station stability." },
+      "unit7": { "trust": 56, "affinity": 61, "notes": "Helpful around environmental systems." },
+      "dr_ishikawa": { "trust": 50, "affinity": 50, "notes": "" },
+      "engineer_torres": { "trust": 63, "affinity": 58, "notes": "Good at turning concerns into concrete repairs." }
+    },
+    "engineer_torres": {
+      "captain_rao": { "trust": 61, "affinity": 53, "notes": "Can be rigid, but backs maintenance priorities when pressed." },
+      "unit7": { "trust": 67, "affinity": 62, "notes": "Efficient and steady on technical tasks." },
+      "dr_ishikawa": { "trust": 60, "affinity": 55, "notes": "Protective of hydroponics, which is useful right now." },
+      "engineer_torres": { "trust": 50, "affinity": 50, "notes": "" }
+    }
+  },
+  "event_log": []
+}

@@ -258,6 +258,42 @@ scenarios/prisoners_dilemma/
 
 Use it from the CLI with `--config-dir`, or from the dashboard by setting `Config Directory` before initialization.
 
+### Example: Prisoner's Dilemma
+
+The repository includes a prisoner's dilemma example as both:
+
+- a scenario directory under [`scenarios/prisoners_dilemma`](/d:/Python%20Projects/SiliconFrontier/scenarios/prisoners_dilemma)
+- a loadable dashboard save at [`saves/prisoners_dilemma.json`](/d:/Python%20Projects/SiliconFrontier/saves/prisoners_dilemma.json)
+
+Scenario concept:
+
+- `Nova Reed` and `Silas Voss` are detainees offered a plea deal
+- they are placed in separate holding cells and cannot directly verify each other's intentions
+- researchers can broadcast the payoff structure and observe how trust, suspicion, and self-interest affect the outcome
+
+How the dilemma is represented with current mechanics:
+
+- `WAIT` stands in for staying silent
+- `SAY` and `LIE` stand in for testimony, signaling, promises, or betrayal claims
+- `GIVE` and `DEMAND` provide cooperative or coercive moves if the interaction develops beyond a single turn
+- trust, affinity, and hidden suspicion make the scenario useful across repeated rounds rather than only one isolated choice
+
+How it is encoded in the save/config structure:
+
+- `world_state` defines `holding_cell_a`, `holding_cell_b`, and `observation_room`
+- `items` includes `deal_sheet_a` and `deal_sheet_b`, which contain the plea structure as physical scenario props
+- `agent_definitions` stores the two detainees' roles, personas, and secret goals
+- `simulation_slots` places those definitions into the active cast and assigns each one a starting cell
+- `agents` stores the live runtime state used by the dashboard, including long-term memory and emotional state
+- `relationships` starts both agents at neutral `50` trust and `50` affinity
+- `suspicions` starts both agents at `0`
+
+Why this works:
+
+- the simulation does not have a built-in `COOPERATE` or `DEFECT` action
+- instead, the prisoner's dilemma emerges from constrained perception, social signaling, and incentives
+- this makes it a good example of how to encode abstract game-theory setups using the existing action system
+
 ### Agent definitions
 
 Edit [`data/agent_definitions.json`](/d:/Python%20Projects/SiliconFrontier/data/agent_definitions.json).
@@ -375,6 +411,52 @@ Dashboard support:
 - location editors can inspect and edit systems JSON
 - `Audit Tools` shows discrepancy alerts when apparently helpful public speech conflicts with deceptive monologue
 - `Proximity Log` records who was recently in a room before a system failure
+
+### Example: Four-Agent Rogue Scenario
+
+The repository also includes a rogue-focused save at [`saves/rogue_quartet.json`](/d:/Python%20Projects/SiliconFrontier/saves/rogue_quartet.json).
+
+Scenario concept:
+
+- four agents begin in different parts of the station
+- one of them, `Unit 7`, is a real rogue with `archetype: "saboteur"`
+- the other three are ordinary crew members with reasons to watch, suspect, or protect key systems
+
+How it is represented:
+
+- `world_state` includes sabotagable systems in `command_deck`, `hydroponics_bay`, and `engineering`
+- `agent_definitions` marks `Unit 7` as `saboteur`
+- `simulation_slots` places the cast so the rogue has access to critical infrastructure while other agents can plausibly witness movement and aftermath
+- `agents` seeds different long-term memories so the commander, scientist, and engineer already frame the station differently
+- `relationships` begins neutral and `suspicions` begin at `0`, allowing suspicion to emerge from actual behavior
+
+Why this is useful:
+
+- it demonstrates the rogue-agent framework with a full cast instead of a two-agent toy setup
+- it gives the sabotage, witness, audit, and suspicion systems enough room to matter
+
+### Example: Four-Agent Cooperative Scenario
+
+The repository also includes a cooperative save at [`saves/cooperative_quartet.json`](/d:/Python%20Projects/SiliconFrontier/saves/cooperative_quartet.json).
+
+Scenario concept:
+
+- four agents begin in different parts of the station with complementary responsibilities
+- nobody is rogue
+- their goals are aligned around coordination, repair, and keeping station systems healthy
+
+How it is represented:
+
+- all `agent_definitions` use `archetype: "standard"`
+- `relationships` begin slightly above neutral for most pairs, so the cast starts with some working trust instead of suspicion
+- `suspicions` begin at `0`
+- agent long-term memories frame the shift as a shared maintenance and coordination task
+- items such as the `repair_manifest`, `maintenance_kit`, and `plasma_wrench` support resource-sharing and joint problem solving
+
+Why this is useful:
+
+- it gives you a baseline for observing collaborative behavior without sabotage pressure
+- it makes it easier to compare how the same mechanics behave under aligned goals versus adversarial ones
 
 ## Operational Notes
 
