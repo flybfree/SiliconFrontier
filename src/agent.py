@@ -99,6 +99,8 @@ class FrontierAgent:
         loc = world_snapshot["current_location"]
         location_name = loc.get("name", "Unknown") if loc else "Unknown"
         location_desc = loc.get("description", "") if loc else ""
+        connected = loc.get("connected_to", []) if loc else []
+        exits_str = ", ".join(connected) if connected else "none"
 
         visible_items = [item["name"] for item in world_snapshot["visible_items"]]
         items_str = ", ".join(visible_items) if visible_items else "None"
@@ -123,6 +125,7 @@ class FrontierAgent:
         return (
             f"Location: {location_name}\n"
             f"{location_desc}\n\n"
+            f"Exits (valid MOVE targets): {exits_str}\n"
             f"Items here: {items_str}\n"
             f"Systems here: {systems_str}\n"
             f"Other agents present: {agents_str}\n\n"
@@ -158,6 +161,7 @@ Current Inventory: {inventory_str}
 
 THE SIMULATION RULES
 - The World is Discrete: You can only interact with things in your current location. To go elsewhere, you must use the MOVE command.
+- Movement: You can only MOVE to locations listed under "Exits (valid MOVE targets)" in your situation report. Do not attempt to move anywhere else.
 - Persistence: Your memories are long-term. Refer to previous events to build trust or hold grudges.
 - Truth Constraint: Do NOT invent items or people that are not in your "Current Situation" report.
 - Interaction: You can talk to other agents in the same room using the SAY command.
