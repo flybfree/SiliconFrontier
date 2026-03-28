@@ -173,10 +173,15 @@ class SocialMatrix:
 
         if notes:
             existing_notes = self._relationships[agent_a][agent_b].get("notes", "")
-            timestamp = f"[Turn] {existing_notes}" if existing_notes else ""
-            self._relationships[agent_a][agent_b]["notes"] = (
-                f"{timestamp} {agent_b}: ΔT={trust_delta:+d}, ΔA={affinity_delta:+d}. {notes}"
-            )
+            new_entry = f"{agent_b}: ΔT={trust_delta:+d}, ΔA={affinity_delta:+d}. {notes}"
+            if existing_notes:
+                # Keep only the last 2 prior entries to prevent unbounded growth
+                prior_entries = [e.strip() for e in existing_notes.split("[Turn]") if e.strip()]
+                prior_entries = prior_entries[-2:]
+                combined = " [Turn] ".join(prior_entries) + " [Turn] " + new_entry
+            else:
+                combined = new_entry
+            self._relationships[agent_a][agent_b]["notes"] = combined
 
         return new_trust, new_affinity
 

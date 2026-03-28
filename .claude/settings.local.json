@@ -14,7 +14,9 @@
       "mcp__plugin_claude-mem_mcp-search__search",
       "Bash(find /c/Users/rich -maxdepth 3 -name *.bat -o -name *.cmd -o -name *.ps1)",
       "Bash(xargs grep:*)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\(''scenario_editor.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''scenario_editor.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")",
+      "Bash(python test_system_status.py)",
+      "Bash(python -m py_compile src/*.py)"
     ]
   }
 }

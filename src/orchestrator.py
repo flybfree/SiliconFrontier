@@ -26,7 +26,7 @@ class Orchestrator:
         world_state,
         action_parser,
         social_matrix,
-        reflection_interval: int = 10
+        reflection_interval: int = 5
     ):
         """
         Initialize the orchestrator.

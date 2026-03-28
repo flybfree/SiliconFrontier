@@ -178,7 +178,7 @@ library/
   items.json               Shared reusable item definitions
   relationship_presets.json Named relationship starting states
 scenarios/
-  default/                 Baseline 4-agent scenario
+  default/                 Baseline scenario (4 active agents from 8 definitions)
   prisoners_dilemma/       2-agent game theory scenario
   cascade_failure/         8-agent dual-saboteur scenario
 saves/                     Dashboard save files

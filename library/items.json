@@ -86,7 +86,7 @@
       "effect": {
         "perception_delta": 10,
         "emotional_state": "Alert",
-        "memory_inject": "the soda tasted great and made me more alert"
+        "memory_inject": "the soda was refreshing and made me more alert"
       }
     }
   }

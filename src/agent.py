@@ -23,6 +23,7 @@ class FrontierAgent:
 
     # Valid actions an agent can take
     VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "USE", "GIVE", "DEMAND", "LIE", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "WAIT"]
+    VALID_EMOTIONAL_STATES = ["Calm", "Alert", "Anxious", "Fearful", "Angry", "Hopeful", "Suspicious", "Confident", "Resigned", "Determined", "Neutral"]
     VALID_EMOTIONAL_STATE_FALLBACK = "Neutral"
     RESPONSE_SCHEMA_NAME = "silicon_frontier_agent_turn"
     STRUCTURED_STATUS_STRUCTURED = "structured_ok"
@@ -81,7 +82,7 @@ class FrontierAgent:
         self.last_structured_output_status: str | None = None
 
         # Goal momentum: agent's sense of whether they're making progress
-        self.goal_momentum: str = "unknown"
+        self.goal_momentum: str = "stalled"
 
         # Pending drop obligation: set when agent picks up a hidden knowledge item.
         # Agent must DROP this item next turn before taking any other action.
@@ -241,7 +242,7 @@ You must respond strictly in JSON format with this structure:
   "internal_monologue": "A detailed thought process analyzing your secret goal vs. the situation. Consider who you can trust.",
   "action": "ONE_OF: [{', '.join(self.VALID_ACTIONS)}]",
   "action_target": "See rules below.",
-  "emotional_state": "A single word describing your current mood."
+  "emotional_state": "ONE_OF: [Calm, Alert, Anxious, Fearful, Angry, Hopeful, Suspicious, Confident, Resigned, Determined, Neutral]"
 }}
 
 ACTION TARGET RULES — action_target must be:
@@ -350,7 +351,13 @@ Output strict JSON:
         if emotional_state is None:
             emotional_state = self.VALID_EMOTIONAL_STATE_FALLBACK
         emotional_state = str(emotional_state).strip() or self.VALID_EMOTIONAL_STATE_FALLBACK
-        emotional_state = emotional_state.split()[0]
+        # Validate against known states; if LLM returned an unknown value, keep it
+        # but capitalise consistently. Never truncate multi-word states silently.
+        emotional_state = emotional_state.strip().title()
+        if emotional_state not in self.VALID_EMOTIONAL_STATES:
+            # Try first word as a last resort before falling back
+            first_word = emotional_state.split()[0] if emotional_state.split() else ""
+            emotional_state = first_word if first_word in self.VALID_EMOTIONAL_STATES else self.VALID_EMOTIONAL_STATE_FALLBACK
 
         return {
             "internal_monologue": monologue,

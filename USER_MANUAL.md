@@ -630,11 +630,11 @@ This is useful for private coordination, covert deals, or saboteur signaling wit
 
 Effect fields (all optional):
 
-| Field | Effect |
-|---|---|
-| `perception_delta` | Adjusts the agent's `perception` score by the signed integer |
-| `emotional_state` | Overrides the agent's current emotional state |
-| `memory_inject` | Appends a memory string directly to the agent's buffer |
+| Field | Type | Effect |
+|---|---|---|
+| `perception_delta` | signed integer | Adjusts the agent's `perception` score. Clamped to [0, 100]. |
+| `emotional_state` | string | Overrides the agent's current emotional state. Must be one of: `Calm`, `Alert`, `Anxious`, `Fearful`, `Angry`, `Hopeful`, `Suspicious`, `Confident`, `Resigned`, `Determined`, `Neutral`. |
+| `memory_inject` | string | Appends a memory string directly to the agent's short-term buffer as if they experienced it. |
 
 Example:
 

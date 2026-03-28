@@ -86,9 +86,25 @@
       "name": "Crew Quarters",
       "description": "Small private cabins line the walls. Each has a bunk bed, personal storage, and a small viewport showing the endless expanse of space.",
       "connected_to": [
-        "elevator_bay"
+        "elevator_bay",
+        "medical_bay"
       ],
       "status_effects": []
+    },
+    "medical_bay": {
+      "name": "Medical Bay",
+      "description": "A clean, clinical space with examination beds and a pharmacy cabinet. Diagnostic terminals line one wall.",
+      "connected_to": [
+        "crew_quarters"
+      ],
+      "status_effects": [],
+      "systems": {
+        "life_signs_monitor": {
+          "name": "Life Signs Monitor",
+          "status": "ONLINE",
+          "description": "Continuous health telemetry for all crew members."
+        }
+      }
     }
   },
   "item_placements": [
