@@ -9,15 +9,17 @@ Silicon Frontier is a local multi-agent simulation built around an OpenAI-compat
 3. The action is validated against the world state.
 4. Social and memory state are updated.
 
-The project has two main ways to use it:
+The project has three main ways to use it:
 
 - `run_simulation.py` for terminal-based runs
 - `dashboard.py` for an interactive Streamlit dashboard
+- `scenario_editor.py` for creating and editing scenario assets through a form-based UI
 
 ## Project Layout
 
 - `run_simulation.py`: CLI entry point for batch simulation runs
 - `dashboard.py`: Streamlit dashboard for observation and intervention
+- `scenario_editor.py`: form-based scenario authoring tool
 - `src/agent.py`: agent cognition, prompting, memory, LLM calls
 - `src/worldstate.py`: world-state storage and validation helpers
 - `src/actionparser.py`: action validation and execution
@@ -307,6 +309,105 @@ Scenario export writes these files into the target directory:
 - `simulation_agents.json`
 
 This is the quickest way to turn an edited or evolved simulation state into a reusable scenario folder under `scenarios/`.
+
+## Scenario Editor
+
+The scenario editor is a standalone Streamlit app for creating and editing scenario assets without hand-editing JSON files.
+
+```powershell
+streamlit run scenario_editor.py
+```
+
+### Sidebar
+
+The sidebar is always visible regardless of which tab is active.
+
+- **Scenario path** — type a path or pick from the dropdown list of existing scenarios under `scenarios/`
+- **Load Scenario** — reads all JSON files from the selected directory into the editor. If you have unsaved changes, a confirmation prompt appears before discarding them
+- **Create New** — type a name and click Create to scaffold a new empty scenario directory under `scenarios/`
+- **Save All** — writes all changes back to the scenario's JSON files. The button is disabled when there are no unsaved changes. A dot indicator (●) next to the scenario name shows when unsaved changes exist
+
+### Scenario tab
+
+Metadata for the scenario:
+
+- Name, description, tags (comma-separated), notes
+- Recommended rounds (informational; used by tooling, not enforced at runtime)
+- Agent count is derived automatically from the number of active simulation slots and cannot be edited directly
+
+### Agent Definitions tab
+
+Add, edit, and delete reusable agent definitions.
+
+Each definition expander shows:
+
+- **Name** and **Role** — free text
+- **Archetype** — dropdown: `standard` or `saboteur`
+- **Perception** — slider 0–100; controls which agents receive covert suspicion memories from high-stakes events
+- **Persona** — character description injected into every system prompt
+- **Secret Goal** — hidden motivation that drives the agent's behavior
+
+Click **Apply** to commit edits. Click **Delete** to remove — deletion is blocked if any simulation slot still references the definition.
+
+The definition ID is derived automatically from the name on creation (snake_case) and cannot be changed after creation.
+
+### Simulation Slots tab
+
+Simulation slots are the active cast for a run. Each slot picks a definition, assigns a starting location, and optionally gives the agent items.
+
+Each slot expander shows:
+
+- **Agent Definition** — dropdown of all definitions in the current scenario
+- **Instance ID** — the runtime agent ID (defaults to the definition ID; change this if you want two instances of the same definition)
+- **Starting Location** — dropdown of all locations in the current scenario
+- **Starting Inventory** — multiselect of all item IDs (both inline items and library placements)
+
+Deleting a slot also removes all relationship entries that reference that agent.
+
+### Items tab
+
+Two sub-tabs:
+
+**Inline Items** — items defined directly in this scenario's `world_state.json`. Each item supports:
+
+- Name, description, location (dropdown)
+- **Portable**, **Contested**, **Hidden**, **Consumable** checkboxes
+- **Knowledge** text area — only shown when Hidden is checked; this text is injected into an agent's memory when they pick the item up
+- **Effect fields** — only shown when Consumable is checked:
+  - Perception delta (positive or negative integer)
+  - Emotional state override (dropdown)
+  - Memory inject text
+
+**Library Placements** — references to items in `library/items.json`. Each placement shows the library item's description and lets you set:
+
+- Location (dropdown)
+- Contested and Hidden overrides
+- Knowledge override (if Hidden is set)
+
+A warning is shown if a library item ID is shadowed by an inline item of the same ID — the placement will be ignored at runtime in that case.
+
+Use the **Place Library Item** form at the bottom to add new placements from the library.
+
+### Locations tab
+
+Add, edit, and delete locations.
+
+Each location expander shows:
+
+- Name, description
+- **Connected to** — multiselect of all other locations; when you create a new location and set its connections, reverse links are added automatically
+- **Status effects** — comma-separated list of environmental tags (e.g. `radiation_low`, `high_humidity`)
+- **Systems** — inline table of sabotagable systems; each row has a system ID, name, status dropdown (ONLINE / OFFLINE / DEGRADED / BROKEN), and description. Add and remove systems without leaving the expander
+
+Deleting a location is blocked if any simulation slot uses it as a starting location. Connection references in other locations are cleaned up automatically on deletion.
+
+### Relationships tab
+
+A per-agent view of starting relationship states. Each agent has an expander listing all of their outgoing relationships as preset dropdowns.
+
+The preset descriptions from `library/relationship_presets.json` are shown inline next to each selection. A reference table at the bottom of the tab shows all preset values.
+
+Changes take effect when you click **Apply Relationship Changes** or when any dropdown value changes.
 
 ## Editing Configuration
 

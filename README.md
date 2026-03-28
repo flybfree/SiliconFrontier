@@ -52,7 +52,15 @@ By default, all terminal output is also mirrored to a timestamped file in `logs/
 streamlit run dashboard.py
 ```
 
-Set the API URL and config directory in the sidebar, click **Initialize Simulation**, then run cycles.
+Set the API URL and config directory in the sidebar, click **Initialize Simulation**, then run cycles. Check **Log to file** to mirror all simulation output to a timestamped file in `logs/`.
+
+### Scenario editor
+
+```bash
+streamlit run scenario_editor.py
+```
+
+A form-based tool for creating and editing scenario assets — agents, locations, items, simulation slots, and starting relationships — without hand-editing JSON.
 
 ---
 
@@ -157,6 +165,7 @@ The LLM never touches `WorldState` directly. It only reads a filtered snapshot a
 ```
 run_simulation.py          CLI entry point
 dashboard.py               Streamlit dashboard
+scenario_editor.py         Form-based scenario authoring tool
 src/
   agent.py                 Agent cognition, prompting, memory, LLM calls
   orchestrator.py          Simulation loop, event broadcast, reflection
@@ -297,8 +306,18 @@ See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flag
 - Run single or batched cycles
 - Inspect agent memory, emotional state, and inventory per turn
 - Edit agent persona, secret goal, and location live
-- Relationship matrix with trust, affinity, and notes per observer-target pair
+- Relationship matrix with trust, affinity, and notes per observer-target pair; scores shown as human-readable labels with numeric values
 - World state editor for locations, items, and systems
 - God Console for direct intervention (broadcast, memory inject, relocate, persona swap)
 - Save and load full simulation state
 - Export current state as a reusable scenario directory
+- Optional file logging — mirrors all simulation output to a timestamped file in `logs/`
+
+## Scenario editor features
+
+- Load existing scenarios or scaffold new ones from the sidebar
+- Agent definition editor — name, role, archetype, perception slider, persona, secret goal
+- Simulation slot editor — assign definitions to slots with location and inventory dropdowns
+- Item editor — inline items and library placements, with conditional fields for hidden knowledge and consumable effects
+- Location editor — connections multiselect, status effects, inline system add/remove
+- Relationship editor — preset dropdowns for each directed agent pair with descriptions inline
