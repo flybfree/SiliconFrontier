@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from configloader import (
     load_scenario_manifest,
     load_item_library,
+    save_item_library,
     load_agent_library,
     save_agent_library,
     load_relationship_presets,
@@ -99,6 +100,8 @@ def _slots() -> dict:
     return st.session_state.se_simulation_slots
 
 def _library() -> dict:
+    if "se_item_library" not in st.session_state:
+        st.session_state.se_item_library = load_item_library()
     return st.session_state.se_item_library
 
 def _presets() -> dict:
@@ -153,6 +156,8 @@ def _preset_names() -> list[str]:
     return list(_presets().get("presets", {}).keys())
 
 def _agent_library() -> dict:
+    if "se_agent_library" not in st.session_state:
+        st.session_state.se_agent_library = load_agent_library()
     return st.session_state.se_agent_library
 
 def _slugify(name: str) -> str:
@@ -727,7 +732,8 @@ def render_tab_items() -> None:
                 if n_consumable:
                     n_effect = _render_effect_fields(f"item_eff_{item_id}", item.get("effect", {}))
 
-                c_apply, c_del, _ = st.columns([1, 1, 4])
+                in_lib = item_id in _library().get("items", {})
+                c_apply, c_save_lib, c_del, _ = st.columns([1, 1, 1, 3])
                 with c_apply:
                     if st.button("Apply", key=f"item_apply_{item_id}"):
                         updated = {
@@ -749,8 +755,33 @@ def render_tab_items() -> None:
                         inline_items[item_id] = updated
                         _mark_dirty()
                         st.rerun()
+                with c_save_lib:
+                    save_label = "Update Library" if in_lib else "Save to Library"
+                    if st.button(save_label, key=f"item_to_lib_{item_id}"):
+                        lib = _library()
+                        # Strip placement-specific fields before saving to library
+                        lib_entry = {
+                            "name": n_name.strip(),
+                            "description": n_desc.strip(),
+                            "portable": n_portable,
+                        }
+                        if n_contested:
+                            lib_entry["contested"] = True
+                        if n_hidden:
+                            lib_entry["hidden"] = True
+                            if n_knowledge.strip():
+                                lib_entry["knowledge"] = n_knowledge.strip()
+                        if n_consumable:
+                            lib_entry["consumable"] = True
+                            if n_effect:
+                                lib_entry["effect"] = n_effect
+                        lib["items"][item_id] = lib_entry
+                        save_item_library(lib)
+                        st.session_state.se_item_library = lib
+                        st.success(f"{'Updated' if in_lib else 'Saved'} '{item_id}' in library.")
+                        st.rerun()
                 with c_del:
-                    if st.button("Delete", key=f"item_del_{item_id}", type="secondary"):
+                    if st.button("Remove", key=f"item_del_{item_id}", type="secondary"):
                         to_delete = item_id
 
         if to_delete:
@@ -760,43 +791,53 @@ def render_tab_items() -> None:
 
         st.divider()
         with st.expander("➕ Add Inline Item", expanded=False):
-            with st.form("form_add_item"):
-                fc1, fc2 = st.columns(2)
-                with fc1:
-                    f_id = st.text_input("Item ID* (snake_case)", help="Unique key, e.g. security_badge")
-                    f_name = st.text_input("Name*")
-                    f_loc = st.selectbox("Location", options=loc_options, format_func=_location_name) if loc_options else st.text_input("Location")
-                    f_portable = st.checkbox("Portable", value=True)
-                    f_contested = st.checkbox("Contested")
-                with fc2:
-                    f_desc = st.text_area("Description", height=80)
-                    f_hidden = st.checkbox("Hidden")
-                    f_consumable = st.checkbox("Consumable")
-                f_knowledge = st.text_area("Knowledge (if hidden)", height=60) if f_hidden else ""
-                submitted = st.form_submit_button("Add Item")
-                if submitted:
-                    if not f_id.strip() or not f_name.strip():
-                        st.error("Item ID and Name are required.")
-                    elif f_id.strip() in inline_items:
-                        st.error(f"Item ID '{f_id.strip()}' already exists.")
-                    else:
-                        entry = {
-                            "name": f_name.strip(),
-                            "location": f_loc if loc_options else f_loc,
-                            "owner": None,
-                            "description": f_desc.strip(),
-                            "portable": f_portable,
-                        }
-                        if f_contested:
-                            entry["contested"] = True
-                        if f_hidden:
-                            entry["hidden"] = True
-                            entry["knowledge"] = f_knowledge.strip()
-                        if f_consumable:
-                            entry["consumable"] = True
-                        inline_items[f_id.strip()] = entry
-                        _mark_dirty()
-                        st.rerun()
+            fc1, fc2 = st.columns(2)
+            with fc1:
+                f_id = st.text_input("Item ID* (snake_case)", help="Unique key, e.g. soda_can", key="new_item_id")
+                f_name = st.text_input("Name*", key="new_item_name")
+                f_loc = st.selectbox("Location", options=loc_options, format_func=_location_name, key="new_item_loc") if loc_options else st.text_input("Location", key="new_item_loc_txt")
+                f_portable = st.checkbox("Portable", value=True, key="new_item_portable")
+                f_contested = st.checkbox("Contested", key="new_item_contested")
+            with fc2:
+                f_desc = st.text_area("Description", height=80, key="new_item_desc")
+                f_hidden = st.checkbox("Hidden", key="new_item_hidden")
+                f_consumable = st.checkbox("Consumable", key="new_item_consumable")
+
+            if f_hidden:
+                f_knowledge = st.text_area("Knowledge (revealed on pickup)", height=60, key="new_item_knowledge")
+            else:
+                f_knowledge = ""
+
+            f_effect = {}
+            if f_consumable:
+                f_effect = _render_effect_fields("new_item_effect", {})
+
+            if st.button("Add Item", key="new_item_submit"):
+                clean_id = f_id.strip()
+                if not clean_id or not f_name.strip():
+                    st.error("Item ID and Name are required.")
+                elif clean_id in inline_items:
+                    st.error(f"Item ID '{clean_id}' already exists.")
+                else:
+                    entry = {
+                        "name": f_name.strip(),
+                        "location": f_loc if loc_options else st.session_state.get("new_item_loc_txt", ""),
+                        "owner": None,
+                        "description": f_desc.strip(),
+                        "portable": f_portable,
+                    }
+                    if f_contested:
+                        entry["contested"] = True
+                    if f_hidden:
+                        entry["hidden"] = True
+                        entry["knowledge"] = f_knowledge.strip()
+                    if f_consumable:
+                        entry["consumable"] = True
+                        if f_effect:
+                            entry["effect"] = f_effect
+                    inline_items[clean_id] = entry
+                    _mark_dirty()
+                    st.rerun()
 
     # ---- Library placements ----
     with library_tab:

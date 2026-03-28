@@ -46,6 +46,12 @@ def load_item_library(library_dir: str | Path | None = None) -> dict[str, Any]:
     return {"items": {}}
 
 
+def save_item_library(library: dict[str, Any], library_dir: str | Path | None = None) -> None:
+    """Persist the shared item library."""
+    path = Path(library_dir or _DEFAULT_LIBRARY_DIR) / "items.json"
+    _save_json(path, library)
+
+
 def load_agent_library(library_dir: str | Path | None = None) -> dict[str, Any]:
     """Load the shared agent library. Returns empty library if file is absent."""
     path = Path(library_dir or _DEFAULT_LIBRARY_DIR) / "agents.json"

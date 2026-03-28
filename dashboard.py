@@ -73,6 +73,7 @@ from configloader import (
     save_simulation_slots,
     save_world_state,
     load_item_library,
+    save_item_library,
     load_relationship_presets,
     load_scenario_manifest,
     resolve_item_placements,
@@ -1415,28 +1416,115 @@ def main():
                         st.error(f"Invalid systems JSON: {e}")
 
     with item_tab:
+        EMOTIONAL_STATES = [
+            "", "Calm", "Alert", "Anxious", "Fearful", "Angry", "Hopeful",
+            "Suspicious", "Confident", "Resigned", "Determined", "Neutral",
+        ]
+
         all_loc_ids = list(sim.world_state.locations.keys())
         with st.expander("➕ Add New Item"):
-            new_item_id = st.text_input("Item ID (e.g. laser_cutter)", key="new_item_id")
-            new_item_name = st.text_input("Name", key="new_item_name")
-            new_item_desc = st.text_area("Description", key="new_item_desc", height=80)
-            new_item_portable = st.checkbox("Portable", value=True, key="new_item_portable")
-            new_item_loc = st.selectbox("Starting Location", options=all_loc_ids, key="new_item_loc")
-            if st.button("Create Item", key="create_item"):
-                if not new_item_id.strip():
-                    st.error("Item ID is required.")
-                elif new_item_id.strip() in sim.world_state.items:
-                    st.error(f"ID '{new_item_id.strip()}' already exists.")
+            add_custom_tab, add_library_tab = st.tabs(["Custom Item", "From Library"])
+
+            with add_custom_tab:
+                ni_id = st.text_input("Item ID (e.g. soda_can)", key="new_item_id")
+                ni_name = st.text_input("Name", key="new_item_name")
+                ni_desc = st.text_area("Description", key="new_item_desc", height=80)
+                ni_loc = st.selectbox("Starting Location", options=all_loc_ids, key="new_item_loc")
+                _c1, _c2, _c3, _c4 = st.columns(4)
+                ni_portable  = _c1.checkbox("Portable",   value=True, key="new_item_portable")
+                ni_contested = _c2.checkbox("Contested",              key="new_item_contested")
+                ni_hidden    = _c3.checkbox("Hidden",                 key="new_item_hidden")
+                ni_consumable= _c4.checkbox("Consumable",             key="new_item_consumable")
+                if ni_hidden:
+                    ni_knowledge = st.text_area("Knowledge (revealed on pickup)", key="new_item_knowledge", height=60)
                 else:
-                    sim.world_state.add_item(
-                        item_id=new_item_id.strip(),
-                        name=new_item_name.strip() or new_item_id.strip(),
-                        location=new_item_loc,
-                        description=new_item_desc.strip(),
-                        portable=new_item_portable
+                    ni_knowledge = ""
+                ni_effect = {}
+                if ni_consumable:
+                    st.markdown("**Effect fields**")
+                    _e1, _e2 = st.columns(2)
+                    with _e1:
+                        ni_perc_delta = st.number_input("Perception delta", step=1, value=0, key="new_item_perc_delta")
+                        ni_emo = st.selectbox("Emotional state override", options=EMOTIONAL_STATES, key="new_item_emo")
+                    with _e2:
+                        ni_mem = st.text_area("Memory inject", height=80, key="new_item_mem")
+                    if ni_perc_delta:
+                        ni_effect["perception_delta"] = int(ni_perc_delta)
+                    if ni_emo:
+                        ni_effect["emotional_state"] = ni_emo
+                    if ni_mem.strip():
+                        ni_effect["memory_inject"] = ni_mem.strip()
+
+                if st.button("Create Item", key="create_item"):
+                    if not ni_id.strip():
+                        st.error("Item ID is required.")
+                    elif ni_id.strip() in sim.world_state.items:
+                        st.error(f"ID '{ni_id.strip()}' already exists.")
+                    else:
+                        sim.world_state.add_item(
+                            item_id=ni_id.strip(),
+                            name=ni_name.strip() or ni_id.strip(),
+                            location=ni_loc,
+                            description=ni_desc.strip(),
+                            portable=ni_portable,
+                        )
+                        entry = sim.world_state.items[ni_id.strip()]
+                        if ni_contested:
+                            entry["contested"] = True
+                        if ni_hidden:
+                            entry["hidden"] = True
+                            entry["knowledge"] = ni_knowledge.strip()
+                        if ni_consumable:
+                            entry["consumable"] = True
+                            if ni_effect:
+                                entry["effect"] = ni_effect
+                        st.success(f"Item '{ni_id.strip()}' created.")
+                        st.rerun()
+
+            with add_library_tab:
+                item_library = load_item_library()
+                lib_items = item_library.get("items", {})
+                existing_ids = set(sim.world_state.items.keys())
+                available_lib = {iid: idata for iid, idata in lib_items.items() if iid not in existing_ids}
+
+                if not available_lib:
+                    st.info("All library items are already in the world.")
+                else:
+                    lib_options = list(available_lib.keys())
+                    lib_sel = st.selectbox(
+                        "Library item",
+                        options=lib_options,
+                        format_func=lambda x: f"{available_lib[x].get('name', x)} ({x})",
+                        key="lib_item_sel",
                     )
-                    st.success(f"Item '{new_item_id.strip()}' created.")
-                    st.rerun()
+                    sel = available_lib[lib_sel]
+                    st.caption(sel.get("description", ""))
+                    flags = []
+                    if sel.get("contested"): flags.append("contested")
+                    if sel.get("hidden"):    flags.append("hidden")
+                    if sel.get("consumable"):flags.append("consumable")
+                    if flags:
+                        st.caption(f"Flags: {', '.join(flags)}")
+                    if sel.get("knowledge"):
+                        st.caption(f"Knowledge: *{sel['knowledge'][:120]}{'…' if len(sel.get('knowledge','')) > 120 else ''}*")
+                    if sel.get("effect"):
+                        st.caption(f"Effect: {sel['effect']}")
+
+                    lib_loc = st.selectbox("Place in location", options=all_loc_ids,
+                                           format_func=lambda x: sim.world_state.locations.get(x, {}).get("name", x),
+                                           key="lib_item_loc")
+                    lib_contested_override = st.checkbox("Contested override", value=sel.get("contested", False), key="lib_item_contested")
+
+                    if st.button("Place Item", key="place_lib_item"):
+                        import copy as _copy
+                        new_entry = _copy.deepcopy(sel)
+                        new_entry["location"] = lib_loc
+                        new_entry.setdefault("owner", None)
+                        new_entry["contested"] = lib_contested_override
+                        sim.world_state.items[lib_sel] = new_entry
+                        st.success(f"Placed '{sel.get('name', lib_sel)}' in {lib_loc}.")
+                        st.rerun()
+
         if st.button("↩️ Reset All Items to Baseline", key="reset_items"):
             sim.reset_items()
             st.success("Items reset.")
@@ -1448,24 +1536,74 @@ def main():
             with st.expander(f"📦 {item_data['name']} — {loc} (owner: {owner})"):
                 new_item_name = st.text_input("Name", value=item_data["name"], key=f"item_name_{item_id}")
                 new_item_desc = st.text_area("Description", value=item_data.get("description", ""), key=f"item_desc_{item_id}", height=80)
-                _col_port, _col_contested, _col_hidden = st.columns(3)
-                new_item_portable = _col_port.checkbox("Portable", value=item_data.get("portable", True), key=f"item_port_{item_id}")
-                new_item_contested = _col_contested.checkbox("Contested", value=item_data.get("contested", False), key=f"item_contested_{item_id}", help="Agents will treat this as a valued resource others may want.")
-                new_item_hidden = _col_hidden.checkbox("Hidden", value=item_data.get("hidden", False), key=f"item_hidden_{item_id}", help="Picking up this item reveals its knowledge and forces the agent to drop it next turn.")
-                new_item_knowledge = st.text_area("Knowledge (revealed on pickup)", value=item_data.get("knowledge", ""), key=f"item_knowledge_{item_id}", height=80, help="Information injected into the agent's memory when they pick this item up.")
+                _col_port, _col_cont, _col_hid, _col_cons = st.columns(4)
+                new_item_portable   = _col_port.checkbox("Portable",   value=item_data.get("portable", True),   key=f"item_port_{item_id}")
+                new_item_contested  = _col_cont.checkbox("Contested",  value=item_data.get("contested", False),  key=f"item_contested_{item_id}")
+                new_item_hidden     = _col_hid.checkbox("Hidden",      value=item_data.get("hidden", False),     key=f"item_hidden_{item_id}")
+                new_item_consumable = _col_cons.checkbox("Consumable", value=item_data.get("consumable", False), key=f"item_consumable_{item_id}")
+                if new_item_hidden:
+                    new_item_knowledge = st.text_area("Knowledge (revealed on pickup)", value=item_data.get("knowledge", ""), key=f"item_knowledge_{item_id}", height=80)
+                else:
+                    new_item_knowledge = ""
+                new_effect = {}
+                if new_item_consumable:
+                    st.markdown("**Effect fields**")
+                    existing_effect = item_data.get("effect", {})
+                    _e1, _e2 = st.columns(2)
+                    with _e1:
+                        new_perc_delta = st.number_input("Perception delta", step=1, value=int(existing_effect.get("perception_delta", 0)), key=f"item_perc_{item_id}")
+                        cur_emo = existing_effect.get("emotional_state", "")
+                        emo_opts = EMOTIONAL_STATES
+                        new_emo = st.selectbox("Emotional state override", options=emo_opts, index=emo_opts.index(cur_emo) if cur_emo in emo_opts else 0, key=f"item_emo_{item_id}")
+                    with _e2:
+                        new_mem = st.text_area("Memory inject", value=existing_effect.get("memory_inject", ""), height=80, key=f"item_mem_{item_id}")
+                    if new_perc_delta:
+                        new_effect["perception_delta"] = int(new_perc_delta)
+                    if new_emo:
+                        new_effect["emotional_state"] = new_emo
+                    if new_mem.strip():
+                        new_effect["memory_inject"] = new_mem.strip()
                 loc_options = all_loc_ids + [a.agent_id for a in sim.agents]
-                cur_loc = item_data.get("location", all_loc_ids[0])
+                cur_loc = item_data.get("location", all_loc_ids[0] if all_loc_ids else "")
                 loc_index = loc_options.index(cur_loc) if cur_loc in loc_options else 0
                 new_item_loc = st.selectbox("Location", options=loc_options, index=loc_index, key=f"item_loc_{item_id}")
-                if st.button("Apply", key=f"item_apply_{item_id}"):
-                    item_data["name"] = new_item_name
-                    item_data["description"] = new_item_desc
-                    item_data["portable"] = new_item_portable
-                    item_data["contested"] = new_item_contested
-                    item_data["hidden"] = new_item_hidden
-                    item_data["knowledge"] = new_item_knowledge
-                    item_data["location"] = new_item_loc
-                    st.success("Item updated.")
+                _btn_apply, _btn_lib, _ = st.columns([1, 1, 4])
+                with _btn_apply:
+                    if st.button("Apply", key=f"item_apply_{item_id}"):
+                        item_data["name"] = new_item_name
+                        item_data["description"] = new_item_desc
+                        item_data["portable"] = new_item_portable
+                        item_data["contested"] = new_item_contested
+                        item_data["hidden"] = new_item_hidden
+                        item_data["knowledge"] = new_item_knowledge if new_item_hidden else ""
+                        item_data["consumable"] = new_item_consumable
+                        if new_item_consumable and new_effect:
+                            item_data["effect"] = new_effect
+                        elif "effect" in item_data and not new_item_consumable:
+                            del item_data["effect"]
+                        item_data["location"] = new_item_loc
+                        st.success("Item updated.")
+                with _btn_lib:
+                    item_lib = load_item_library()
+                    in_lib = item_id in item_lib.get("items", {})
+                    if st.button("Update Library" if in_lib else "Save to Library", key=f"item_to_lib_{item_id}"):
+                        lib_entry = {
+                            "name": new_item_name,
+                            "description": new_item_desc,
+                            "portable": new_item_portable,
+                        }
+                        if new_item_contested:
+                            lib_entry["contested"] = True
+                        if new_item_hidden and new_item_knowledge.strip():
+                            lib_entry["hidden"] = True
+                            lib_entry["knowledge"] = new_item_knowledge.strip()
+                        if new_item_consumable:
+                            lib_entry["consumable"] = True
+                            if new_effect:
+                                lib_entry["effect"] = new_effect
+                        item_lib["items"][item_id] = lib_entry
+                        save_item_library(item_lib)
+                        st.success(f"{'Updated' if in_lib else 'Saved'} '{item_id}' in library.")
 
 
 if __name__ == "__main__":
