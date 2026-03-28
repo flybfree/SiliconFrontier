@@ -20,14 +20,14 @@ _DEFAULT_LIBRARY_DIR = Path(__file__).parent.parent / "library"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def _save_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def load_scenario_manifest(config_dir: str | Path) -> dict[str, Any]:

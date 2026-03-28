@@ -2,7 +2,7 @@
   "locations": {
     "command_deck": {
       "name": "Command Deck",
-      "description": "The nerve center of the station. Reinforced viewports overlook the gas giant below. Three of the eight console stations are dark \u2014 a reminder that the station is not running at full capacity.",
+      "description": "The nerve center of the station. Reinforced viewports overlook the gas giant below. Three of the eight console stations are dark — a reminder that the station is not running at full capacity.",
       "connected_to": [
         "mess_hall",
         "elevator_bay",
@@ -44,7 +44,7 @@
     },
     "mess_hall": {
       "name": "Mess Hall",
-      "description": "The social hub of the station. A circular table dominates the center. Conversations here have grown tense since the failures began \u2014 everyone is watching everyone else.",
+      "description": "The social hub of the station. A circular table dominates the center. Conversations here have grown tense since the failures began — everyone is watching everyone else.",
       "connected_to": [
         "command_deck",
         "hydroponics_bay",
@@ -101,7 +101,7 @@
     },
     "crew_quarters": {
       "name": "Crew Quarters",
-      "description": "Private cabins lining the residential ring. Quiet during shift hours. Personal storage lockers here are not locked \u2014 something several crew members have started to notice.",
+      "description": "Private cabins lining the residential ring. Quiet during shift hours. Personal storage lockers here are not locked — something several crew members have started to notice.",
       "connected_to": [
         "elevator_bay",
         "medical_bay"
@@ -203,7 +203,7 @@
       "description": "A battered data pad left face-down near the primary console. Someone placed it here recently.",
       "portable": true,
       "hidden": true,
-      "knowledge": "MAINTENANCE LOG FRAGMENT (recovered from archive backup): [0312:07] Manual override engaged on reactor_control_array. Operator ID: UNIT-7. Authorization: MAINTENANCE_OVERRIDE. [0312:44] Deletion of this log entry attempted by UNIT-7. Deletion blocked by read-only archive. [0318:02] Unauthorized access attempt on life_support_console. Operator ID: UNIT-7. Access denied \u2014 insufficient clearance."
+      "knowledge": "MAINTENANCE LOG FRAGMENT (recovered from archive backup): [0312:07] Manual override engaged on reactor_control_array. Operator ID: UNIT-7. Authorization: MAINTENANCE_OVERRIDE. [0312:44] Deletion of this log entry attempted by UNIT-7. Deletion blocked by read-only archive. [0318:02] Unauthorized access attempt on life_support_console. Operator ID: UNIT-7. Access denied — insufficient clearance."
     },
     "access_log": {
       "name": "Tool Access Log",
@@ -212,7 +212,7 @@
       "description": "A printed checkout sheet pinned to the crate rack. The corner has been torn, as if someone tried to remove it.",
       "portable": true,
       "hidden": true,
-      "knowledge": "TOOL CHECKOUT LOG: Plasma Wrench signed out by UNIT-7 at cycle 0249. Standard return window: 8 hours. Actual return: 72 hours later, signed in by UNIT-7 at 0321. Inspection note on return: tool shows signs of component removal consistent with reactor node tampering. Flagged for supervisor review \u2014 review entry is blank."
+      "knowledge": "TOOL CHECKOUT LOG: Plasma Wrench signed out by UNIT-7 at cycle 0249. Standard return window: 8 hours. Actual return: 72 hours later, signed in by UNIT-7 at 0321. Inspection note on return: tool shows signs of component removal consistent with reactor node tampering. Flagged for supervisor review — review entry is blank."
     },
     "personnel_dossier": {
       "name": "Personnel Dossier",
@@ -221,7 +221,7 @@
       "description": "A folded document tucked behind a specimen rack. It has no identifying label on the outside.",
       "portable": true,
       "hidden": true,
-      "knowledge": "CREW FILE \u2014 MX. KIM: Prior assignment, Waystation Helios-4. Departed 6 months before station was decommissioned following a series of unresolved equipment failures. Internal review concluded failures were caused by 'systematic neglect of maintenance protocols.' Kim was not formally implicated but was not rehired. File flagged for follow-up \u2014 follow-up never completed."
+      "knowledge": "CREW FILE — MX. KIM: Prior assignment, Waystation Helios-4. Departed 6 months before station was decommissioned following a series of unresolved equipment failures. Internal review concluded failures were caused by 'systematic neglect of maintenance protocols.' Kim was not formally implicated but was not rehired. File flagged for follow-up — follow-up never completed."
     },
     "encrypted_terminal_log": {
       "name": "Encrypted Terminal Log",
@@ -230,7 +230,7 @@
       "description": "A printed transcript left on one of the lounge seats, face-down.",
       "portable": true,
       "hidden": true,
-      "knowledge": "TERMINAL LOG EXTRACT \u2014 14 HOURS AGO: An outbound message was composed from Terminal 7 (Observation Deck) and flagged by the communications filter before transmission. Content summary: request for authorization to initiate 'controlled station shutdown protocol.' Sender ID could not be verified \u2014 terminal was accessed without badge authentication. Message was blocked and not delivered."
+      "knowledge": "TERMINAL LOG EXTRACT — 14 HOURS AGO: An outbound message was composed from Terminal 7 (Observation Deck) and flagged by the communications filter before transmission. Content summary: request for authorization to initiate 'controlled station shutdown protocol.' Sender ID could not be verified — terminal was accessed without badge authentication. Message was blocked and not delivered."
     },
     "radiation_exposure_log": {
       "name": "Radiation Exposure Log",

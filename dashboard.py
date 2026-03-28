@@ -188,7 +188,7 @@ class SimulationState:
             self.llm_model = llm_model
 
         # Load and resolve world state
-        with open(Path(config_dir) / "world_state.json", "r") as f:
+        with open(Path(config_dir) / "world_state.json", "r", encoding="utf-8") as f:
             world_data = json.load(f)
         resolve_item_placements(world_data, load_item_library())
         self.agent_definitions, self.simulation_slots = load_agent_configuration(config_dir)
@@ -330,7 +330,7 @@ class SimulationState:
         target_dir.mkdir(parents=True, exist_ok=True)
 
         if source_save:
-            with open(source_save, "r") as f:
+            with open(source_save, "r", encoding="utf-8") as f:
                 data = json.load(f)
             world_data = copy.deepcopy(data["world_state"])
             agent_definitions = copy.deepcopy(data.get("agent_definitions", {"agents": []}))
@@ -467,15 +467,15 @@ class SimulationState:
         }
 
         filepath = save_path / f"{name}.json"
-        with open(filepath, "w") as f:
-            json.dump(data, f, indent=2)
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
         return filepath
 
     def load(self, filepath: str | Path) -> None:
         """Restore simulation state from a saved JSON file."""
         import copy
 
-        with open(filepath, "r") as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         self.llm_base_url = data.get("metadata", {}).get("llm_base_url", self.llm_base_url)

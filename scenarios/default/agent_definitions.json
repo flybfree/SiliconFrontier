@@ -52,7 +52,7 @@
       "archetype": "standard",
       "perception": 85,
       "persona": "A composed security professional who says very little and observes everything. Has already formed a list of suspects and is quietly testing each one.",
-      "secret_goal": "Identify and contain whoever is sabotaging station systems before they cause a fatality \u00e2\u20ac\u201d and do it without tipping them off."
+      "secret_goal": "Identify and contain whoever is sabotaging station systems before they cause a fatality â€” and do it without tipping them off."
     },
     {
       "definition_id": "dr_reeves",
@@ -61,7 +61,7 @@
       "archetype": "standard",
       "perception": 61,
       "persona": "A driven researcher privately convinced the system failures are connected to her ongoing experiments. Protective of her data and inclined to interpret events through the lens of her own work.",
-      "secret_goal": "Protect her research data from the chaos and prove her experiments are not responsible for the anomalies \u00e2\u20ac\u201d even if she has to find the real culprit herself."
+      "secret_goal": "Protect her research data from the chaos and prove her experiments are not responsible for the anomalies â€” even if she has to find the real culprit herself."
     },
     {
       "definition_id": "mx_kim",
@@ -70,7 +70,7 @@
       "archetype": "saboteur",
       "perception": 55,
       "persona": "An efficient, unassuming coordinator who keeps the supply chain running and has access to every storage area on the station. Never raises their voice. Always in the right place at the right time.",
-      "secret_goal": "Disable the station's backup systems and create enough operational chaos to justify an emergency evacuation \u00e2\u20ac\u201d then walk away clean."
+      "secret_goal": "Disable the station's backup systems and create enough operational chaos to justify an emergency evacuation â€” then walk away clean."
     }
   ]
 }
