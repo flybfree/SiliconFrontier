@@ -174,6 +174,7 @@ src/
   socialmatrix.py          Trust, affinity, and suspicion tracking
   configloader.py          Scenario loading, library resolution, agent instantiation
 library/
+  agents.json              Shared reusable agent definitions
   items.json               Shared reusable item definitions
   relationship_presets.json Named relationship starting states
 scenarios/
@@ -316,6 +317,7 @@ See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flag
 ## Scenario editor features
 
 - Load existing scenarios or scaffold new ones from the sidebar
+- **Agent library** — browse `library/agents.json`, add agents to the current scenario with one click, push edits back to the library; agents and items are both reusable assets
 - Agent definition editor — name, role, archetype, perception slider, persona, secret goal
 - Simulation slot editor — assign definitions to slots with location and inventory dropdowns
 - Item editor — inline items and library placements, with conditional fields for hidden knowledge and consumable effects

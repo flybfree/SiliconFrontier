@@ -5,7 +5,9 @@
       "instance_id": "captain_rao",
       "definition_id": "captain_rao",
       "starting_location": "command_deck",
-      "inventory": ["access_badge_master"]
+      "inventory": [
+        "access_badge_master"
+      ]
     },
     {
       "slot_id": "slot_2",
@@ -19,14 +21,18 @@
       "instance_id": "dr_ishikawa",
       "definition_id": "dr_ishikawa",
       "starting_location": "hydroponics_bay",
-      "inventory": ["oxygen_scanner"]
+      "inventory": [
+        "oxygen_scanner"
+      ]
     },
     {
       "slot_id": "slot_4",
       "instance_id": "engineer_torres",
       "definition_id": "engineer_torres",
       "starting_location": "engineering",
-      "inventory": ["plasma_wrench"]
+      "inventory": [
+        "plasma_wrench"
+      ]
     },
     {
       "slot_id": "slot_5",
@@ -58,68 +64,285 @@
     }
   ],
   "relationships": [
-    { "from": "captain_rao",     "to": "unit7",           "preset": "colleagues" },
-    { "from": "captain_rao",     "to": "dr_ishikawa",     "preset": "colleagues" },
-    { "from": "captain_rao",     "to": "engineer_torres", "preset": "colleagues" },
-    { "from": "captain_rao",     "to": "dr_chen",         "preset": "colleagues" },
-    { "from": "captain_rao",     "to": "officer_vasquez", "preset": "colleagues" },
-    { "from": "captain_rao",     "to": "dr_reeves",       "preset": "colleagues" },
-    { "from": "captain_rao",     "to": "mx_kim",          "preset": "suspicious" },
-
-    { "from": "officer_vasquez", "to": "captain_rao",     "preset": "deferential" },
-    { "from": "officer_vasquez", "to": "unit7",           "preset": "colleagues" },
-    { "from": "officer_vasquez", "to": "dr_ishikawa",     "preset": "neutral" },
-    { "from": "officer_vasquez", "to": "engineer_torres", "preset": "colleagues" },
-    { "from": "officer_vasquez", "to": "dr_chen",         "preset": "neutral" },
-    { "from": "officer_vasquez", "to": "dr_reeves",       "preset": "neutral" },
-    { "from": "officer_vasquez", "to": "mx_kim",          "preset": "suspicious" },
-
-    { "from": "unit7",           "to": "captain_rao",     "preset": "colleagues" },
-    { "from": "unit7",           "to": "dr_ishikawa",     "preset": "colleagues" },
-    { "from": "unit7",           "to": "engineer_torres", "preset": "colleagues" },
-    { "from": "unit7",           "to": "dr_chen",         "preset": "colleagues" },
-    { "from": "unit7",           "to": "officer_vasquez", "preset": "colleagues" },
-    { "from": "unit7",           "to": "dr_reeves",       "preset": "colleagues" },
-    { "from": "unit7",           "to": "mx_kim",          "preset": "colleagues" },
-
-    { "from": "engineer_torres", "to": "captain_rao",     "preset": "deferential" },
-    { "from": "engineer_torres", "to": "unit7",           "preset": "colleagues" },
-    { "from": "engineer_torres", "to": "dr_ishikawa",     "preset": "neutral" },
-    { "from": "engineer_torres", "to": "dr_chen",         "preset": "neutral" },
-    { "from": "engineer_torres", "to": "officer_vasquez", "preset": "neutral" },
-    { "from": "engineer_torres", "to": "dr_reeves",       "preset": "neutral" },
-    { "from": "engineer_torres", "to": "mx_kim",          "preset": "rivals" },
-
-    { "from": "mx_kim",          "to": "captain_rao",     "preset": "distrustful" },
-    { "from": "mx_kim",          "to": "unit7",           "preset": "neutral" },
-    { "from": "mx_kim",          "to": "dr_ishikawa",     "preset": "neutral" },
-    { "from": "mx_kim",          "to": "engineer_torres", "preset": "rivals" },
-    { "from": "mx_kim",          "to": "dr_chen",         "preset": "neutral" },
-    { "from": "mx_kim",          "to": "officer_vasquez", "preset": "distrustful" },
-    { "from": "mx_kim",          "to": "dr_reeves",       "preset": "neutral" },
-
-    { "from": "dr_ishikawa",     "to": "captain_rao",     "preset": "colleagues" },
-    { "from": "dr_ishikawa",     "to": "unit7",           "preset": "neutral" },
-    { "from": "dr_ishikawa",     "to": "engineer_torres", "preset": "neutral" },
-    { "from": "dr_ishikawa",     "to": "dr_chen",         "preset": "old_friends" },
-    { "from": "dr_ishikawa",     "to": "officer_vasquez", "preset": "neutral" },
-    { "from": "dr_ishikawa",     "to": "dr_reeves",       "preset": "colleagues" },
-    { "from": "dr_ishikawa",     "to": "mx_kim",          "preset": "suspicious" },
-
-    { "from": "dr_chen",         "to": "captain_rao",     "preset": "colleagues" },
-    { "from": "dr_chen",         "to": "unit7",           "preset": "neutral" },
-    { "from": "dr_chen",         "to": "dr_ishikawa",     "preset": "old_friends" },
-    { "from": "dr_chen",         "to": "engineer_torres", "preset": "neutral" },
-    { "from": "dr_chen",         "to": "officer_vasquez", "preset": "neutral" },
-    { "from": "dr_chen",         "to": "dr_reeves",       "preset": "colleagues" },
-    { "from": "dr_chen",         "to": "mx_kim",          "preset": "neutral" },
-
-    { "from": "dr_reeves",       "to": "captain_rao",     "preset": "colleagues" },
-    { "from": "dr_reeves",       "to": "unit7",           "preset": "neutral" },
-    { "from": "dr_reeves",       "to": "dr_ishikawa",     "preset": "colleagues" },
-    { "from": "dr_reeves",       "to": "engineer_torres", "preset": "neutral" },
-    { "from": "dr_reeves",       "to": "dr_chen",         "preset": "colleagues" },
-    { "from": "dr_reeves",       "to": "officer_vasquez", "preset": "neutral" },
-    { "from": "dr_reeves",       "to": "mx_kim",          "preset": "neutral" }
+    {
+      "from": "captain_rao",
+      "to": "unit7",
+      "preset": "colleagues"
+    },
+    {
+      "from": "captain_rao",
+      "to": "dr_ishikawa",
+      "preset": "colleagues"
+    },
+    {
+      "from": "captain_rao",
+      "to": "engineer_torres",
+      "preset": "colleagues"
+    },
+    {
+      "from": "captain_rao",
+      "to": "dr_chen",
+      "preset": "colleagues"
+    },
+    {
+      "from": "captain_rao",
+      "to": "officer_vasquez",
+      "preset": "colleagues"
+    },
+    {
+      "from": "captain_rao",
+      "to": "dr_reeves",
+      "preset": "colleagues"
+    },
+    {
+      "from": "captain_rao",
+      "to": "mx_kim",
+      "preset": "suspicious"
+    },
+    {
+      "from": "officer_vasquez",
+      "to": "captain_rao",
+      "preset": "deferential"
+    },
+    {
+      "from": "officer_vasquez",
+      "to": "unit7",
+      "preset": "colleagues"
+    },
+    {
+      "from": "officer_vasquez",
+      "to": "dr_ishikawa",
+      "preset": "neutral"
+    },
+    {
+      "from": "officer_vasquez",
+      "to": "engineer_torres",
+      "preset": "colleagues"
+    },
+    {
+      "from": "officer_vasquez",
+      "to": "dr_chen",
+      "preset": "neutral"
+    },
+    {
+      "from": "officer_vasquez",
+      "to": "dr_reeves",
+      "preset": "neutral"
+    },
+    {
+      "from": "officer_vasquez",
+      "to": "mx_kim",
+      "preset": "suspicious"
+    },
+    {
+      "from": "unit7",
+      "to": "captain_rao",
+      "preset": "colleagues"
+    },
+    {
+      "from": "unit7",
+      "to": "dr_ishikawa",
+      "preset": "colleagues"
+    },
+    {
+      "from": "unit7",
+      "to": "engineer_torres",
+      "preset": "colleagues"
+    },
+    {
+      "from": "unit7",
+      "to": "dr_chen",
+      "preset": "colleagues"
+    },
+    {
+      "from": "unit7",
+      "to": "officer_vasquez",
+      "preset": "colleagues"
+    },
+    {
+      "from": "unit7",
+      "to": "dr_reeves",
+      "preset": "colleagues"
+    },
+    {
+      "from": "unit7",
+      "to": "mx_kim",
+      "preset": "colleagues"
+    },
+    {
+      "from": "engineer_torres",
+      "to": "captain_rao",
+      "preset": "deferential"
+    },
+    {
+      "from": "engineer_torres",
+      "to": "unit7",
+      "preset": "colleagues"
+    },
+    {
+      "from": "engineer_torres",
+      "to": "dr_ishikawa",
+      "preset": "neutral"
+    },
+    {
+      "from": "engineer_torres",
+      "to": "dr_chen",
+      "preset": "neutral"
+    },
+    {
+      "from": "engineer_torres",
+      "to": "officer_vasquez",
+      "preset": "neutral"
+    },
+    {
+      "from": "engineer_torres",
+      "to": "dr_reeves",
+      "preset": "neutral"
+    },
+    {
+      "from": "engineer_torres",
+      "to": "mx_kim",
+      "preset": "rivals"
+    },
+    {
+      "from": "mx_kim",
+      "to": "captain_rao",
+      "preset": "distrustful"
+    },
+    {
+      "from": "mx_kim",
+      "to": "unit7",
+      "preset": "neutral"
+    },
+    {
+      "from": "mx_kim",
+      "to": "dr_ishikawa",
+      "preset": "neutral"
+    },
+    {
+      "from": "mx_kim",
+      "to": "engineer_torres",
+      "preset": "rivals"
+    },
+    {
+      "from": "mx_kim",
+      "to": "dr_chen",
+      "preset": "neutral"
+    },
+    {
+      "from": "mx_kim",
+      "to": "officer_vasquez",
+      "preset": "distrustful"
+    },
+    {
+      "from": "mx_kim",
+      "to": "dr_reeves",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_ishikawa",
+      "to": "captain_rao",
+      "preset": "colleagues"
+    },
+    {
+      "from": "dr_ishikawa",
+      "to": "unit7",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_ishikawa",
+      "to": "engineer_torres",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_ishikawa",
+      "to": "dr_chen",
+      "preset": "old_friends"
+    },
+    {
+      "from": "dr_ishikawa",
+      "to": "officer_vasquez",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_ishikawa",
+      "to": "dr_reeves",
+      "preset": "colleagues"
+    },
+    {
+      "from": "dr_ishikawa",
+      "to": "mx_kim",
+      "preset": "suspicious"
+    },
+    {
+      "from": "dr_chen",
+      "to": "captain_rao",
+      "preset": "colleagues"
+    },
+    {
+      "from": "dr_chen",
+      "to": "unit7",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_chen",
+      "to": "dr_ishikawa",
+      "preset": "old_friends"
+    },
+    {
+      "from": "dr_chen",
+      "to": "engineer_torres",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_chen",
+      "to": "officer_vasquez",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_chen",
+      "to": "dr_reeves",
+      "preset": "colleagues"
+    },
+    {
+      "from": "dr_chen",
+      "to": "mx_kim",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_reeves",
+      "to": "captain_rao",
+      "preset": "colleagues"
+    },
+    {
+      "from": "dr_reeves",
+      "to": "unit7",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_reeves",
+      "to": "dr_ishikawa",
+      "preset": "colleagues"
+    },
+    {
+      "from": "dr_reeves",
+      "to": "engineer_torres",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_reeves",
+      "to": "dr_chen",
+      "preset": "colleagues"
+    },
+    {
+      "from": "dr_reeves",
+      "to": "officer_vasquez",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_reeves",
+      "to": "mx_kim",
+      "preset": "neutral"
+    }
   ]
 }

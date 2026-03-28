@@ -337,9 +337,9 @@ Metadata for the scenario:
 
 ### Agent Definitions tab
 
-Add, edit, and delete reusable agent definitions.
+Two sub-tabs: **In This Scenario** and **Agent Library**.
 
-Each definition expander shows:
+**In This Scenario** shows the agents defined in the current scenario's `agent_definitions.json`. Each expander shows:
 
 - **Name** and **Role** — free text
 - **Archetype** — dropdown: `standard` or `saboteur`
@@ -347,7 +347,17 @@ Each definition expander shows:
 - **Persona** — character description injected into every system prompt
 - **Secret Goal** — hidden motivation that drives the agent's behavior
 
-Click **Apply** to commit edits. Click **Delete** to remove — deletion is blocked if any simulation slot still references the definition.
+Three buttons per agent:
+- **Apply** — commit edits back to the scenario
+- **Save to Library** / **Update Library** — write the current field values to `library/agents.json`; the button label changes to *Update Library* for agents whose ID already exists in the library. A 📚 badge appears on agents that have a matching library entry
+- **Remove** — delete the agent from the scenario; blocked if any simulation slot references it
+
+**Agent Library** shows all entries in `library/agents.json`. Agents in the library are reusable across any scenario. Each expander shows the same fields and three buttons:
+- **Add to Scenario** — copies the library entry into the current scenario's agent definitions; disabled if the agent is already present (shown with a ✓ badge)
+- **Update Library** — saves the current field values back to `library/agents.json` immediately (no scenario save required)
+- **Delete from Library** — removes the entry from the library permanently
+
+A **Add New Library Agent** form at the bottom creates a new entry directly in the library without adding it to any scenario.
 
 The definition ID is derived automatically from the name on creation (snake_case) and cannot be changed after creation.
 
@@ -660,6 +670,12 @@ The `library/` directory contains reusable definitions that can be referenced fr
 Defines item templates by ID. Each entry uses the same fields as an inline item in `world_state.json`. Scenarios reference library items via `item_placements` in their `world_state.json` instead of embedding full item definitions.
 
 Available library items: `plasma_wrench`, `reactor_key`, `access_badge`, `oxygen_scanner`, `emergency_rations`, `medical_kit`, `stimulant_patch`, `sedative_patch`, `encrypted_comm`, `nutrient_vat`, `seed_canister`.
+
+### `library/agents.json`
+
+Defines reusable agent definitions by ID. Each entry uses the same fields as an inline agent in `agent_definitions.json`. The scenario editor can pull agents from this library into any scenario, and push scenario agents back to the library.
+
+Built-in library agents: `captain_rao`, `unit7`, `dr_ishikawa`, `engineer_torres`, `dr_chen`, `officer_vasquez`, `dr_reeves`, `mx_kim`.
 
 ### `library/relationship_presets.json`
 

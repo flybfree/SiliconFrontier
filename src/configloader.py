@@ -46,6 +46,20 @@ def load_item_library(library_dir: str | Path | None = None) -> dict[str, Any]:
     return {"items": {}}
 
 
+def load_agent_library(library_dir: str | Path | None = None) -> dict[str, Any]:
+    """Load the shared agent library. Returns empty library if file is absent."""
+    path = Path(library_dir or _DEFAULT_LIBRARY_DIR) / "agents.json"
+    if path.exists():
+        return _load_json(path)
+    return {"agents": {}}
+
+
+def save_agent_library(library: dict[str, Any], library_dir: str | Path | None = None) -> None:
+    """Persist the shared agent library."""
+    path = Path(library_dir or _DEFAULT_LIBRARY_DIR) / "agents.json"
+    _save_json(path, library)
+
+
 def load_relationship_presets(library_dir: str | Path | None = None) -> dict[str, Any]:
     """Load the shared relationship preset library. Returns empty presets if absent."""
     path = Path(library_dir or _DEFAULT_LIBRARY_DIR) / "relationship_presets.json"

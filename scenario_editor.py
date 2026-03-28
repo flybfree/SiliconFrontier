@@ -18,6 +18,8 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from configloader import (
     load_scenario_manifest,
     load_item_library,
+    load_agent_library,
+    save_agent_library,
     load_relationship_presets,
     load_agent_configuration,
     save_agent_definitions,
@@ -71,6 +73,7 @@ def _init_session() -> None:
         "agents": {}, "relationships": {},
     }
     st.session_state.se_item_library = load_item_library()
+    st.session_state.se_agent_library = load_agent_library()
     st.session_state.se_relationship_presets = load_relationship_presets()
     st.session_state.se_dirty = False
     st.session_state.se_confirm_load = False
@@ -148,6 +151,9 @@ def _item_display_name(item_id: str) -> str:
 
 def _preset_names() -> list[str]:
     return list(_presets().get("presets", {}).keys())
+
+def _agent_library() -> dict:
+    return st.session_state.se_agent_library
 
 def _slugify(name: str) -> str:
     return name.lower().strip().replace(" ", "_").replace("-", "_")
@@ -360,87 +366,188 @@ def render_tab_scenario() -> None:
 # Tab 2 — Agent definitions
 # ---------------------------------------------------------------------------
 
+def _agent_fields(key_prefix: str, defaults: dict) -> dict:
+    """Render the common agent fields and return a dict of current widget values."""
+    col1, col2 = st.columns(2)
+    with col1:
+        name = st.text_input("Name", value=defaults.get("name", ""), key=f"{key_prefix}_name")
+        role = st.text_input("Role", value=defaults.get("role", ""), key=f"{key_prefix}_role")
+        arch = st.selectbox(
+            "Archetype", ["standard", "saboteur"],
+            index=0 if defaults.get("archetype", "standard") == "standard" else 1,
+            key=f"{key_prefix}_arch",
+        )
+        perc = st.slider("Perception", 0, 100, value=int(defaults.get("perception", 50)), key=f"{key_prefix}_perc")
+    with col2:
+        persona = st.text_area("Persona", value=defaults.get("persona", ""), height=130, key=f"{key_prefix}_persona")
+        secret = st.text_area("Secret Goal", value=defaults.get("secret_goal", ""), height=130, key=f"{key_prefix}_secret")
+    return {"name": name, "role": role, "archetype": arch, "perception": perc,
+            "persona": persona, "secret_goal": secret}
+
+
 def render_tab_agents() -> None:
     if not _ss().se_scenario_dir:
         st.info("Load or create a scenario first.")
         return
 
-    agents = _defs().get("agents", [])
-    st.caption(f"{len(agents)} agent definition(s)")
+    scenario_agents = _defs().get("agents", [])
+    lib_agents: dict = _agent_library().get("agents", {})
+    scenario_ids = {a["definition_id"] for a in scenario_agents}
 
-    for idx, agent in enumerate(agents):
-        did = agent["definition_id"]
-        label = f"{agent['name']} — {agent['role']} [{agent['archetype']}]"
-        with st.expander(label, expanded=False):
-            col1, col2 = st.columns(2)
-            with col1:
-                n_name = st.text_input("Name", value=agent["name"], key=f"adef_name_{did}")
-                n_role = st.text_input("Role", value=agent.get("role", ""), key=f"adef_role_{did}")
-                n_arch = st.selectbox(
-                    "Archetype", ["standard", "saboteur"],
-                    index=0 if agent.get("archetype", "standard") == "standard" else 1,
-                    key=f"adef_arch_{did}",
-                )
-                n_perc = st.slider("Perception", 0, 100, value=int(agent.get("perception", 50)), key=f"adef_perc_{did}")
-            with col2:
-                n_persona = st.text_area("Persona", value=agent.get("persona", ""), height=130, key=f"adef_persona_{did}")
-                n_secret = st.text_area("Secret Goal", value=agent.get("secret_goal", ""), height=130, key=f"adef_secret_{did}")
+    scenario_tab, library_tab = st.tabs([
+        f"In This Scenario ({len(scenario_agents)})",
+        f"Agent Library ({len(lib_agents)})",
+    ])
 
-            c_apply, c_del, _ = st.columns([1, 1, 4])
-            with c_apply:
-                if st.button("Apply", key=f"adef_apply_{did}"):
-                    agents[idx].update({
-                        "name": n_name.strip(),
-                        "role": n_role.strip(),
-                        "archetype": n_arch,
-                        "perception": n_perc,
-                        "persona": n_persona.strip(),
-                        "secret_goal": n_secret.strip(),
-                    })
-                    _mark_dirty()
-                    st.rerun()
-            with c_del:
-                if st.button("Delete", key=f"adef_del_{did}", type="secondary"):
-                    referencing = [s["slot_id"] for s in _slots().get("slots", []) if s.get("definition_id") == did]
-                    if referencing:
-                        st.error(f"Cannot delete: referenced by slots {referencing}. Remove those slots first.")
+    # ---- Scenario agents ----
+    with scenario_tab:
+        st.caption("Agents defined in this scenario's agent_definitions.json.")
+
+        for idx, agent in enumerate(scenario_agents):
+            did = agent["definition_id"]
+            in_lib = did in lib_agents
+            lib_badge = " 📚" if in_lib else ""
+            label = f"{agent['name']} — {agent['role']} [{agent['archetype']}]{lib_badge}"
+
+            with st.expander(label, expanded=False):
+                vals = _agent_fields(f"adef_{did}", agent)
+
+                c_apply, c_save_lib, c_del, _ = st.columns([1, 1, 1, 3])
+                with c_apply:
+                    if st.button("Apply", key=f"adef_apply_{did}"):
+                        scenario_agents[idx].update({
+                            "name": vals["name"].strip(),
+                            "role": vals["role"].strip(),
+                            "archetype": vals["archetype"],
+                            "perception": vals["perception"],
+                            "persona": vals["persona"].strip(),
+                            "secret_goal": vals["secret_goal"].strip(),
+                        })
+                        _mark_dirty()
+                        st.rerun()
+                with c_save_lib:
+                    save_label = "Update Library" if in_lib else "Save to Library"
+                    if st.button(save_label, key=f"adef_to_lib_{did}"):
+                        lib = _agent_library()
+                        lib["agents"][did] = {
+                            "name": vals["name"].strip(),
+                            "role": vals["role"].strip(),
+                            "archetype": vals["archetype"],
+                            "perception": vals["perception"],
+                            "persona": vals["persona"].strip(),
+                            "secret_goal": vals["secret_goal"].strip(),
+                        }
+                        save_agent_library(lib)
+                        st.session_state.se_agent_library = lib
+                        st.success(f"{'Updated' if in_lib else 'Saved'} '{did}' in library.")
+                        st.rerun()
+                with c_del:
+                    if st.button("Remove", key=f"adef_del_{did}", type="secondary"):
+                        referencing = [s["slot_id"] for s in _slots().get("slots", []) if s.get("definition_id") == did]
+                        if referencing:
+                            st.error(f"Cannot remove: used by slots {referencing}.")
+                        else:
+                            _defs()["agents"].pop(idx)
+                            _mark_dirty()
+                            st.rerun()
+
+        st.divider()
+        with st.expander("➕ Create New Agent", expanded=False):
+            with st.form("form_add_agent"):
+                f_id = st.text_input("Definition ID* (snake_case)", help="Unique key, e.g. dr_morales")
+                vals = _agent_fields("form_new_agent", {})
+                if st.form_submit_button("Add to Scenario"):
+                    clean_id = f_id.strip() or _slugify(vals["name"])
+                    if not clean_id or not vals["name"].strip() or not vals["role"].strip():
+                        st.error("ID, Name, and Role are required.")
+                    elif clean_id in scenario_ids:
+                        st.error(f"Definition ID '{clean_id}' already exists in this scenario.")
                     else:
-                        _defs()["agents"].pop(idx)
+                        _defs()["agents"].append({
+                            "definition_id": clean_id,
+                            "name": vals["name"].strip(),
+                            "role": vals["role"].strip(),
+                            "archetype": vals["archetype"],
+                            "perception": vals["perception"],
+                            "persona": vals["persona"].strip(),
+                            "secret_goal": vals["secret_goal"].strip(),
+                        })
                         _mark_dirty()
                         st.rerun()
 
-    st.divider()
-    with st.expander("➕ Add Agent Definition", expanded=False):
-        with st.form("form_add_agent"):
-            fc1, fc2 = st.columns(2)
-            with fc1:
-                f_name = st.text_input("Name*")
-                f_role = st.text_input("Role*")
-                f_arch = st.selectbox("Archetype", ["standard", "saboteur"])
-                f_perc = st.slider("Perception", 0, 100, value=50)
-            with fc2:
-                f_persona = st.text_area("Persona", height=130)
-                f_secret = st.text_area("Secret Goal", height=130)
-            submitted = st.form_submit_button("Add Agent")
-            if submitted:
-                if not f_name.strip() or not f_role.strip():
-                    st.error("Name and Role are required.")
-                else:
-                    new_did = _slugify(f_name)
-                    existing_ids = [a["definition_id"] for a in _defs()["agents"]]
-                    if new_did in existing_ids:
-                        st.error(f"A definition with ID '{new_did}' already exists.")
-                    else:
+    # ---- Agent library ----
+    with library_tab:
+        st.caption("Reusable agent definitions from library/agents.json. Add them to the current scenario or edit the library entry directly.")
+
+        for lib_id, lib_agent in lib_agents.items():
+            already_in_scenario = lib_id in scenario_ids
+            badge = " ✓ in scenario" if already_in_scenario else ""
+            label = f"{lib_agent.get('name', lib_id)} — {lib_agent.get('role', '')} [{lib_agent.get('archetype', 'standard')}]{badge}"
+
+            with st.expander(label, expanded=False):
+                vals = _agent_fields(f"lib_{lib_id}", lib_agent)
+
+                c_add, c_update, c_del, _ = st.columns([1, 1, 1, 3])
+                with c_add:
+                    btn_label = "Re-add to Scenario" if already_in_scenario else "Add to Scenario"
+                    if st.button(btn_label, key=f"lib_add_{lib_id}", disabled=already_in_scenario):
                         _defs()["agents"].append({
-                            "definition_id": new_did,
-                            "name": f_name.strip(),
-                            "role": f_role.strip(),
-                            "archetype": f_arch,
-                            "perception": f_perc,
-                            "persona": f_persona.strip(),
-                            "secret_goal": f_secret.strip(),
+                            "definition_id": lib_id,
+                            "name": lib_agent.get("name", ""),
+                            "role": lib_agent.get("role", ""),
+                            "archetype": lib_agent.get("archetype", "standard"),
+                            "perception": lib_agent.get("perception", 50),
+                            "persona": lib_agent.get("persona", ""),
+                            "secret_goal": lib_agent.get("secret_goal", ""),
                         })
                         _mark_dirty()
+                        st.rerun()
+                with c_update:
+                    if st.button("Update Library", key=f"lib_update_{lib_id}"):
+                        lib = _agent_library()
+                        lib["agents"][lib_id] = {
+                            "name": vals["name"].strip(),
+                            "role": vals["role"].strip(),
+                            "archetype": vals["archetype"],
+                            "perception": vals["perception"],
+                            "persona": vals["persona"].strip(),
+                            "secret_goal": vals["secret_goal"].strip(),
+                        }
+                        save_agent_library(lib)
+                        st.session_state.se_agent_library = lib
+                        st.success(f"Library entry '{lib_id}' updated.")
+                        st.rerun()
+                with c_del:
+                    if st.button("Delete from Library", key=f"lib_del_{lib_id}", type="secondary"):
+                        lib = _agent_library()
+                        del lib["agents"][lib_id]
+                        save_agent_library(lib)
+                        st.session_state.se_agent_library = lib
+                        st.rerun()
+
+        st.divider()
+        with st.expander("➕ Add New Library Agent", expanded=False):
+            with st.form("form_add_lib_agent"):
+                f_lib_id = st.text_input("Definition ID* (snake_case)")
+                vals = _agent_fields("form_new_lib_agent", {})
+                if st.form_submit_button("Save to Library"):
+                    clean_id = f_lib_id.strip() or _slugify(vals["name"])
+                    if not clean_id or not vals["name"].strip() or not vals["role"].strip():
+                        st.error("ID, Name, and Role are required.")
+                    elif clean_id in lib_agents:
+                        st.error(f"Library already contains '{clean_id}'.")
+                    else:
+                        lib = _agent_library()
+                        lib["agents"][clean_id] = {
+                            "name": vals["name"].strip(),
+                            "role": vals["role"].strip(),
+                            "archetype": vals["archetype"],
+                            "perception": vals["perception"],
+                            "persona": vals["persona"].strip(),
+                            "secret_goal": vals["secret_goal"].strip(),
+                        }
+                        save_agent_library(lib)
+                        st.session_state.se_agent_library = lib
                         st.rerun()
 
 # ---------------------------------------------------------------------------
@@ -1025,7 +1132,7 @@ def render_tab_relationships() -> None:
         })
     if rows:
         import pandas as pd
-        st.dataframe(pd.DataFrame(rows).set_index("Preset"), use_container_width=True)
+        st.dataframe(pd.DataFrame(rows).set_index("Preset"), width="stretch")
 
 # ---------------------------------------------------------------------------
 # Main

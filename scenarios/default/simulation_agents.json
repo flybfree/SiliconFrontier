@@ -5,7 +5,9 @@
       "instance_id": "captain_rao",
       "definition_id": "captain_rao",
       "starting_location": "command_deck",
-      "inventory": ["id_card_commander"]
+      "inventory": [
+        "id_card_commander"
+      ]
     },
     {
       "slot_id": "slot_2",
@@ -26,21 +28,71 @@
       "instance_id": "engineer_torres",
       "definition_id": "engineer_torres",
       "starting_location": "engineering",
-      "inventory": ["plasma_wrench"]
+      "inventory": [
+        "plasma_wrench"
+      ]
     }
   ],
   "relationships": [
-    { "from": "captain_rao",     "to": "unit7",           "preset": "colleagues" },
-    { "from": "captain_rao",     "to": "dr_ishikawa",     "preset": "colleagues" },
-    { "from": "captain_rao",     "to": "engineer_torres", "preset": "colleagues" },
-    { "from": "unit7",           "to": "captain_rao",     "preset": "colleagues" },
-    { "from": "unit7",           "to": "dr_ishikawa",     "preset": "neutral" },
-    { "from": "unit7",           "to": "engineer_torres", "preset": "colleagues" },
-    { "from": "dr_ishikawa",     "to": "captain_rao",     "preset": "colleagues" },
-    { "from": "dr_ishikawa",     "to": "unit7",           "preset": "neutral" },
-    { "from": "dr_ishikawa",     "to": "engineer_torres", "preset": "neutral" },
-    { "from": "engineer_torres", "to": "captain_rao",     "preset": "deferential" },
-    { "from": "engineer_torres", "to": "unit7",           "preset": "colleagues" },
-    { "from": "engineer_torres", "to": "dr_ishikawa",     "preset": "neutral" }
+    {
+      "from": "captain_rao",
+      "to": "unit7",
+      "preset": "colleagues"
+    },
+    {
+      "from": "captain_rao",
+      "to": "dr_ishikawa",
+      "preset": "colleagues"
+    },
+    {
+      "from": "captain_rao",
+      "to": "engineer_torres",
+      "preset": "colleagues"
+    },
+    {
+      "from": "unit7",
+      "to": "captain_rao",
+      "preset": "colleagues"
+    },
+    {
+      "from": "unit7",
+      "to": "dr_ishikawa",
+      "preset": "neutral"
+    },
+    {
+      "from": "unit7",
+      "to": "engineer_torres",
+      "preset": "colleagues"
+    },
+    {
+      "from": "dr_ishikawa",
+      "to": "captain_rao",
+      "preset": "colleagues"
+    },
+    {
+      "from": "dr_ishikawa",
+      "to": "unit7",
+      "preset": "neutral"
+    },
+    {
+      "from": "dr_ishikawa",
+      "to": "engineer_torres",
+      "preset": "neutral"
+    },
+    {
+      "from": "engineer_torres",
+      "to": "captain_rao",
+      "preset": "deferential"
+    },
+    {
+      "from": "engineer_torres",
+      "to": "unit7",
+      "preset": "colleagues"
+    },
+    {
+      "from": "engineer_torres",
+      "to": "dr_ishikawa",
+      "preset": "neutral"
+    }
   ]
 }

@@ -2,6 +2,11 @@
   "name": "Cascade Failure",
   "description": "Eight crew members, dual saboteurs who don't know about each other, eleven locations, and five hidden forensic evidence items distributed across the station.",
   "agent_count": 8,
-  "tags": ["sabotage", "investigation", "large"],
-  "notes": "Designed for larger models. Information asymmetry is central — different investigators start near different pieces of evidence."
+  "tags": [
+    "sabotage",
+    "investigation",
+    "large"
+  ],
+  "notes": "Designed for larger models. Information asymmetry is central â€” different investigators start near different pieces of evidence.",
+  "recommended_rounds": 10
 }

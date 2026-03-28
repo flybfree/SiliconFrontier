@@ -7,6 +7,12 @@ saves/*.json
 # Simulation run logs — runtime output
 logs/*.log
 
+# Development scenarios — ignored by default; add explicit exceptions below for released scenarios
+scenarios/*
+!scenarios/default/
+!scenarios/cascade_failure/
+!scenarios/prisoners_dilemma/
+
 # Python cache
 __pycache__/
 *.pyc
