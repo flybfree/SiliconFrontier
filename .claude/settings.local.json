@@ -13,7 +13,8 @@
       "Bash(cat ~/.claude/shell-snapshots/*)",
       "mcp__plugin_claude-mem_mcp-search__search",
       "Bash(find /c/Users/rich -maxdepth 3 -name *.bat -o -name *.cmd -o -name *.ps1)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''scenario_editor.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")"
     ]
   }
 }

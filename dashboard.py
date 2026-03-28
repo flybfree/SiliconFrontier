@@ -18,6 +18,49 @@ from openai import OpenAI
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+
+# ---------------------------------------------------------------------------
+# Logging / tee
+# ---------------------------------------------------------------------------
+
+class _Tee:
+    """Mirror all writes to both the original stream and a log file."""
+
+    def __init__(self, stream, log_path: Path):
+        self._stream = stream
+        self._file = open(log_path, "w", encoding="utf-8")
+        self.log_path = log_path
+
+    def write(self, data):
+        self._stream.write(data)
+        self._file.write(data)
+
+    def flush(self):
+        self._stream.flush()
+        self._file.flush()
+
+    def close(self):
+        self._file.close()
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+
+def _start_logging(scenario: str) -> _Tee:
+    log_dir = Path(__file__).parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    slug = Path(scenario).name.replace(" ", "_")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = log_dir / f"{timestamp}_{slug}.log"
+    tee = _Tee(sys.stdout, log_path)
+    sys.stdout = tee
+    return tee
+
+
+def _stop_logging(tee: _Tee) -> None:
+    sys.stdout = tee._stream
+    tee.close()
+
 from worldstate import WorldState
 from agent import FrontierAgent, RogueAgent
 from actionparser import ActionParser
@@ -1046,9 +1089,25 @@ def main():
                 help="Model identifier for the inference engine"
             )
 
+        enable_logging = st.checkbox(
+            "Log to file",
+            value=st.session_state.get("enable_logging", True),
+            key="enable_logging",
+            help="Mirror all simulation output to a timestamped file in logs/",
+        )
+        active_tee: _Tee | None = st.session_state.get("log_tee")
+        if active_tee:
+            st.caption(f"📄 Logging → `{active_tee.log_path.name}`")
+
         if st.button("🚀 Initialize Simulation"):
+            # Stop any existing log before reinitialising
+            if active_tee:
+                _stop_logging(active_tee)
+                st.session_state.log_tee = None
             if sim.initialize(config_dir=config_dir, llm_url=llm_url, llm_model=llm_model):
                 st.session_state.initialized = True
+                if enable_logging:
+                    st.session_state.log_tee = _start_logging(config_dir)
                 st.success("Simulation initialized!")
                 st.rerun()
             else:
