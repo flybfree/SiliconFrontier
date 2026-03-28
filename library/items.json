@@ -77,6 +77,17 @@
       "name": "Seed Canister",
       "description": "Contains genetically modified wheat seeds. Critical for long-term food production.",
       "portable": true
+    },
+    "soda_1": {
+      "name": "Can of soda",
+      "description": "a can of refreshing soda that refreshes and hydrates",
+      "portable": true,
+      "consumable": true,
+      "effect": {
+        "perception_delta": 10,
+        "emotional_state": "Alert",
+        "memory_inject": "the soda tasted great and made me more alert"
+      }
     }
   }
 }

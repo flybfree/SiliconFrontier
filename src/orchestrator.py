@@ -521,8 +521,10 @@ class Orchestrator:
                 continue
             self._apply_social_critic(other_agent, speaking_agent, action, message)
             new_trust, new_affinity = self.social.get_scores(other_id, speaking_agent.agent_id)
+            suspicion = self.social.get_suspicion(other_id, speaking_agent.agent_id)
+            label = other_agent._relationship_label(new_trust, new_affinity, suspicion)
             print(f"[{other_agent.name}] Updated view of {speaking_agent.name}: "
-                  f"T={new_trust}, A={new_affinity}")
+                  f"T={new_trust}, A={new_affinity} [{label}]")
 
     def run_simulation(self, rounds: int, delay_seconds: float = 0.5) -> list[list[dict[str, Any]]]:
         """
