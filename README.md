@@ -62,6 +62,21 @@ streamlit run scenario_editor.py
 
 A form-based tool for creating and editing scenario assets — agents, locations, items, simulation slots, and starting relationships — without hand-editing JSON.
 
+### Windows executable
+
+Build a packaged app with PyInstaller from the project root:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
+```
+
+The build output is `dist/SiliconFrontier/SiliconFrontier.exe`.
+The packaged bundle includes the dashboard, scenario editor, CLI entry point, and bundled `library/` and `scenarios/` data.
+Run it directly to launch the dashboard in a browser.
+Run `SiliconFrontier.exe --editor` to launch the scenario editor.
+Run `SiliconFrontier.exe --cli --rounds 10` to use the terminal simulation entry point.
+Runtime `logs/` and `saves/` are created next to the packaged executable bundle.
+
 ---
 
 ## Included scenarios

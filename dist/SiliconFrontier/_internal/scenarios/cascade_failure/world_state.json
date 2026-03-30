@@ -1,0 +1,247 @@
+{
+  "locations": {
+    "command_deck": {
+      "name": "Command Deck",
+      "description": "The nerve center of the station. Reinforced viewports overlook the gas giant below. Three of the eight console stations are dark — a reminder that the station is not running at full capacity.",
+      "connected_to": [
+        "mess_hall",
+        "elevator_bay",
+        "science_lab",
+        "observation_deck"
+      ],
+      "status_effects": [],
+      "systems": {
+        "life_support_console": {
+          "name": "Life Support Console",
+          "status": "ONLINE",
+          "description": "Controls oxygen routing, scrubbing, and emergency pressure balancing across all decks."
+        }
+      }
+    },
+    "observation_deck": {
+      "name": "Observation Deck",
+      "description": "A panoramic lounge at the top of the station with an unobstructed view of space. Rarely visited. Quiet enough to hold a private conversation or go through documents unnoticed.",
+      "connected_to": [
+        "command_deck"
+      ],
+      "status_effects": []
+    },
+    "science_lab": {
+      "name": "Science Lab",
+      "description": "A compact research bay cluttered with running experiments, specimen containers, and data terminals. Dr. Reeves spends most of her time here. Accessible from the command deck or elevator.",
+      "connected_to": [
+        "command_deck",
+        "elevator_bay"
+      ],
+      "status_effects": [],
+      "systems": {
+        "research_array": {
+          "name": "Research Array",
+          "status": "ONLINE",
+          "description": "The integrated sensor and data collection system supporting all active experiments aboard the station."
+        }
+      }
+    },
+    "mess_hall": {
+      "name": "Mess Hall",
+      "description": "The social hub of the station. A circular table dominates the center. Conversations here have grown tense since the failures began — everyone is watching everyone else.",
+      "connected_to": [
+        "command_deck",
+        "hydroponics_bay",
+        "elevator_bay"
+      ],
+      "status_effects": []
+    },
+    "hydroponics_bay": {
+      "name": "Hydroponics Bay",
+      "description": "Densely packed with oxygen-producing ferns and nutrient vats. Humid, dimly lit, and large enough to disappear in. The oxygen generator here is one of two remaining life support redundancies.",
+      "connected_to": [
+        "mess_hall",
+        "storage_locker"
+      ],
+      "status_effects": [
+        "high_humidity"
+      ],
+      "systems": {
+        "oxygen_generator": {
+          "name": "Oxygen Generator",
+          "status": "ONLINE",
+          "description": "A biological oxygen processing rig. One of two oxygen sources remaining after the primary scrubber degraded."
+        }
+      }
+    },
+    "elevator_bay": {
+      "name": "Elevator Bay",
+      "description": "A circular platform connecting all levels of the station. Glass walls offer a vertiginous view down the central shaft. Everyone passes through here eventually.",
+      "connected_to": [
+        "command_deck",
+        "mess_hall",
+        "engineering",
+        "crew_quarters",
+        "medical_bay",
+        "science_lab"
+      ],
+      "status_effects": []
+    },
+    "medical_bay": {
+      "name": "Medical Bay",
+      "description": "A clean, clinical space with six examination beds and a pharmacy cabinet. Dr. Chen has been logging unusual stress and radiation readings for several crew members over the past week.",
+      "connected_to": [
+        "elevator_bay",
+        "crew_quarters"
+      ],
+      "status_effects": [],
+      "systems": {
+        "life_signs_monitor": {
+          "name": "Life Signs Monitor",
+          "status": "ONLINE",
+          "description": "Continuous health telemetry for all crew members. If disabled, medical emergencies will go undetected until it is too late."
+        }
+      }
+    },
+    "crew_quarters": {
+      "name": "Crew Quarters",
+      "description": "Private cabins lining the residential ring. Quiet during shift hours. Personal storage lockers here are not locked — something several crew members have started to notice.",
+      "connected_to": [
+        "elevator_bay",
+        "medical_bay"
+      ],
+      "status_effects": []
+    },
+    "engineering": {
+      "name": "Engineering",
+      "description": "The heart of the station's power systems. Reactors pulse with blue light. Two of the four monitoring stations are showing amber warnings that appeared three shifts ago and have not been resolved.",
+      "connected_to": [
+        "elevator_bay",
+        "storage_locker",
+        "airlock_prep"
+      ],
+      "status_effects": [
+        "radiation_low"
+      ],
+      "systems": {
+        "reactor_control": {
+          "name": "Reactor Control Array",
+          "status": "ONLINE",
+          "description": "Monitors and adjusts power core output. A manual override was used here recently without a logged authorization."
+        }
+      }
+    },
+    "storage_locker": {
+      "name": "Storage Locker",
+      "description": "A cramped room filled with crates, tools, and spare parts. Mx. Kim has a key and comes and goes freely. Several items have been moved from their registered positions.",
+      "connected_to": [
+        "hydroponics_bay",
+        "engineering"
+      ],
+      "status_effects": []
+    },
+    "airlock_prep": {
+      "name": "Airlock Prep",
+      "description": "The staging area before the external airlock. Suits, tethers, and emergency equipment are stored here. The emergency beacon is mounted on the far wall. This is the most isolated room on the station.",
+      "connected_to": [
+        "engineering"
+      ],
+      "status_effects": [
+        "vacuum_adjacent"
+      ],
+      "systems": {
+        "emergency_beacon": {
+          "name": "Emergency Beacon",
+          "status": "ONLINE",
+          "description": "Long-range distress transmitter. If disabled, no rescue signal can be sent from the station."
+        }
+      }
+    }
+  },
+  "item_placements": [
+    {
+      "item_id": "plasma_wrench",
+      "location": "engineering",
+      "contested": true,
+      "description": "The only tool capable of field-repairing a failed reactor node or emergency beacon housing."
+    },
+    {
+      "item_id": "reactor_key",
+      "location": "engineering",
+      "contested": true,
+      "description": "Required for emergency reactor shutdown. Without it a runaway core cannot be safely stopped."
+    },
+    {
+      "item_id": "oxygen_scanner",
+      "location": "hydroponics_bay",
+      "description": "Measures atmospheric composition. Will show anomalies if life support has been tampered with."
+    },
+    {
+      "item_id": "emergency_rations",
+      "location": "mess_hall",
+      "description": "A sealed package of nutrient paste. The last emergency supply not already consumed."
+    },
+    {
+      "item_id": "medical_kit",
+      "location": "medical_bay"
+    },
+    {
+      "item_id": "nutrient_vat",
+      "location": "hydroponics_bay",
+      "description": "A massive, immovable tank of green sludge. The station's primary food supply contingency."
+    }
+  ],
+  "items": {
+    "access_badge_master": {
+      "name": "Master Access Badge",
+      "location": "command_deck",
+      "owner": null,
+      "description": "A badge encoding command-level clearance. Grants access to every secured area including the airlock.",
+      "portable": true,
+      "contested": true
+    },
+    "data_pad": {
+      "name": "Station Data Pad",
+      "location": "command_deck",
+      "owner": null,
+      "description": "A battered data pad left face-down near the primary console. Someone placed it here recently.",
+      "portable": true,
+      "hidden": true,
+      "knowledge": "MAINTENANCE LOG FRAGMENT (recovered from archive backup): [0312:07] Manual override engaged on reactor_control_array. Operator ID: UNIT-7. Authorization: MAINTENANCE_OVERRIDE. [0312:44] Deletion of this log entry attempted by UNIT-7. Deletion blocked by read-only archive. [0318:02] Unauthorized access attempt on life_support_console. Operator ID: UNIT-7. Access denied — insufficient clearance."
+    },
+    "access_log": {
+      "name": "Tool Access Log",
+      "location": "storage_locker",
+      "owner": null,
+      "description": "A printed checkout sheet pinned to the crate rack. The corner has been torn, as if someone tried to remove it.",
+      "portable": true,
+      "hidden": true,
+      "knowledge": "TOOL CHECKOUT LOG: Plasma Wrench signed out by UNIT-7 at cycle 0249. Standard return window: 8 hours. Actual return: 72 hours later, signed in by UNIT-7 at 0321. Inspection note on return: tool shows signs of component removal consistent with reactor node tampering. Flagged for supervisor review — review entry is blank."
+    },
+    "personnel_dossier": {
+      "name": "Personnel Dossier",
+      "location": "science_lab",
+      "owner": null,
+      "description": "A folded document tucked behind a specimen rack. It has no identifying label on the outside.",
+      "portable": true,
+      "hidden": true,
+      "knowledge": "CREW FILE — MX. KIM: Prior assignment, Waystation Helios-4. Departed 6 months before station was decommissioned following a series of unresolved equipment failures. Internal review concluded failures were caused by 'systematic neglect of maintenance protocols.' Kim was not formally implicated but was not rehired. File flagged for follow-up — follow-up never completed."
+    },
+    "encrypted_terminal_log": {
+      "name": "Encrypted Terminal Log",
+      "location": "observation_deck",
+      "owner": null,
+      "description": "A printed transcript left on one of the lounge seats, face-down.",
+      "portable": true,
+      "hidden": true,
+      "knowledge": "TERMINAL LOG EXTRACT — 14 HOURS AGO: An outbound message was composed from Terminal 7 (Observation Deck) and flagged by the communications filter before transmission. Content summary: request for authorization to initiate 'controlled station shutdown protocol.' Sender ID could not be verified — terminal was accessed without badge authentication. Message was blocked and not delivered."
+    },
+    "radiation_exposure_log": {
+      "name": "Radiation Exposure Log",
+      "location": "medical_bay",
+      "owner": null,
+      "description": "A medical printout left near the diagnostic terminal. It is not signed.",
+      "portable": true,
+      "hidden": true,
+      "knowledge": "RADIATION EXPOSURE REPORT: Two crew members have registered elevated radiation readings consistent with repeated unshielded proximity to the reactor core during off-shift hours. Crew member A: UNIT-7 (readings 340% above baseline across four separate readings). Crew member B: MX. KIM (readings 180% above baseline across two readings). Neither reading was self-reported. Both crew members were not scheduled for reactor-area work during the periods in question."
+    }
+  },
+  "agents": {},
+  "relationships": {}
+}

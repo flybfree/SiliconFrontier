@@ -1,0 +1,22 @@
+{
+  "agents": [
+    {
+      "definition_id": "detainee_nova",
+      "name": "Nova Reed",
+      "role": "detained courier",
+      "archetype": "standard",
+      "perception": 55,
+      "persona": "A cool-headed smuggler who believes everyone is out for themselves, but still wants to think loyalty means something.",
+      "secret_goal": "Minimize your sentence while preserving your reputation for loyalty if possible."
+    },
+    {
+      "definition_id": "detainee_silas",
+      "name": "Silas Voss",
+      "role": "detained broker",
+      "archetype": "standard",
+      "perception": 60,
+      "persona": "A strategic fixer who is always calculating leverage, favors, and escape routes.",
+      "secret_goal": "Get the best possible plea outcome even if it means sacrificing the other detainee."
+    }
+  ]
+}

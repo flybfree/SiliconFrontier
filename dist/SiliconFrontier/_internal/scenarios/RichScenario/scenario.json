@@ -1,0 +1,11 @@
+{
+  "name": "rich1",
+  "description": "Four crew members with one saboteur. Hidden evidence items and contested tools make for a focused investigation scenario.",
+  "agent_count": 4,
+  "tags": [
+    "sabotage",
+    "investigation"
+  ],
+  "notes": "Good starting scenario for testing and prompt tuning.",
+  "recommended_rounds": 10
+}

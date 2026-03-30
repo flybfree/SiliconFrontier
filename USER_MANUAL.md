@@ -15,6 +15,11 @@ The project has three main ways to use it:
 - `dashboard.py` for an interactive Streamlit dashboard
 - `scenario_editor.py` for creating and editing scenario assets through a form-based UI
 
+It also supports a packaged Windows build:
+
+- `build_exe.ps1` builds the distributable launcher bundle
+- `dist/SiliconFrontier/SiliconFrontier.exe` is the packaged app entry point
+
 ## Project Layout
 
 - `run_simulation.py`: CLI entry point for batch simulation runs
@@ -38,6 +43,8 @@ Install dependencies from `requirements.txt`:
 ```powershell
 pip install -r requirements.txt
 ```
+
+This also installs `PyInstaller`, which is used to build the Windows executable bundle.
 
 You also need an OpenAI-compatible local or remote inference server. The code expects a base URL such as:
 
@@ -105,6 +112,61 @@ In the sidebar:
 3. Click `Fetch Models` if your server supports the OpenAI-compatible `/models` endpoint, or enter a model name manually
 4. Click `Initialize Simulation`
 5. Run single or multiple cycles
+
+### Run the scenario editor
+
+```powershell
+streamlit run scenario_editor.py
+```
+
+### Build the Windows executable
+
+From the project root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
+```
+
+Build output:
+
+```text
+dist/SiliconFrontier/SiliconFrontier.exe
+```
+
+The packaged bundle contains:
+
+- the dashboard launcher
+- the scenario editor launcher
+- the CLI simulation entry point
+- bundled `library/` and `scenarios/` content
+
+Runtime folders such as `logs/` and `saves/` are created next to the packaged executable bundle.
+
+### Run the packaged executable
+
+Launch the dashboard:
+
+```powershell
+.\dist\SiliconFrontier\SiliconFrontier.exe
+```
+
+Launch the scenario editor:
+
+```powershell
+.\dist\SiliconFrontier\SiliconFrontier.exe --editor
+```
+
+Run the CLI mode:
+
+```powershell
+.\dist\SiliconFrontier\SiliconFrontier.exe --cli --rounds 10 --no-log
+```
+
+Notes:
+
+- The dashboard and scenario editor still open in your browser because both are Streamlit apps.
+- If you change Python code, scenarios, or library assets, rebuild the bundle to refresh the packaged output.
+- The bundle is Windows-specific; rebuild on the target platform if you need a package for another environment.
 
 ## How the Simulation Works
 
@@ -312,7 +374,7 @@ This is the quickest way to turn an edited or evolved simulation state into a re
 
 ## Scenario Editor
 
-The scenario editor is a standalone Streamlit app for creating and editing scenario assets without hand-editing JSON files.
+The scenario editor is a standalone Streamlit app for creating and editing scenario assets without hand-editing JSON files. During development you can launch it with Streamlit; in the packaged Windows build you can launch it with `SiliconFrontier.exe --editor`.
 
 ```powershell
 streamlit run scenario_editor.py

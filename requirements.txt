@@ -5,6 +5,7 @@ openai>=1.0.0  # For LLM inference
 
 # Dashboard
 streamlit>=1.23.0  # Web UI for observation
+pyinstaller>=6.0.0  # Build standalone Windows executable
 
 # Optional: for advanced features
 # faiss-cpu  # For vector-based long-term memory search
