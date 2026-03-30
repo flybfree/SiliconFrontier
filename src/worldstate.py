@@ -280,6 +280,17 @@ class WorldState:
                 system_id: dict(system_data)
                 for system_id, system_data in self.get_location_systems(loc).items()
             } if loc else {},
+            "abnormal_systems": [
+                {
+                    "location_id": location_id,
+                    "location_name": loc_data.get("name", location_id),
+                    "system_id": system_id,
+                    **dict(system_data),
+                }
+                for location_id, loc_data in self.locations.items()
+                for system_id, system_data in loc_data.get("systems", {}).items()
+                if system_data.get("status", "ONLINE") != "ONLINE"
+            ],
             "visible_agents": visible_agents,
             "visible_agent_hands": {
                 other_id: [
