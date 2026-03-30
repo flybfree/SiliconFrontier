@@ -10,6 +10,7 @@ logs/*.log
 # Build/package output
 build/
 dist/
+dist/**
 
 # Development scenarios — ignored by default; add explicit exceptions below for released scenarios
 scenarios/*

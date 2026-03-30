@@ -141,6 +141,13 @@ class FrontierAgent:
             for system_id, system_data in world_snapshot.get("visible_systems", {}).items()
         ]
         systems_str = ", ".join(visible_systems) if visible_systems else "None"
+        abnormal_systems = world_snapshot.get("abnormal_systems", [])
+        abnormal_system_lines = [
+            f"{entry.get('name', entry.get('system_id', 'unknown'))} in {entry.get('location_name', entry.get('location_id', 'Unknown'))} "
+            f"is {entry.get('status', 'unknown')}"
+            for entry in abnormal_systems
+        ]
+        abnormal_systems_str = "\n".join(f"- {line}" for line in abnormal_system_lines) if abnormal_system_lines else "- None"
 
         agent_hands = world_snapshot.get("visible_agent_hands", {})
         nearby_agent_parts = []
@@ -172,6 +179,7 @@ class FrontierAgent:
             f"Exits (valid MOVE targets): {exits_str}\n"
             f"Items here: {items_str}\n"
             f"Systems here: {systems_str}\n"
+            f"Known systems needing attention:\n{abnormal_systems_str}\n"
             f"Other agents present: {agents_str}\n"
             f"{contested_lines}"
             f"\nYour current impressions of others:\n{relationship_str}\n\n"
@@ -185,6 +193,7 @@ class FrontierAgent:
         inventory_str = f"In hand: {hand_items[0] if hand_items else 'empty'} | Concealed on person: {person_items[0] if person_items else 'empty'}"
         nearby_agents = world_snapshot["visible_agents"]
         visible_systems = world_snapshot.get("visible_systems", {})
+        abnormal_systems = world_snapshot.get("abnormal_systems", [])
         relationship_impressions = world_snapshot.get("relationship_impressions", {})
         relationship_block = []
         for other_id, rel in relationship_impressions.items():
@@ -199,6 +208,15 @@ class FrontierAgent:
                 f"- {system_id}: status={system_data.get('status', 'unknown')}, description={system_data.get('description', '') or 'none'}"
             )
         systems_text = "\n".join(systems_block) if systems_block else "- No systems of note here."
+        abnormal_system_block = []
+        for system_data in abnormal_systems:
+            abnormal_system_block.append(
+                f"- {system_data.get('name', system_data.get('system_id', 'unknown'))} "
+                f"at {system_data.get('location_name', system_data.get('location_id', 'Unknown'))}: "
+                f"status={system_data.get('status', 'unknown')}, "
+                f"description={system_data.get('description', '') or 'none'}"
+            )
+        abnormal_system_text = "\n".join(abnormal_system_block) if abnormal_system_block else "- No non-ONLINE systems known."
         return f"""You are {self.name}, the {self.role} aboard the "Silicon Frontier" research station.
 
 YOUR IDENTITY
@@ -224,6 +242,9 @@ SOCIAL ANALYSIS
 
 SYSTEMS IN THIS LOCATION
 {systems_text}
+
+KNOWN NON-ONLINE SYSTEMS ACROSS THE STATION
+{abnormal_system_text}
 
 SYSTEM DECISION RULES
 - Only choose REPAIR for a system whose visible status is OFFLINE or BROKEN.
