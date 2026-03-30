@@ -127,6 +127,12 @@ From the project root:
 powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
 ```
 
+To clear the previous packaged output first:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build_exe.ps1 -Clean
+```
+
 Build output:
 
 ```text
@@ -135,8 +141,7 @@ dist/SiliconFrontier/SiliconFrontier.exe
 
 The packaged bundle contains:
 
-- the dashboard launcher
-- the scenario editor launcher
+- the unified Streamlit application
 - the CLI simulation entry point
 - bundled `library/` and `scenarios/` content
 
@@ -150,12 +155,6 @@ Launch the dashboard:
 .\dist\SiliconFrontier\SiliconFrontier.exe
 ```
 
-Launch the scenario editor:
-
-```powershell
-.\dist\SiliconFrontier\SiliconFrontier.exe --editor
-```
-
 Run the CLI mode:
 
 ```powershell
@@ -164,7 +163,9 @@ Run the CLI mode:
 
 Notes:
 
-- The dashboard and scenario editor still open in your browser because both are Streamlit apps.
+- The packaged app opens in your browser because it is a Streamlit application.
+- Inside the app, use the sidebar `Workspace` switch to toggle between `Simulation` and `Scenario Editor`.
+- The launcher automatically selects the first available localhost port starting at `8501` and prints the exact URL in the console.
 - If you change Python code, scenarios, or library assets, rebuild the bundle to refresh the packaged output.
 - The bundle is Windows-specific; rebuild on the target platform if you need a package for another environment.
 

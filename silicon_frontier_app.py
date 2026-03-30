@@ -6,19 +6,46 @@ from __future__ import annotations
 
 import os
 import runpy
+import socket
 import sys
 
 from src.app_paths import data_path, ensure_runtime_dirs, resource_path
+
+DEFAULT_STREAMLIT_PORT = 8501
+MAX_STREAMLIT_PORT = 8510
+
+
+def _find_available_port(start: int = DEFAULT_STREAMLIT_PORT, end: int = MAX_STREAMLIT_PORT) -> int:
+    for port in range(start, end + 1):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(("127.0.0.1", port))
+                return port
+            except OSError:
+                continue
+    raise RuntimeError(f"No open localhost port found in range {start}-{end}.")
 
 
 def _launch_streamlit(script_name: str) -> int:
     from streamlit.web.cli import main as streamlit_main
 
     script_path = resource_path(script_name)
+    port = _find_available_port()
+    app_url = f"http://localhost:{port}"
+    os.environ["STREAMLIT_GLOBAL_DEVELOPMENT_MODE"] = "false"
+    print(f"Launching Streamlit app: {app_url}")
     sys.argv = [
         "streamlit",
         "run",
         str(script_path),
+        "--global.developmentMode=false",
+        "--server.port",
+        str(port),
+        "--server.address",
+        "localhost",
+        "--browser.serverAddress",
+        "localhost",
         "--server.headless=false",
         "--browser.gatherUsageStats=false",
     ]

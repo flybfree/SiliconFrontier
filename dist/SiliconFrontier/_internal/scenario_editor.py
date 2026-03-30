@@ -35,15 +35,12 @@ from configloader import (
     SIMULATION_AGENTS_FILENAME,
 )
 
-# ---------------------------------------------------------------------------
-# Page config
-# ---------------------------------------------------------------------------
-
-st.set_page_config(
-    page_title="SF Scenario Editor",
-    page_icon="🛠",
-    layout="wide",
-)
+def configure_page() -> None:
+    st.set_page_config(
+        page_title="SF Scenario Editor",
+        page_icon="🛠",
+        layout="wide",
+    )
 
 st.markdown("""
 <style>
@@ -1185,10 +1182,13 @@ def render_tab_relationships() -> None:
 # Main
 # ---------------------------------------------------------------------------
 
-def main() -> None:
+def main(*, embedded: bool = False) -> None:
     render_sidebar()
 
-    st.title("Scenario Editor")
+    if embedded:
+        st.title("🛠 Scenario Editor")
+    else:
+        st.title("Scenario Editor")
 
     if not _ss().se_scenario_dir:
         st.info("Use the sidebar to load an existing scenario or create a new one.")
@@ -1218,4 +1218,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_page()
     main()

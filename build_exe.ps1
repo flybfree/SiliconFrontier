@@ -21,7 +21,8 @@ if (-not $pythonExe) {
 
 if ($Clean) {
     if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
-    if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
+    if (Test-Path "dist\SiliconFrontier") { Remove-Item -Recurse -Force "dist\SiliconFrontier" }
+    if (Test-Path "dist\SiliconFrontier.exe") { Remove-Item -Force "dist\SiliconFrontier.exe" }
 }
 
 & $pythonExe -m PyInstaller --noconfirm SiliconFrontier.spec

@@ -19,6 +19,7 @@ from openai import OpenAI
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 from app_paths import data_path, ensure_runtime_dirs
+import scenario_editor
 
 ensure_runtime_dirs()
 os.chdir(data_path())
@@ -1027,6 +1028,17 @@ def render_agent_library_controls():
 
 
 def main():
+    with st.sidebar:
+        app_mode = st.radio(
+            "Workspace",
+            options=["Simulation", "Scenario Editor"],
+            key="app_workspace_mode",
+        )
+
+    if app_mode == "Scenario Editor":
+        scenario_editor.main(embedded=True)
+        return
+
     st.title("🚀 Silicon Frontier")
     st.markdown("""
     An AI agentic simulation for observing emergent social behaviors

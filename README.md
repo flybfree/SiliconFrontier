@@ -70,11 +70,18 @@ Build a packaged app with PyInstaller from the project root:
 powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
 ```
 
+Clean old packaged output first:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\build_exe.ps1 -Clean
+```
+
 The build output is `dist/SiliconFrontier/SiliconFrontier.exe`.
-The packaged bundle includes the dashboard, scenario editor, CLI entry point, and bundled `library/` and `scenarios/` data.
-Run it directly to launch the dashboard in a browser.
-Run `SiliconFrontier.exe --editor` to launch the scenario editor.
+The packaged bundle includes the unified Streamlit app, bundled `library/` and `scenarios/` data, and the CLI entry point.
+Run it directly to launch the app in your browser.
+Inside the app, use the sidebar `Workspace` switch to toggle between `Simulation` and `Scenario Editor`.
 Run `SiliconFrontier.exe --cli --rounds 10` to use the terminal simulation entry point.
+The launcher chooses the first available localhost port starting at `8501` and prints the exact URL in the console.
 Runtime `logs/` and `saves/` are created next to the packaged executable bundle.
 
 ---
