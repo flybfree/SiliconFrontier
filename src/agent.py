@@ -225,6 +225,10 @@ SOCIAL ANALYSIS
 SYSTEMS IN THIS LOCATION
 {systems_text}
 
+SYSTEM DECISION RULES
+- Only choose REPAIR for a system whose visible status is OFFLINE or BROKEN.
+- If a system is ONLINE or DEGRADED, do not attempt REPAIR. Consider another action instead.
+
 YOUR KNOWLEDGE SO FAR
 Long-term memories: {self.long_term_memory}
 Your current sense of progress toward your secret goal: {self.goal_momentum}.

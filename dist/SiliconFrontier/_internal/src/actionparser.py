@@ -314,7 +314,7 @@ class ActionParser:
         return True, f"Success: You disabled the {matching_system_id}."
 
     def _handle_repair(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
-        """Handle REPAIR action on a broken local system."""
+        """Handle REPAIR action on a local system that is down."""
         current_loc = self.world.get_agent_location(agent.agent_id)
         if not current_loc:
             return False, "Failure: You don't know where you are."
@@ -331,8 +331,12 @@ class ActionParser:
             available = [data.get("name", sid) for sid, data in systems_here.items()]
             return False, f"Failure: No repairable system '{target}' here. Systems: {', '.join(available) if available else 'none'}."
 
-        if systems_here[matching_system_id].get("status") != "BROKEN":
-            return False, f"Failure: {systems_here[matching_system_id].get('name', matching_system_id)} is not broken."
+        system_status = systems_here[matching_system_id].get("status", "unknown")
+        if system_status not in {"OFFLINE", "BROKEN"}:
+            return False, (
+                f"Failure: {systems_here[matching_system_id].get('name', matching_system_id)} "
+                f"is currently {system_status}, so repair is not needed. Consider another action."
+            )
 
         required_tool = systems_here[matching_system_id].get("required_tool")
         if required_tool:
