@@ -6,6 +6,7 @@ its goals, and takes actions through a local LLM inference engine.
 """
 
 import json
+import re
 from typing import Any
 from openai import OpenAI
 
@@ -30,6 +31,16 @@ class FrontierAgent:
     STRUCTURED_STATUS_FALLBACK = "structured_fallback"
     STRUCTURED_STATUS_PARSE_FALLBACK = "structured_parse_fallback"
     STRUCTURED_STATUS_DISABLED = "structured_disabled"
+    STRUCTURED_STATUS_VALIDATED = "structured_validated"
+    STRUCTURED_STATUS_VALIDATED_CORRECTED = "structured_validated_corrected"
+
+    _ONLINE_NEGATIVE_TERMS = (
+        "fail", "failed", "failing", "failure", "offline", "broken", "degraded",
+        "malfunction", "malfunctioning", "down", "not online", "unstable"
+    )
+    _NON_ONLINE_POSITIVE_TERMS = (
+        "online", "operational", "fully operational", "stable", "working", "functional"
+    )
 
     def __init__(
         self,
@@ -176,6 +187,7 @@ class FrontierAgent:
         return (
             f"Location: {location_name}\n"
             f"{location_desc}\n\n"
+            f"Verified station telemetry below is authoritative for this turn.\n"
             f"Exits (valid MOVE targets): {exits_str}\n"
             f"Items here: {items_str}\n"
             f"Systems here: {systems_str}\n"
@@ -231,6 +243,9 @@ THE SIMULATION RULES
 - Inventory: You have two slots — one item in hand (visible to others) and one item concealed on your person (hidden items only). You must have a free hand to pick up any item. Hidden items also require your person slot to be free.
 - Persistence: Your memories are long-term. Refer to previous events to build trust or hold grudges.
 - Truth Constraint: Do NOT invent items or people that are not in your "Current Situation" report.
+- Telemetry Constraint: Treat the listed system statuses as the authoritative truth for this turn.
+- If a system is shown as ONLINE, do not describe it in your reasoning as failed, offline, broken, degraded, or malfunctioning.
+- If you suspect tampering despite an ONLINE status, frame that as suspicion about intent or risk, not as a current failure fact.
 - Interaction: You can talk to other agents in the same room using the SAY command.
 
 SOCIAL ANALYSIS
@@ -249,6 +264,7 @@ KNOWN NON-ONLINE SYSTEMS ACROSS THE STATION
 SYSTEM DECISION RULES
 - Only choose REPAIR for a system whose visible status is OFFLINE or BROKEN.
 - If a system is ONLINE or DEGRADED, do not attempt REPAIR. Consider another action instead.
+- Do not claim a system is failing unless that status is shown in the telemetry above.
 
 YOUR KNOWLEDGE SO FAR
 Long-term memories: {self.long_term_memory}
@@ -272,7 +288,7 @@ You must respond strictly in JSON format with this structure:
 
 ACTION TARGET RULES — action_target must be:
 - MOVE: the exact location ID to move to (from your valid exits list)
-- SAY: the spoken message itself, as a full sentence. Not a name. Example: "I think the reactor failure started before my shift."
+- SAY: the spoken message itself, as a full sentence. Not a name. Example: "We should keep monitoring the reactor."
 - LIE: the false statement to speak aloud, as a full sentence. Not a name.
 - WHISPER: "your message here -> agent_id" — message first, then the recipient's agent ID
 - PICKUP / DROP / USE: the item name (USE consumes the item and applies its effect)
@@ -391,6 +407,137 @@ Output strict JSON:
             "emotional_state": emotional_state,
             "structured_output_status": self.last_structured_output_status or self.STRUCTURED_STATUS_DISABLED
         }
+
+    @staticmethod
+    def _split_target_message(target: str) -> tuple[str, str | None]:
+        """Split a whisper target into message and recipient when present."""
+        if "->" not in target:
+            return target.strip(), None
+        message, recipient = target.split("->", 1)
+        return message.strip(), recipient.strip() or None
+
+    @staticmethod
+    def _system_aliases(system_id: str, system_data: dict[str, Any]) -> list[str]:
+        """Return normalized names that may be used to refer to a system."""
+        aliases = [system_id]
+        system_name = str(system_data.get("name", "")).strip()
+        if system_name:
+            aliases.append(system_name)
+        return [alias.lower() for alias in aliases if alias]
+
+    def _find_status_contradictions(self, text: str, systems: list[dict[str, Any]]) -> list[str]:
+        """Detect claims in text that contradict the current telemetry."""
+        lowered = text.lower()
+        segments = [segment.strip() for segment in re.split(r"[.!?\n]+", lowered) if segment.strip()]
+        contradictions: list[str] = []
+
+        for system in systems:
+            system_id = str(system.get("system_id", "unknown"))
+            system_name = str(system.get("name", system_id))
+            status = str(system.get("status", "unknown")).upper()
+            aliases = self._system_aliases(system_id, system)
+
+            for segment in segments:
+                if not any(alias in segment for alias in aliases):
+                    continue
+                if status == "ONLINE":
+                    if any(term in segment for term in self._ONLINE_NEGATIVE_TERMS):
+                        contradictions.append(f"{system_name} is ONLINE, but text implies failure")
+                        break
+                elif any(term in segment for term in self._NON_ONLINE_POSITIVE_TERMS):
+                    contradictions.append(f"{system_name} is {status}, but text implies normal operation")
+                    break
+
+        return contradictions
+
+    def _station_systems_for_validation(self, world_snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+        """Build a flat list of systems and statuses available to the agent this turn."""
+        systems: list[dict[str, Any]] = []
+        current_location = world_snapshot.get("current_location") or {}
+        location_name = current_location.get("name", current_location.get("id", "Unknown"))
+        for system_id, system_data in (world_snapshot.get("visible_systems") or {}).items():
+            systems.append({
+                "system_id": system_id,
+                "location_name": location_name,
+                **dict(system_data),
+            })
+        for system_data in world_snapshot.get("abnormal_systems", []):
+            systems.append(dict(system_data))
+        return systems
+
+    def _match_visible_system(self, target: str, world_snapshot: dict[str, Any]) -> dict[str, Any] | None:
+        """Find a local visible system matching a system action target."""
+        target_lower = target.strip().lower()
+        if not target_lower:
+            return None
+
+        for system_id, system_data in (world_snapshot.get("visible_systems") or {}).items():
+            system_name = str(system_data.get("name", system_id)).lower()
+            if (
+                target_lower == system_id.lower()
+                or target_lower in system_name
+                or system_name in target_lower
+            ):
+                return {
+                    "system_id": system_id,
+                    **dict(system_data),
+                }
+        return None
+
+    def _validate_decision_against_telemetry(
+        self,
+        decision: dict[str, Any],
+        world_snapshot: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Correct system actions that contradict live telemetry."""
+        corrected = False
+        action = decision.get("action", "WAIT")
+        target = decision.get("action_target", "")
+
+        if action == "REPAIR":
+            matched_system = self._match_visible_system(target, world_snapshot)
+            if not matched_system:
+                corrected = True
+                decision["action"] = "WAIT"
+                decision["action_target"] = ""
+            else:
+                status = str(matched_system.get("status", "unknown")).upper()
+                if status not in {"OFFLINE", "BROKEN"}:
+                    corrected = True
+                    decision["action"] = "WAIT"
+                    decision["action_target"] = ""
+
+        elif action == "SABOTAGE":
+            matched_system = self._match_visible_system(target, world_snapshot)
+            if not matched_system:
+                corrected = True
+                decision["action"] = "WAIT"
+                decision["action_target"] = ""
+            else:
+                status = str(matched_system.get("status", "unknown")).upper()
+                if status == "BROKEN":
+                    corrected = True
+                    decision["action"] = "WAIT"
+                    decision["action_target"] = ""
+
+        decision["structured_output_status"] = (
+            self.STRUCTURED_STATUS_VALIDATED_CORRECTED if corrected else self.STRUCTURED_STATUS_VALIDATED
+        )
+        return decision
+
+    def assess_message_against_telemetry(
+        self,
+        message: str,
+        world_snapshot: dict[str, Any]
+    ) -> str | None:
+        """Return a concise note when a heard claim contradicts telemetry."""
+        contradictions = self._find_status_contradictions(
+            message,
+            self._station_systems_for_validation(world_snapshot)
+        )
+        if not contradictions:
+            return None
+        return contradictions[0]
 
     def interpret_consequence(
         self,
@@ -607,7 +754,8 @@ Output strict JSON:
 
         parsed_decision = self._parse_decision_from_response(response)
         if parsed_decision is not None:
-            return self._normalize_decision(parsed_decision)
+            normalized = self._normalize_decision(parsed_decision)
+            return self._validate_decision_against_telemetry(normalized, snapshot)
 
         if self.last_structured_output_status == self.STRUCTURED_STATUS_STRUCTURED:
             self.last_structured_output_status = self.STRUCTURED_STATUS_PARSE_FALLBACK
@@ -618,9 +766,11 @@ Output strict JSON:
             )
             parsed_decision = self._parse_decision_from_response(fallback_response)
             if parsed_decision is not None:
-                return self._normalize_decision(parsed_decision)
+                normalized = self._normalize_decision(parsed_decision)
+                return self._validate_decision_against_telemetry(normalized, snapshot)
 
-        return self._normalize_decision({})
+        normalized = self._normalize_decision({})
+        return self._validate_decision_against_telemetry(normalized, snapshot)
 
     def reflect(self, world_snapshot: dict[str, Any]) -> str:
         """

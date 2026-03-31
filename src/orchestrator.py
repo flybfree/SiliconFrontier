@@ -196,6 +196,32 @@ class Orchestrator:
             tag = self._witness_reaction_tag(trust, suspicion, action)
             witness.add_to_memory(f"{base_message}{tag}")
 
+    def _apply_telemetry_speech_check(
+        self,
+        listener: Any,
+        speaker: Any,
+        message: str
+    ) -> None:
+        """Let a listener compare a spoken system claim against known telemetry."""
+        listener_snapshot = self.world.get_snapshot_for_agent(listener.agent_id)
+        contradiction = listener.assess_message_against_telemetry(message, listener_snapshot)
+        if not contradiction:
+            return
+
+        listener.add_to_memory(
+            f"[Telemetry check] {speaker.name}'s claim conflicts with telemetry: {contradiction}."
+        )
+        self.social.update_scores(
+            listener.agent_id,
+            speaker.agent_id,
+            trust_delta=-3,
+            affinity_delta=-1,
+            notes=f"Made a system claim that conflicted with telemetry: {contradiction}"
+        )
+        self.social.update_suspicion(listener.agent_id, speaker.agent_id, 6)
+        self._sync_relationships()
+        print(f"  [Telemetry check] {listener.name} flagged {speaker.name}'s claim: {contradiction}")
+
     @staticmethod
     def _extract_social_target(target: str) -> tuple[str, str] | None:
         """Parse an action target into (item_or_message, target_agent_id)."""
@@ -399,6 +425,10 @@ class Orchestrator:
             if action in {"SAY", "LIE"} and success:
                 event_msg = f"{agent.name} said: '{target}'"
                 self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
+                for witness_id in self.world.get_visible_agents(agent.agent_id):
+                    witness = self.get_agent_by_id(witness_id)
+                    if witness:
+                        self._apply_telemetry_speech_check(witness, agent, target)
 
             elif action == "WHISPER" and success:
                 parsed = self._extract_social_target(target)
@@ -407,6 +437,7 @@ class Orchestrator:
                     target_agent = self.get_agent_by_id(target_agent_id)
                     if target_agent:
                         target_agent.add_to_memory(f"{agent.name} whispered to you: '{message}'")
+                        self._apply_telemetry_speech_check(target_agent, agent, message)
                         self.social.update_scores(target_agent_id, agent.agent_id, trust_delta=4, affinity_delta=3, notes=f"{agent.name} chose to confide in you.")
                     for witness_id in self.world.get_visible_agents(agent.agent_id):
                         if witness_id != target_agent_id:

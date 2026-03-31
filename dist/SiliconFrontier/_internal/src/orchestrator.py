@@ -110,6 +110,24 @@ class Orchestrator:
         }
         self.system_incidents.append(incident)
 
+    def _print_system_status_snapshot(self) -> None:
+        """Print the current status of every system in the station."""
+        print("  System status snapshot:")
+        found_any = False
+        for loc_id, loc_data in self.world.locations.items():
+            systems = loc_data.get("systems", {})
+            if not systems:
+                continue
+            found_any = True
+            location_name = loc_data.get("name", loc_id)
+            print(f"    {location_name}:")
+            for system_id, system_data in systems.items():
+                system_name = system_data.get("name", system_id)
+                status = system_data.get("status", "unknown")
+                print(f"      - {system_name}: {status}")
+        if not found_any:
+            print("    No systems configured.")
+
     def _inject_snitch_memory(
         self,
         actor: Any,
@@ -319,6 +337,9 @@ class Orchestrator:
         print(f"{'='*50}")
 
         for agent in self.agents:
+            print(f"\n[Turn Start: {agent.name}]")
+            self._print_system_status_snapshot()
+
             # 1. SENSE - Get current surroundings
             world_snapshot = self.world.get_snapshot_for_agent(agent.agent_id)
             observation = agent.sense(world_snapshot)
