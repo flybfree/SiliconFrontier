@@ -636,6 +636,33 @@ Example system block:
 }
 ```
 
+Systems can also declare tool requirements:
+
+- `required_tool_repair` — tool that must be held in hand to `REPAIR` the system
+- `required_tool_sabotage` — tool that must be held in hand to `SABOTAGE` the system
+- `required_tool` — legacy repair-only alias; new content should prefer `required_tool_repair`
+
+If the same tool is required for both repair and sabotage, set both `required_tool_repair` and `required_tool_sabotage` to the same item ID or tool-name fragment.
+
+Example with tool-gated repair and sabotage:
+
+```json
+"systems": {
+  "reactor_control": {
+    "name": "Reactor Control Array",
+    "status": "OFFLINE",
+    "description": "Monitors and adjusts power core output.",
+    "required_tool_repair": "plasma_wrench",
+    "required_tool_sabotage": "reactor_key"
+  }
+}
+```
+
+Tool requirements are enforced in two places:
+
+- the agent prompt shows `repair_tool=...` and `sabotage_tool=...` for visible systems
+- action validation blocks `REPAIR` or `SABOTAGE` unless the required tool is currently in the agent's hand slot
+
 ### Add or change items
 
 Edit the `items` object in [data/world_state.json](data/world_state.json).

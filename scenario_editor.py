@@ -975,7 +975,7 @@ def render_tab_locations() -> None:
             systems: dict = loc.get("systems", {})
             sys_to_del = None
             for sys_id, sys_data in list(systems.items()):
-                sc1, sc2, sc3, sc4 = st.columns([2, 2, 2, 1])
+                sc1, sc2, sc3, sc4, sc5, sc6 = st.columns([2, 2, 2, 2, 2, 1])
                 with sc1:
                     ns_name = st.text_input("Name", value=sys_data.get("name", ""), key=f"sys_name_{loc_id}_{sys_id}")
                 with sc2:
@@ -988,6 +988,18 @@ def render_tab_locations() -> None:
                 with sc3:
                     ns_desc = st.text_input("Description", value=sys_data.get("description", ""), key=f"sys_desc_{loc_id}_{sys_id}")
                 with sc4:
+                    ns_repair_tool = st.text_input(
+                        "Repair Tool",
+                        value=sys_data.get("required_tool_repair", sys_data.get("required_tool", "")),
+                        key=f"sys_repair_tool_{loc_id}_{sys_id}"
+                    )
+                with sc5:
+                    ns_sabotage_tool = st.text_input(
+                        "Sabotage Tool",
+                        value=sys_data.get("required_tool_sabotage", ""),
+                        key=f"sys_sabotage_tool_{loc_id}_{sys_id}"
+                    )
+                with sc6:
                     if st.button("✕", key=f"sys_del_{loc_id}_{sys_id}"):
                         sys_to_del = sys_id
 
@@ -998,7 +1010,7 @@ def render_tab_locations() -> None:
                 st.rerun()
 
             with st.form(f"form_add_sys_{loc_id}"):
-                sa1, sa2, sa3, sa4 = st.columns([2, 2, 3, 1])
+                sa1, sa2, sa3, sa4, sa5, sa6 = st.columns([2, 2, 3, 1, 2, 2])
                 with sa1:
                     fs_id = st.text_input("System ID", help="e.g. oxygen_generator")
                 with sa2:
@@ -1007,13 +1019,22 @@ def render_tab_locations() -> None:
                     fs_desc = st.text_input("Description")
                 with sa4:
                     fs_status = st.selectbox("Status", options=SYSTEM_STATUSES)
+                with sa5:
+                    fs_repair_tool = st.text_input("Repair Tool")
+                with sa6:
+                    fs_sabotage_tool = st.text_input("Sabotage Tool")
                 if st.form_submit_button("Add System"):
                     if fs_id.strip() and fs_name.strip():
-                        systems[fs_id.strip()] = {
+                        new_system = {
                             "name": fs_name.strip(),
                             "status": fs_status,
                             "description": fs_desc.strip(),
                         }
+                        if fs_repair_tool.strip():
+                            new_system["required_tool_repair"] = fs_repair_tool.strip()
+                        if fs_sabotage_tool.strip():
+                            new_system["required_tool_sabotage"] = fs_sabotage_tool.strip()
+                        systems[fs_id.strip()] = new_system
                         locations[loc_id].setdefault("systems", {}).update(systems)
                         _mark_dirty()
                         st.rerun()
@@ -1023,7 +1044,20 @@ def render_tab_locations() -> None:
                 sys_name_val = st.session_state.get(f"sys_name_{loc_id}_{sys_id}", systems[sys_id].get("name", ""))
                 sys_status_val = st.session_state.get(f"sys_status_{loc_id}_{sys_id}", systems[sys_id].get("status", "ONLINE"))
                 sys_desc_val = st.session_state.get(f"sys_desc_{loc_id}_{sys_id}", systems[sys_id].get("description", ""))
-                systems[sys_id] = {"name": sys_name_val, "status": sys_status_val, "description": sys_desc_val}
+                sys_repair_tool_val = st.session_state.get(
+                    f"sys_repair_tool_{loc_id}_{sys_id}",
+                    systems[sys_id].get("required_tool_repair", systems[sys_id].get("required_tool", ""))
+                )
+                sys_sabotage_tool_val = st.session_state.get(
+                    f"sys_sabotage_tool_{loc_id}_{sys_id}",
+                    systems[sys_id].get("required_tool_sabotage", "")
+                )
+                updated_system = {"name": sys_name_val, "status": sys_status_val, "description": sys_desc_val}
+                if str(sys_repair_tool_val).strip():
+                    updated_system["required_tool_repair"] = str(sys_repair_tool_val).strip()
+                if str(sys_sabotage_tool_val).strip():
+                    updated_system["required_tool_sabotage"] = str(sys_sabotage_tool_val).strip()
+                systems[sys_id] = updated_system
 
             c_apply, c_del, _ = st.columns([1, 1, 4])
             with c_apply:
