@@ -218,6 +218,7 @@ class FrontierAgent:
         for system_id, system_data in visible_systems.items():
             systems_block.append(
                 f"- {system_id}: status={system_data.get('status', 'unknown')}, description={system_data.get('description', '') or 'none'}"
+                f"{self._system_requirement_text(system_data)}"
             )
         systems_text = "\n".join(systems_block) if systems_block else "- No systems of note here."
         abnormal_system_block = []
@@ -227,6 +228,7 @@ class FrontierAgent:
                 f"at {system_data.get('location_name', system_data.get('location_id', 'Unknown'))}: "
                 f"status={system_data.get('status', 'unknown')}, "
                 f"description={system_data.get('description', '') or 'none'}"
+                f"{self._system_requirement_text(system_data)}"
             )
         abnormal_system_text = "\n".join(abnormal_system_block) if abnormal_system_block else "- No non-ONLINE systems known."
         return f"""You are {self.name}, the {self.role} aboard the "Silicon Frontier" research station.
@@ -264,6 +266,8 @@ KNOWN NON-ONLINE SYSTEMS ACROSS THE STATION
 SYSTEM DECISION RULES
 - Only choose REPAIR for a system whose visible status is OFFLINE or BROKEN.
 - If a system is ONLINE or DEGRADED, do not attempt REPAIR. Consider another action instead.
+- If a system lists `repair_tool=...`, you must be holding that tool in your hand to REPAIR it.
+- If a system lists `sabotage_tool=...`, you must be holding that tool in your hand to SABOTAGE it.
 - Do not claim a system is failing unless that status is shown in the telemetry above.
 
 YOUR KNOWLEDGE SO FAR
@@ -465,6 +469,39 @@ Output strict JSON:
             systems.append(dict(system_data))
         return systems
 
+    @staticmethod
+    def _required_tool_for_action(system_data: dict[str, Any], action: str) -> str | None:
+        """Return the required tool for a system action, if configured."""
+        action_upper = action.upper()
+        if action_upper == "REPAIR":
+            return system_data.get("required_tool_repair") or system_data.get("required_tool")
+        if action_upper == "SABOTAGE":
+            return system_data.get("required_tool_sabotage")
+        return None
+
+    @staticmethod
+    def _hand_items_from_snapshot(world_snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+        """Return visible in-hand items from the snapshot inventory."""
+        return [item for item in world_snapshot.get("agent_inventory", []) if not item.get("hidden")]
+
+    def _has_required_tool_in_snapshot(self, world_snapshot: dict[str, Any], required_tool: str) -> bool:
+        """Check if the snapshot shows the agent holding the required tool."""
+        return any(
+            required_tool.lower() in item.get("name", "").lower() or item.get("id") == required_tool
+            for item in self._hand_items_from_snapshot(world_snapshot)
+        )
+
+    def _system_requirement_text(self, system_data: dict[str, Any]) -> str:
+        """Format system tool requirements for prompt text."""
+        repair_tool = self._required_tool_for_action(system_data, "REPAIR")
+        sabotage_tool = self._required_tool_for_action(system_data, "SABOTAGE")
+        details = []
+        if repair_tool:
+            details.append(f"repair_tool={repair_tool}")
+        if sabotage_tool:
+            details.append(f"sabotage_tool={sabotage_tool}")
+        return f", {', '.join(details)}" if details else ""
+
     def _match_visible_system(self, target: str, world_snapshot: dict[str, Any]) -> dict[str, Any] | None:
         """Find a local visible system matching a system action target."""
         target_lower = target.strip().lower()
@@ -502,7 +539,12 @@ Output strict JSON:
                 decision["action_target"] = ""
             else:
                 status = str(matched_system.get("status", "unknown")).upper()
+                required_tool = self._required_tool_for_action(matched_system, "REPAIR")
                 if status not in {"OFFLINE", "BROKEN"}:
+                    corrected = True
+                    decision["action"] = "WAIT"
+                    decision["action_target"] = ""
+                elif required_tool and not self._has_required_tool_in_snapshot(world_snapshot, required_tool):
                     corrected = True
                     decision["action"] = "WAIT"
                     decision["action_target"] = ""
@@ -515,7 +557,12 @@ Output strict JSON:
                 decision["action_target"] = ""
             else:
                 status = str(matched_system.get("status", "unknown")).upper()
+                required_tool = self._required_tool_for_action(matched_system, "SABOTAGE")
                 if status == "BROKEN":
+                    corrected = True
+                    decision["action"] = "WAIT"
+                    decision["action_target"] = ""
+                elif required_tool and not self._has_required_tool_in_snapshot(world_snapshot, required_tool):
                     corrected = True
                     decision["action"] = "WAIT"
                     decision["action_target"] = ""

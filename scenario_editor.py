@@ -154,6 +154,26 @@ def _item_display_name(item_id: str) -> str:
         return lib["name"]
     return item_id
 
+def _tool_options() -> list[str]:
+    """Return selectable tool/item IDs for system requirements."""
+    options = [""]
+    seen = {""}
+    for item_id in _all_item_ids():
+        if item_id not in seen:
+            seen.add(item_id)
+            options.append(item_id)
+    for item_id in _library().get("items", {}).keys():
+        if item_id not in seen:
+            seen.add(item_id)
+            options.append(item_id)
+    return options
+
+def _tool_label(item_id: str) -> str:
+    """Return a friendly label for a tool dropdown option."""
+    if not item_id:
+        return "None"
+    return f"{_item_display_name(item_id)} ({item_id})"
+
 def _preset_names() -> list[str]:
     return list(_presets().get("presets", {}).keys())
 
@@ -973,6 +993,7 @@ def render_tab_locations() -> None:
             # Systems
             st.markdown("**Systems**")
             systems: dict = loc.get("systems", {})
+            tool_options = _tool_options()
             sys_to_del = None
             for sys_id, sys_data in list(systems.items()):
                 sc1, sc2, sc3, sc4, sc5, sc6 = st.columns([2, 2, 2, 2, 2, 1])
@@ -988,15 +1009,21 @@ def render_tab_locations() -> None:
                 with sc3:
                     ns_desc = st.text_input("Description", value=sys_data.get("description", ""), key=f"sys_desc_{loc_id}_{sys_id}")
                 with sc4:
-                    ns_repair_tool = st.text_input(
+                    current_repair_tool = sys_data.get("required_tool_repair", sys_data.get("required_tool", ""))
+                    ns_repair_tool = st.selectbox(
                         "Repair Tool",
-                        value=sys_data.get("required_tool_repair", sys_data.get("required_tool", "")),
+                        options=tool_options,
+                        index=tool_options.index(current_repair_tool) if current_repair_tool in tool_options else 0,
+                        format_func=_tool_label,
                         key=f"sys_repair_tool_{loc_id}_{sys_id}"
                     )
                 with sc5:
-                    ns_sabotage_tool = st.text_input(
+                    current_sabotage_tool = sys_data.get("required_tool_sabotage", "")
+                    ns_sabotage_tool = st.selectbox(
                         "Sabotage Tool",
-                        value=sys_data.get("required_tool_sabotage", ""),
+                        options=tool_options,
+                        index=tool_options.index(current_sabotage_tool) if current_sabotage_tool in tool_options else 0,
+                        format_func=_tool_label,
                         key=f"sys_sabotage_tool_{loc_id}_{sys_id}"
                     )
                 with sc6:
@@ -1020,9 +1047,9 @@ def render_tab_locations() -> None:
                 with sa4:
                     fs_status = st.selectbox("Status", options=SYSTEM_STATUSES)
                 with sa5:
-                    fs_repair_tool = st.text_input("Repair Tool")
+                    fs_repair_tool = st.selectbox("Repair Tool", options=tool_options, format_func=_tool_label)
                 with sa6:
-                    fs_sabotage_tool = st.text_input("Sabotage Tool")
+                    fs_sabotage_tool = st.selectbox("Sabotage Tool", options=tool_options, format_func=_tool_label)
                 if st.form_submit_button("Add System"):
                     if fs_id.strip() and fs_name.strip():
                         new_system = {

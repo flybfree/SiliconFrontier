@@ -111,6 +111,25 @@ class ActionParser:
         """Return the agent's hidden (on-person) inventory items."""
         return [i for i in self.world.find_items_by_owner(agent_id) if i.get("hidden")]
 
+    def _resolve_system_tool_requirement(self, system_data: dict[str, Any], action: str) -> str | None:
+        """Return the configured required tool for a system action."""
+        action_upper = action.upper()
+        if action_upper == "REPAIR":
+            return system_data.get("required_tool_repair") or system_data.get("required_tool")
+        if action_upper == "SABOTAGE":
+            return system_data.get("required_tool_sabotage")
+        return None
+
+    def _has_required_hand_tool(self, agent_id: str, required_tool: str) -> tuple[bool, list[str]]:
+        """Check whether the agent is visibly holding the required tool."""
+        hand = self._hand_items(agent_id)
+        holding = [item["name"] for item in hand]
+        has_tool = any(
+            required_tool.lower() in item["name"].lower() or item["id"] == required_tool
+            for item in hand
+        )
+        return has_tool, holding
+
     def _handle_pickup(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
         """Handle PICKUP action."""
         current_loc = self.world.get_agent_location(agent.agent_id)
@@ -310,6 +329,15 @@ class ActionParser:
         if systems_here[matching_system_id].get("status") == "BROKEN":
             return False, f"Failure: {matching_system_id} is already broken."
 
+        required_tool = self._resolve_system_tool_requirement(systems_here[matching_system_id], "SABOTAGE")
+        if required_tool:
+            has_tool, holding = self._has_required_hand_tool(agent.agent_id, required_tool)
+            if not has_tool:
+                return False, (
+                    f"Failure: Sabotaging {systems_here[matching_system_id].get('name', matching_system_id)} "
+                    f"requires {required_tool}. You are holding: {', '.join(holding) if holding else 'nothing'}."
+                )
+
         self.world.set_system_status(current_loc, matching_system_id, "BROKEN")
         return True, f"Success: You disabled the {matching_system_id}."
 
@@ -338,11 +366,9 @@ class ActionParser:
                 f"is currently {system_status}, so repair is not needed. Consider another action."
             )
 
-        required_tool = systems_here[matching_system_id].get("required_tool")
+        required_tool = self._resolve_system_tool_requirement(systems_here[matching_system_id], "REPAIR")
         if required_tool:
-            hand = self._hand_items(agent.agent_id)
-            holding = [item["name"] for item in hand]
-            has_tool = any(required_tool.lower() in item["name"].lower() or item["id"] == required_tool for item in hand)
+            has_tool, holding = self._has_required_hand_tool(agent.agent_id, required_tool)
             if not has_tool:
                 return False, f"Failure: Repairing {systems_here[matching_system_id].get('name', matching_system_id)} requires {required_tool}. You are holding: {', '.join(holding) if holding else 'nothing'}."
 

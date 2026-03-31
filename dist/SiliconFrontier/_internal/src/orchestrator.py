@@ -555,15 +555,11 @@ class Orchestrator:
         message: str
     ) -> None:
         """
-        Evaluate how a SAY action affects relationships.
+        Evaluate relationship impact for observed social actions.
 
-        Uses the SocialMatrix to track changes in trust/affinity based on
-        observed behavior. In a full implementation, this could use an LLM
-        "Critic" to evaluate the social impact.
-
-        For now, we apply neutral updates - agents don't change feelings
-        just from talking (unless there's additional logic for threats,
-        promises, etc.)
+        Uses the observer-specific hidden critic when available, with
+        heuristic fallback, and currently handles `SAY`, `LIE`, `GIVE`,
+        `DEMAND`, and `WHISPER`.
         """
         nearby_agents = self.world.get_visible_agents(speaking_agent.agent_id)
 
