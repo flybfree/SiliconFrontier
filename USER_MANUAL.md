@@ -6,7 +6,7 @@ Silicon Frontier is a local multi-agent simulation built around an OpenAI-compat
 
 1. An agent receives a filtered view of the world.
 2. The LLM returns internal reasoning plus one action.
-3. The action is validated against the world state.
+3. The action is validated against the world state and current system telemetry.
 4. Social and memory state are updated.
 
 The project has three main ways to use it:
@@ -203,6 +203,8 @@ Important constraints:
 - Movement only succeeds if the destination is listed under the current location's `connected_to`. Valid exits are shown explicitly in each agent's situation report.
 - Pickup only succeeds if the item is in the current room and is portable.
 - Each agent has a two-slot inventory: one item in hand and one concealed on their person. See [Inventory](#inventory) below.
+- Agent prompts include local system status plus a station-wide list of any systems whose status is not `ONLINE`.
+- `REPAIR` and `SABOTAGE` are pre-validated against the acting agent's visible local system telemetry before execution.
 
 ### Inventory
 
@@ -249,8 +251,25 @@ They begin effectively neutral at `50/50` and change through observed interactio
 - Witnessed `PICKUP` actions reduce trust slightly
 - `GIVE` significantly improves the receiver's affinity and trust
 - `DEMAND` sharply lowers the target's trust and affinity
+- Spoken claims about system state can reduce trust and raise hidden suspicion if a listener's telemetry contradicts the claim
 
 Broadcasts for significant actions (`SAY`, `LIE`, `PICKUP`, `GIVE`, `DEMAND`) are emotionally toned per witness. Each observer receives a version of the event memory coloured by their current trust and suspicion toward the actor. For example, a suspicious witness watching a `PICKUP` gets *"It struck you as opportunistic"* appended to their memory, while a trusting witness sees *"It seemed harmless enough coming from them."*
+
+### System telemetry
+
+At the start of every agent turn, the console log prints a station-wide system status snapshot grouped by location.
+
+Inside the prompt, agents receive:
+
+- **Systems here**: all systems in the agent's current location with current status
+- **Known systems needing attention**: every system anywhere on the station whose status is not `ONLINE`, including location name
+
+Telemetry is used in two different ways:
+
+- **Action grounding**: `REPAIR` and `SABOTAGE` are constrained by visible local status before the parser executes them
+- **Speech interpretation**: `SAY`, `LIE`, and direct `WHISPER` content are allowed to be wrong, deceptive, or confused, but listeners can compare those claims against their own telemetry view and remember the mismatch
+
+This keeps system mutations grounded while preserving social deception.
 
 ### Emotional state
 
@@ -680,6 +699,7 @@ This primes competitive reasoning without adding hard game rules.
 - The recipient receives the message in their memory: *"Nova whispered to you: '...'"*
 - Other agents in the room receive a generic notice: *"You noticed Nova whisper something privately to silas_voss."*
 - The whisper slightly improves the recipient's trust and affinity toward the sender.
+- The recipient can also compare any system-status claim in the whisper against their own telemetry and may lower trust or raise suspicion if it conflicts.
 
 This is useful for private coordination, covert deals, or saboteur signaling without triggering the full social broadcast.
 
@@ -816,6 +836,8 @@ Rogue mechanics:
 
 - `SABOTAGE` can break a local system by setting its status to `BROKEN`
 - `SABOTAGE` only succeeds when the saboteur is alone in the room
+- Agents are prompted with local system status and any known non-`ONLINE` systems elsewhere on the station
+- Invalid `REPAIR` and `SABOTAGE` choices are blocked before execution if they contradict visible local telemetry
 - Saboteur prompts include a "mask" of helpful speech and a scapegoat-oriented internal reasoning pattern
 
 Dashboard support:

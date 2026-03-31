@@ -12,7 +12,7 @@ Each simulation cycle:
 
 1. An agent receives a filtered view of the world — their location, visible items, nearby agents, and their own memory.
 2. The LLM returns internal reasoning, one action, and an emotional state.
-3. The action is validated against the world state and executed.
+3. The action is validated against the world state and current telemetry, then executed.
 4. Social scores update, memories are written, and witnesses react.
 
 Agents accumulate memory, track goal momentum, and change their behavior based on emotional state, audience, and trust relationships. Two saboteur archetypes and multiple investigator roles are included.
@@ -112,6 +112,8 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **Conceal / Produce** — agents can move items between their hand slot and concealed person slot, managing what is visible to others.
 
+**System telemetry** — prompts include local system status plus any non-`ONLINE` systems known elsewhere on the station.
+
 **Relationship labels** — numeric trust/affinity/suspicion scores are displayed to agents as human-readable labels (`colleagues`, `rivals`, `hostile`, etc.) using nearest-neighbor matching against the preset table in `library/relationship_presets.json`.
 
 **Goal momentum** — after every reflection phase, agents assess their own progress as `advancing`, `stalled`, or `setback`. This feeds back into subsequent prompts.
@@ -122,6 +124,8 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **Witness reactions** — broadcasts for social actions are emotionally toned per observer based on their current trust and suspicion toward the actor.
 
+**Telemetry checks on speech** — spoken system claims are not blocked, but listeners can compare what they hear against their own telemetry view and update trust/suspicion when a claim conflicts with observed status.
+
 **Sabotage alerts** — when a system is sabotaged, all agents on the station receive a notification regardless of location.
 
 ---
@@ -130,7 +134,7 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 Each agent turn is a round-trip between the simulation and the LLM.
 
-**1. Sense** — `WorldState.get_snapshot_for_agent()` produces a filtered dict of everything the agent can currently perceive: location, visible items and systems, other agents present (and what they're holding), and relationship scores. `agent.sense()` formats this into a human-readable situation report.
+**1. Sense** — `WorldState.get_snapshot_for_agent()` produces a filtered dict of everything the agent can currently perceive: location, visible items and systems, other agents present (and what they're holding), relationship scores, and a station-wide list of systems whose status is not `ONLINE`. `agent.sense()` formats this into a human-readable situation report.
 
 **2. Prompt assembly** — `agent._build_system_prompt()` constructs the system message containing identity, persona, secret goal, inventory, emotional state, long-term memory, goal momentum, audience awareness note, and output format rules. The situation report becomes the user message.
 
@@ -145,9 +149,9 @@ Each agent turn is a round-trip between the simulation and the LLM.
 }
 ```
 
-**4. Validation** — `ActionParser.execute()` checks the action against world state (is the destination adjacent? is the item here? is the hand slot free?) and either executes the mutation or returns a failure.
+**4. Validation** — the agent layer pre-validates telemetry-sensitive system actions such as `REPAIR` and `SABOTAGE`, then `ActionParser.execute()` checks the action against world state (is the destination adjacent? is the item here? is the hand slot free?) and either executes the mutation or returns a failure.
 
-**5. Memory write** — `agent.interpret_consequence()` turns the result into an experiential sentence appended to the agent's memory buffer. Witnesses in the same room receive a version toned by their trust and suspicion toward the actor.
+**5. Memory write** — `agent.interpret_consequence()` turns the result into an experiential sentence appended to the agent's memory buffer. Witnesses in the same room receive a version toned by their trust and suspicion toward the actor, and listeners can flag spoken system claims that contradict telemetry.
 
 **6. Reflection** (every 5 cycles) — a second LLM call asks the agent to compress `memory_buffer` into `long_term_memory` and self-assess `goal_momentum`. The buffer is then cleared.
 
@@ -178,7 +182,7 @@ _broadcast_with_reactions()  ← toned memory → witnesses
 agent.reflect()              ← second LLM call, compresses memory
 ```
 
-The LLM never touches `WorldState` directly. It only reads a filtered snapshot and returns a structured action. The parser is the only thing that can mutate state.
+The LLM never touches `WorldState` directly. It only reads a filtered snapshot and returns a structured action. `ActionParser` is the primary mutation path for agent actions, while the orchestrator also updates social state, item effects, and station-wide consequences.
 
 ---
 
@@ -254,7 +258,7 @@ The single source of truth for all simulation state. Nothing exists unless it is
 
 ### `ActionParser` — [src/actionparser.py](src/actionparser.py)
 
-Validates and executes every action the LLM returns. The only code that mutates `WorldState` during a turn.
+Validates and executes every action the LLM returns. It is the primary mutation path for world interactions during a turn, though the orchestrator also applies item effects and social-state synchronization.
 
 | Method | Purpose |
 |---|---|
@@ -267,7 +271,7 @@ Validates and executes every action the LLM returns. The only code that mutates 
 | `_handle_whisper` | Validate presence of target agent; delivery and social update done by orchestrator |
 | `_handle_use` | Validate item is held and consumable; effect application done by orchestrator |
 | `_handle_sabotage` | Saboteur-only; requires solitude; sets system status to `BROKEN` |
-| `_handle_repair` | Any agent; sets a `BROKEN` system back to `ONLINE` |
+| `_handle_repair` | Any agent; restores a local `OFFLINE` or `BROKEN` system to `ONLINE` |
 | `_handle_conceal` | Move item from hand slot to concealed person slot |
 | `_handle_produce` | Move item from concealed person slot to hand slot |
 | `_handle_wait` | No-op; always succeeds |

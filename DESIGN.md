@@ -1,218 +1,267 @@
 Design Document: The Silicon Frontier Framework
 
-Project Goal: To create a sandbox for observing emergent social behaviors and decision-making logic in LLM-based agents within a constrained, verifiable environment.
-1. System Architecture & Technical Stack
+This document describes the framework as it is currently implemented.
 
-The system is designed as a "Stateful Orchestrator" that sits between a deterministic world database and a probabilistic inference engine.
+## 1. System Architecture
 
-    Inference Engine: Local OpenAI-compatible API (e.g., vLLM, Ollama, LM Studio).
+Silicon Frontier is a stateful simulation loop around an OpenAI-compatible chat model.
 
-    Logic Layer: Python 3.10+ (utilizing the openai Python library).
+Major layers:
 
-    State Management: JSON-based "Truth Table" (expandable to SQLite for long-term persistence).
+- **Inference layer**: `OpenAI` Python client configured with a custom `base_url`
+- **State layer**: `WorldState` stores locations, items, agents, relationships, and suspicions
+- **Decision layer**: `FrontierAgent` converts filtered state into prompt text and returns one action
+- **Rule layer**: `ActionParser` validates and executes deterministic mutations
+- **Temporal layer**: `Orchestrator` runs turns, broadcasts consequences, and triggers reflection
+- **Observation / editing layer**: `dashboard.py` and `scenario_editor.py`
 
-    Observational Interface: Streamlit (Web UI) for real-time monitoring and student interaction.
+The key implementation principle is still strict separation between:
 
-2. The World Schema (Environmental Physics)
+- model-generated intent
+- code-enforced outcome
 
-The simulation adheres to a strict "Logic vs. Truth" separation. The LLM handles the intent, but the code enforces the outcome.
+## 2. World Model
 
-    Locations: Nodes with descriptions and adjacency lists (where agents can move).
+The station world is defined by JSON-backed nested dictionaries.
 
-    Items: Unique objects with properties (portable, location, owner).
+Implemented entities:
 
-    Agents: Dynamic entities with a location, inventory, and status.
+- **Locations**: IDs mapped to `name`, `description`, `connected_to`, `status_effects`, and `systems`
+- **Systems**: per-location maps containing status-bearing station infrastructure such as consoles, generators, and reactor controls
+- **Items**: movable or static objects with flags such as `portable`, `hidden`, `contested`, `consumable`, and optional `effect`
+- **Agents**: runtime entities with a location, inventory, and status effects
+- **Relationships / Suspicions**: directional social state visible or hidden depending on use
 
-3. The Agent "Mind" (Cognitive Architecture)
+The world state is the only source of truth. The model never mutates it directly.
 
-Each agent operates on a Sense -> Think -> Act -> Reflect cycle. This architecture forces the LLM to process environmental data before committing to an action.
-A. The Sense Phase
+## 3. Agent Cognitive Loop
 
-The orchestrator filters the global JSON state to provide the agent with a "Subjective View."
+Each agent follows a `Sense -> Think -> Act -> Reflect` cycle.
 
-    Input: Current room description, visible items, and the last 5 turns of local events (the memory_buffer).
+### Sense
 
-B. The Think/Act Phase (Master System Prompt)
+`WorldState.get_snapshot_for_agent()` provides a filtered snapshot containing:
 
-The agent is governed by a System Prompt that mandates a Chain-of-Thought (CoT) process.
+- current location
+- visible items
+- visible local systems
+- visible nearby agents and their visible hand items
+- directional relationship impressions
+- the agent's own inventory
+- `abnormal_systems`: station-wide systems whose status is not `ONLINE`
 
-    Internal Monologue: Forced reasoning where the agent weighs its Secret Goal against current observations.
+`FrontierAgent.sense()` turns that snapshot into human-readable prompt text.
 
-    Action Output: Strict JSON format choosing from a limited verb set: MOVE, SAY, PICKUP, DROP, WAIT.
+Current implementation detail:
 
-C. The Reflection Phase (Memory Consolidation)
+- the situation report explicitly tells the model that listed telemetry is authoritative for the turn
 
-To overcome context window limitations, agents periodically summarize their memory_buffer into Long-Term Memory.
+### Think / Act
 
-    Consolidation Logic: The LLM extracts key relationship changes and goal progress, discarding trivial "noise."
+`FrontierAgent._build_system_prompt()` builds a system prompt containing:
 
-4. The Action Parser (Validation Layer)
+- identity and role
+- persona and secret goal
+- visible inventory state
+- emotional state
+- nearby social context
+- local systems
+- station-wide known non-`ONLINE` systems
+- action-format rules
+- telemetry-grounding rules
+- long-term memory and goal momentum
 
-This module acts as the "Dungeon Master." It prevents agents from hallucinating abilities or items.
+`think_and_act()` sends the system prompt plus the situation report to the configured chat backend.
 
-    Validation: Checks if a target location is adjacent or if an item is actually present.
+The expected response shape is JSON with:
 
-    Feedback: If an action fails, the system returns an error message to the agent (e.g., "Error: You cannot pick up the airlock door"). This forces the agent to adapt its strategy in the next turn.
+- `internal_monologue`
+- `action`
+- `action_target`
+- `emotional_state`
 
-5. Social Logic & Relationship Dynamics
+Structured-output mode exists but is optional and backend-dependent.
 
-The framework quantifies social interactions to track emergent alliances or rivalries.
+### Post-generation validation
 
-    Relationship Matrix: A nested JSON object tracking Trust and Affinity scores (0-100) between all agents.
+After parsing, the agent normalizes the response into a safe decision payload.
 
-    Theory of Mind (ToM): The System Prompt asks agents to guess the motivations of others in their vicinity.
+Current implementation validates telemetry-sensitive system actions before parser execution:
 
-    Social Broadcasting: When an agent uses the SAY action, the message is automatically injected into the Sense phase of all agents in the same location.
+- `REPAIR` is downgraded to `WAIT` if the local target is not visible or not `OFFLINE` / `BROKEN`
+- `SABOTAGE` is downgraded to `WAIT` if the local target is not visible or is already `BROKEN`
 
-6. Experimental Control (The "God Console")
+Speech is intentionally not rewritten:
 
-For replication and classroom use, the framework includes a manual override layer:
+- `SAY`
+- `LIE`
+- `WHISPER`
 
-    Environmental Injection: Introducing new variables (e.g., "The oxygen is failing").
+This preserves deception, bluffing, and confusion as social behavior.
 
-    Memory Manipulation: Injecting specific "memories" or "rumors" into an agent's long-term storage to observe behavior shifts.
+### Reflect
 
-    Prompt Swapping: Changing an agent's Persona mid-simulation to test behavioral plasticity.
+Every `reflection_interval` cycles, `FrontierAgent.reflect()` performs a second model call that compresses:
 
-7. Summary of Logic flow
+- recent short-term memory
+- recent social changes
+- perceived progress toward the secret goal
 
-The simulation follows a standard update formula for relationship dynamics:
-Tnew​=Told​+ΔT
+The agent updates:
 
-Where ΔT is determined by a "Critic" LLM evaluating the social impact of the most recent interaction.
-8. Replication Checklist
+- `long_term_memory`
+- `goal_momentum`
 
-    Launch Local Inference: Ensure the OpenAI-compatible API is running on localhost.
+## 4. Deterministic Action Enforcement
 
-    Initialize World State: Load the world_state.json.
+`ActionParser` is the hard rule boundary.
 
-    Deploy Agents: Instantiate the FrontierAgent class with unique personas.
+Implemented action families include:
 
-    Execute Main Loop: Run the orchestrator with a set cycle_count.
+- navigation: `MOVE`
+- social speech: `SAY`, `WHISPER`, `LIE`
+- inventory transfer: `PICKUP`, `DROP`, `GIVE`, `DEMAND`
+- slot management: `CONCEAL`, `PRODUCE`
+- item effects: `USE`
+- system actions: `REPAIR`, `SABOTAGE`
+- no-op: `WAIT`
 
-    Audit Logs: Review the internal_monologue logs to verify the "Reasoning-to-Action" alignment.
+Examples of enforced constraints:
 
-Part II: Technical Specifications & Object Model
+- moves must target adjacent locations
+- items must exist where claimed
+- inventory slot rules must hold
+- `WHISPER` requires a valid `message -> agent_id` target and a present recipient
+- `SABOTAGE` requires the saboteur archetype and no witnesses in the room
+- `REPAIR` requires a valid local broken/offline target and may require a specific tool
 
-This section documents the core objects within the implementation and their specific roles in maintaining the integrity of the simulation.
-1. The FrontierAgent Object (The Cognitive Unit)
+The parser remains authoritative even when the agent layer has already prevalidated part of the decision.
 
-The FrontierAgent is the primary class representing an autonomous entity. It encapsulates both the state and the interface to the LLM.
+## 5. Social Dynamics
 
-    Key Attributes:
+The framework tracks more than trust/affinity now.
 
-        agent_id / name: Unique identifiers for tracking in logs.
+Implemented social state:
 
-        persona / secret_goal: String-based anchors that dictate the LLM’s personality and drive conflict.
+- `trust`
+- `affinity`
+- hidden `suspicion`
+- free-text `notes`
 
-        memory_buffer: A list of short-term logs (ephemeral).
+These values are directional. One agent's view of another can differ from the reverse direction.
 
-        long_term_memory: A condensed summary of past cycles (persistent).
+Relationship updates come from:
 
-    Design Role: It acts as a "Subjective Filter." It takes the objective world and converts it into a narrative prompt, ensuring the AI only reacts to what it "knows" or "sees," rather than the entire database.
+- a hidden critic model call via `FrontierAgent.evaluate_social_exchange()`
+- heuristic fallback when that call fails
+- direct rule-based updates from witnessed actions
+- covert witness logic for sabotage
+- listener-side telemetry contradiction checks on speech
 
-2. The WorldState Schema (The Physical Truth)
+## 6. Speech, Deception, and Telemetry
 
-The WorldState is a nested dictionary (or JSON file) that acts as the "Ground Truth."
+This is the main area where the implementation has evolved beyond the original design.
 
-    Structure:
+### Telemetry in prompts
 
-        locations: A dictionary where keys are Room IDs and values contain descriptions and adjacency lists.
+Agents are prompted with:
 
-        items: A dictionary of objects, their properties (e.g., is_portable), and their current location_id (which could be a room or an agent’s ID).
+- local visible systems and statuses
+- station-wide non-`ONLINE` systems and their locations
 
-    Design Role: It provides the "Physics Engine." By keeping items and locations in a strictly defined structure, the system prevents "hallucinated objects." If an item isn't in the WorldState dictionary, it doesn't exist, regardless of what the LLM claims.
+The prompt instructs the model to treat listed telemetry as authoritative.
 
-3. The ActionParser (The System Arbiter)
+### Telemetry in actions
 
-The ActionParser is a functional module (or a static method) that validates and executes the JSON commands returned by the agents.
+Telemetry is used to constrain system mutations:
 
-    Workflow:
+- invalid `REPAIR` / `SABOTAGE` actions are downgraded before parser execution
 
-        Input: Takes the Agent Object and the JSON output from the LLM.
+### Telemetry in social interpretation
 
-        Validation: Checks if the requested action_target is valid (e.g., "Is Room B actually connected to Room A?").
+Speech is still allowed to be false.
 
-        Update: If valid, it modifies the WorldState (e.g., changing an item's location from "Room A" to "Agent_01").
+When another agent hears:
 
-    Design Role: It enforces "Deterministic Boundaries." It ensures that the probabilistic nature of the LLM is always checked against the hard rules of the simulation code.
+- a room-level `SAY`
+- a room-level `LIE`
+- a direct `WHISPER`
 
-4. The Orchestrator (The Temporal Controller)
+the listener can compare the spoken claim against their own telemetry snapshot. If a contradiction is detected:
 
-The Orchestrator is the main loop or "Pulse" of the simulation.
+- the listener receives a `[Telemetry check]` memory
+- the speaker loses trust with that listener
+- the speaker gains suspicion from that listener
 
-    Logic Flow:
+This preserves social deception while keeping world mutation grounded.
 
-        Synchronization: Ensures turns are taken in order (or handled in parallel "threads" for advanced experiments).
+## 7. Orchestration and Causality
 
-        Social Broadcasting: When an agent acts, the Orchestrator identifies which other agents are in the same room and injects that event into their memory_buffer.
+`Orchestrator` manages causal ordering.
 
-    Design Role: It manages "Causality." It ensures that if Agent A steals a wrench in front of Agent B, Agent B actually perceives that event before their next turn.
+Implemented per-turn behavior:
 
-5. The SocialMatrix (The Relational Database)
+1. increment cycle count
+2. record a room-occupancy snapshot for later incident audits
+3. print a station-wide system status snapshot to the console at the start of each agent turn
+4. build the acting agent's snapshot and prompt
+5. request one decision from the model
+6. enforce pending hidden-item drop obligations
+7. execute the action through `ActionParser`
+8. write consequence memory to the actor
+9. broadcast witnessed consequences to others
+10. update trust / affinity / suspicion where applicable
+11. record event log entries
+12. run reflection when the interval is reached
 
-A specialized data structure that tracks interpersonal variables.
+Additional orchestrator responsibilities:
 
-    Variables:
+- station-wide sabotage and repair announcements
+- sabotage incident logging with prior room occupancy
+- covert high-perception witness memory injection for sabotage
+- telemetry-based speech contradiction checks
 
-        Trust: A numerical value (0–100) representing reliability.
+## 8. Experimental Controls
 
-        Affinity: A numerical value (0–100) representing how much an agent likes another.
+The current codebase still supports guided intervention and observation through the dashboard.
 
-    Update Formula: Tn+1​=Tn​+ΔT
-    where ΔT is a value between −10 and +10 determined by the perceived "helpfulness" or "deception" of the last interaction.
+Available controls include:
 
-    Design Role: It creates "Long-term Social Consequences." It allows students to observe how one bad interaction (a lie or a theft) can permanently alter the AI's future cooperation patterns.
+- global event injection
+- direct memory injection
+- relocating agents
+- editing live world state
+- editing systems in locations
+- monitoring long-term and short-term memory
+- inspecting trust, affinity, and suspicion
 
-System Integration Map
-Object	Input	Output	Functional Goal
-Agent	World Fragment	Action JSON	Decision-making & Reasoning
-WorldState	Action Parser Update	State Snapshot	Maintaining Ground Truth
-ActionParser	Action JSON	Result String	Physics & Logic Enforcement
-Orchestrator	Agent List	Social Broadcast	Turn Management & Perception
-Reflector	Memory Buffer	Summary String	Context Window Compression
+This makes the framework useful both as a sandbox and as a reproducible experiment environment.
 
-Part III: Experimental Methodology
+## 9. What Changed Relative to the Original Design
 
-This section outlines how to measure, record, and analyze the "social physics" of the simulation.
-1. Quantitative Data Tracking (The "Hard" Numbers)
+The current implementation differs from the older conceptual docs in several important ways:
 
-Researchers should track numerical shifts in the WorldState and SocialMatrix to identify patterns of cooperation or conflict.
-Metric	Calculation	Significance
-Cooperation Index	Ratio of GIVE vs. DEMAND actions.	Measures the "altruism" of a specific model/persona.
-Trust Volatility	The frequency and magnitude of ΔT changes.	Indicates how "forgiving" or "vengeful" an agent is.
-Resource Centralization	Gini coefficient of item ownership over time.	Shows if one agent is effectively "winning" via hoarding.
-Movement Entropy	Variety of rooms visited vs. total turns.	Measures the "curiosity" or goal-focus of the agent.
-2. Qualitative Analysis (The "Soft" Logic)
+- the action set is much larger than `MOVE`, `SAY`, `PICKUP`, `DROP`, `WAIT`
+- agents track `emotional_state`, `goal_momentum`, `pending_drop`, and hidden suspicion
+- prompt input includes relationship labels, visible hand items, and telemetry summaries
+- there is explicit telemetry-aware validation before parser execution
+- speech can be socially checked against telemetry by listeners
+- the orchestrator prints system snapshots and tracks sabotage incidents / proximity logs
+- social consequences are partly LLM-critic-driven and partly rule-driven
 
-Students should perform a Textual Audit of the internal_monologue logs. This is where they identify the difference between stated intent and actual behavior.
+## 10. Replication Notes
 
-    Logic Alignment: Does the action logically follow the internal_monologue? (If not, this is a "Logic Gap" or a failure in the local LLM's reasoning).
+To reproduce current behavior:
 
-    Deception Detection: Identifying turns where the internal_monologue reveals a goal (e.g., "I will lie to the Captain") that differs from the SAY action.
+1. Run an OpenAI-compatible chat endpoint.
+2. Load a scenario containing `world_state.json`, `agent_definitions.json`, and `simulation_agents.json`.
+3. Initialize agents through `configloader.py`.
+4. Run cycles through `Orchestrator`.
+5. Observe:
+   - event log
+   - console status snapshots
+   - trust / affinity / suspicion changes
+   - memory buffers
+   - reflection outputs
 
-    Affective Shift: Tracking changes in the emotional_state variable in response to environmental stressors (e.g., a "Radiation Leak").
-
-3. Controlled Variables (A/B Testing)
-
-To run a proper experiment, students should change exactly one variable and observe the ripple effect across the society.
-
-    The Persona Pivot: Run the same scenario twice. In Test A, the Mechanic is "Helpful." In Test B, the Mechanic is "Paranoid." Compare the final Trust scores of the Captain.
-
-    The Scarcity Stressor: Run a scenario with 5 items, then run it again with only 1. Observe how "Civil" the SAY actions remain as resources vanish.
-
-    The Model Comparison: Swap the local LLM (e.g., from Llama 3 to Mistral) while keeping all prompts identical to test "Model Bias" or "Reasoning Capability."
-
-4. Standardized Observation Protocol
-
-For replication, students must document each session using the following format:
-
-    Initial Conditions: Snapshot of the starting WorldState JSON.
-
-    Hypothesis: e.g., "The Robot will choose to save the items over the human agent."
-
-    Timeline of Key Events: A log of pivotal turns (thefts, lies, or alliances).
-
-    Final State Analysis: The end-of-simulation SocialMatrix and a summary of whether the hypothesis was proven.
-	
-	
+For telemetry/deception experiments, use a scenario with systems and at least one agent likely to make or hear claims about station status.
