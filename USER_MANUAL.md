@@ -353,6 +353,16 @@ Each item expander has three checkboxes on one row:
 
 A **Knowledge** text area below the checkboxes holds the information revealed when the item is picked up.
 
+For location systems, the dashboard now provides structured fields instead of a raw systems JSON editor. Each system row exposes:
+
+- system name
+- system status
+- system description
+- **Repair Tool** dropdown
+- **Sabotage Tool** dropdown
+
+The tool dropdowns are built from item IDs found in the current world state and the shared item library.
+
 ### God Console
 
 The God Console exposes four intervention tools:
@@ -489,7 +499,7 @@ Each location expander shows:
 - Name, description
 - **Connected to** — multiselect of all other locations; when you create a new location and set its connections, reverse links are added automatically
 - **Status effects** — comma-separated list of environmental tags (e.g. `radiation_low`, `high_humidity`)
-- **Systems** — inline table of sabotagable systems; each row has a system ID, name, status dropdown (ONLINE / OFFLINE / DEGRADED / BROKEN), and description. Add and remove systems without leaving the expander
+- **Systems** — inline table of systems; each row has a system ID, name, status dropdown (ONLINE / OFFLINE / DEGRADED / BROKEN), description, and dropdowns for **Repair Tool** and **Sabotage Tool**. Add and remove systems without leaving the expander
 
 Deleting a location is blocked if any simulation slot uses it as a starting location. Connection references in other locations are cleaned up automatically on deletion.
 

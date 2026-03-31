@@ -86,6 +86,8 @@ from configloader import (
     resolve_relationship_presets,
 )
 
+SYSTEM_STATUSES = ["ONLINE", "OFFLINE", "DEGRADED", "BROKEN"]
+
 
 st.set_page_config(
     page_title="Silicon Frontier",
@@ -1405,33 +1407,139 @@ def main():
                 )
                 systems = loc_data.get("systems", {})
                 st.caption("Systems")
+                inline_tool_ids = list(sim.world_state.items.keys())
+                library_tool_ids = list(load_item_library().get("items", {}).keys())
+                tool_options = [""]
+                for item_id in inline_tool_ids + library_tool_ids:
+                    if item_id not in tool_options:
+                        tool_options.append(item_id)
+
+                def _tool_label(item_id: str) -> str:
+                    if not item_id:
+                        return "None"
+                    world_item = sim.world_state.items.get(item_id, {})
+                    lib_item = load_item_library().get("items", {}).get(item_id, {})
+                    item_name = world_item.get("name") or lib_item.get("name") or item_id
+                    return f"{item_name} ({item_id})"
+
+                updated_systems = {}
+                sys_to_delete = None
                 if systems:
                     for system_id, system_data in systems.items():
-                        st.markdown(
-                            f"`{system_id}`: {system_data.get('name', system_id)} "
-                            f"[status={system_data.get('status', 'unknown')}]"
+                        st.markdown(f"`{system_id}`")
+                        sc1, sc2, sc3 = st.columns([2, 2, 1])
+                        with sc1:
+                            sys_name = st.text_input(
+                                "System Name",
+                                value=system_data.get("name", system_id),
+                                key=f"loc_sys_name_{loc_id}_{system_id}"
+                            )
+                        with sc2:
+                            current_status = system_data.get("status", "ONLINE")
+                            sys_status = st.selectbox(
+                                "System Status",
+                                options=SYSTEM_STATUSES,
+                                index=SYSTEM_STATUSES.index(current_status) if current_status in SYSTEM_STATUSES else 0,
+                                key=f"loc_sys_status_{loc_id}_{system_id}"
+                            )
+                        with sc3:
+                            st.write("")
+                            st.write("")
+                            if st.button("Delete System", key=f"loc_sys_del_{loc_id}_{system_id}"):
+                                sys_to_delete = system_id
+                        sys_desc = st.text_input(
+                            "System Description",
+                            value=system_data.get("description", ""),
+                            key=f"loc_sys_desc_{loc_id}_{system_id}"
                         )
+                        current_repair_tool = system_data.get("required_tool_repair", system_data.get("required_tool", ""))
+                        current_sabotage_tool = system_data.get("required_tool_sabotage", "")
+                        tc1, tc2 = st.columns(2)
+                        with tc1:
+                            repair_tool = st.selectbox(
+                                "Repair Tool",
+                                options=tool_options,
+                                index=tool_options.index(current_repair_tool) if current_repair_tool in tool_options else 0,
+                                format_func=_tool_label,
+                                key=f"loc_sys_repair_tool_{loc_id}_{system_id}"
+                            )
+                        with tc2:
+                            sabotage_tool = st.selectbox(
+                                "Sabotage Tool",
+                                options=tool_options,
+                                index=tool_options.index(current_sabotage_tool) if current_sabotage_tool in tool_options else 0,
+                                format_func=_tool_label,
+                                key=f"loc_sys_sabotage_tool_{loc_id}_{system_id}"
+                            )
+                        next_system = {
+                            "name": sys_name,
+                            "status": sys_status,
+                            "description": sys_desc,
+                        }
+                        if repair_tool:
+                            next_system["required_tool_repair"] = repair_tool
+                        if sabotage_tool:
+                            next_system["required_tool_sabotage"] = sabotage_tool
+                        updated_systems[system_id] = next_system
                 else:
                     st.caption("No systems configured.")
-                new_systems = st.text_area(
-                    "Systems JSON",
-                    value=json.dumps(systems, indent=2),
-                    key=f"loc_systems_{loc_id}",
-                    height=140
-                )
+
+                with st.form(f"loc_add_system_{loc_id}"):
+                    ac1, ac2, ac3 = st.columns([2, 2, 2])
+                    with ac1:
+                        add_sys_id = st.text_input("New System ID", key=f"loc_add_sys_id_{loc_id}")
+                    with ac2:
+                        add_sys_name = st.text_input("New System Name", key=f"loc_add_sys_name_{loc_id}")
+                    with ac3:
+                        add_sys_status = st.selectbox("New System Status", options=SYSTEM_STATUSES, key=f"loc_add_sys_status_{loc_id}")
+                    add_sys_desc = st.text_input("New System Description", key=f"loc_add_sys_desc_{loc_id}")
+                    at1, at2 = st.columns(2)
+                    with at1:
+                        add_sys_repair_tool = st.selectbox(
+                            "New Repair Tool",
+                            options=tool_options,
+                            format_func=_tool_label,
+                            key=f"loc_add_sys_repair_tool_{loc_id}"
+                        )
+                    with at2:
+                        add_sys_sabotage_tool = st.selectbox(
+                            "New Sabotage Tool",
+                            options=tool_options,
+                            format_func=_tool_label,
+                            key=f"loc_add_sys_sabotage_tool_{loc_id}"
+                        )
+                    add_system_submitted = st.form_submit_button("Add System")
+                if sys_to_delete and sys_to_delete in updated_systems:
+                    del updated_systems[sys_to_delete]
+                    loc_data["systems"] = updated_systems
+                    st.success("System deleted.")
+                    st.rerun()
+                if add_system_submitted:
+                    if not add_sys_id.strip() or not add_sys_name.strip():
+                        st.error("New system ID and name are required.")
+                    elif add_sys_id.strip() in updated_systems:
+                        st.error(f"System ID '{add_sys_id.strip()}' already exists in this location.")
+                    else:
+                        new_system = {
+                            "name": add_sys_name.strip(),
+                            "status": add_sys_status,
+                            "description": add_sys_desc.strip(),
+                        }
+                        if add_sys_repair_tool:
+                            new_system["required_tool_repair"] = add_sys_repair_tool
+                        if add_sys_sabotage_tool:
+                            new_system["required_tool_sabotage"] = add_sys_sabotage_tool
+                        updated_systems[add_sys_id.strip()] = new_system
+                        loc_data["systems"] = updated_systems
+                        st.success("System added.")
+                        st.rerun()
                 if st.button("Apply", key=f"loc_apply_{loc_id}"):
                     loc_data["name"] = new_name
                     loc_data["description"] = new_desc
                     loc_data["connected_to"] = [s.strip() for s in new_connected.split(",") if s.strip()]
                     loc_data["status_effects"] = [s.strip() for s in new_effects.split(",") if s.strip()]
-                    try:
-                        parsed_systems = json.loads(new_systems.strip() or "{}")
-                        if not isinstance(parsed_systems, dict):
-                            raise ValueError("Systems must be a JSON object.")
-                        loc_data["systems"] = parsed_systems
-                        st.success("Location updated.")
-                    except Exception as e:
-                        st.error(f"Invalid systems JSON: {e}")
+                    loc_data["systems"] = updated_systems
+                    st.success("Location updated.")
 
     with item_tab:
         EMOTIONAL_STATES = [
