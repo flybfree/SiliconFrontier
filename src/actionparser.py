@@ -56,6 +56,8 @@ class ActionParser:
             "GIVE": self._handle_give,
             "DEMAND": self._handle_demand,
             "LIE": self._handle_lie,
+            "READ": self._handle_read,
+            "SHOW": self._handle_show,
             "SABOTAGE": self._handle_sabotage,
             "REPAIR": self._handle_repair,
             "WHISPER": self._handle_whisper,
@@ -301,6 +303,74 @@ class ActionParser:
             return False, "Failure: You can't lie without saying anything."
 
         return True, f"Success: You lied to everyone in the room: '{target}'."
+
+    def _find_accessible_item(self, agent_id: str, target: str) -> dict | None:
+        """Find an item the agent is carrying or can see in their current room."""
+        current_loc = self.world.get_agent_location(agent_id)
+        candidates = self.world.find_items_by_owner(agent_id)
+        if current_loc:
+            candidates.extend(self.world.find_items_by_location(current_loc))
+        return next(
+            (item for item in candidates if target.lower() in item["name"].lower() or item["id"] == target),
+            None
+        )
+
+    def _fact_id_for_item(self, item: dict) -> str:
+        return item.get("fact_id") or f"item:{item['id']}"
+
+    def _handle_read(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Handle READ action - learn knowledge from an accessible item."""
+        if not target or not target.strip():
+            return False, "Failure: READ requires an item name."
+
+        matching_item = self._find_accessible_item(agent.agent_id, target)
+        if not matching_item:
+            return False, f"Failure: You can't access '{target}' to read it."
+
+        knowledge = matching_item.get("knowledge")
+        if not knowledge:
+            return False, f"Failure: The {matching_item['name']} contains no readable hidden information."
+
+        self.world.remember_fact(
+            agent.agent_id,
+            self._fact_id_for_item(matching_item),
+            knowledge,
+            source_item_id=matching_item["id"]
+        )
+        return True, f"Success: You read the {matching_item['name']}."
+
+    def _handle_show(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Handle SHOW action: SHOW item -> agent_id."""
+        parsed = self._parse_social_target(target)
+        if not parsed:
+            return False, "Failure: SHOW requires 'item -> agent_id'."
+
+        item_name, target_agent_id = parsed
+        if not self._resolve_visible_agent(agent.agent_id, target_agent_id):
+            return False, f"Failure: '{target_agent_id}' is not here to show anything."
+
+        matching_item = self._find_accessible_item(agent.agent_id, item_name)
+        if not matching_item:
+            return False, f"Failure: You can't access '{item_name}' to show it."
+
+        knowledge = matching_item.get("knowledge")
+        if not knowledge:
+            return False, f"Failure: The {matching_item['name']} has no hidden information to show."
+
+        self.world.remember_fact(
+            agent.agent_id,
+            self._fact_id_for_item(matching_item),
+            knowledge,
+            source_item_id=matching_item["id"]
+        )
+        self.world.remember_fact(
+            target_agent_id,
+            self._fact_id_for_item(matching_item),
+            knowledge,
+            source_item_id=matching_item["id"],
+            shared_by=agent.agent_id
+        )
+        return True, f"Success: You showed {matching_item['name']} to {target_agent_id}."
 
     def _handle_sabotage(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
         """Handle SABOTAGE action on a local system."""

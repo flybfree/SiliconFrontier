@@ -184,6 +184,8 @@ Agents are constrained to these actions:
 - `USE` — consume a held consumable item and trigger its effect
 - `GIVE` — hand a held item to another agent in the room
 - `DEMAND` — force another agent to surrender their held item
+- `READ` — learn hidden `knowledge` from an accessible item
+- `SHOW` — share an item's hidden `knowledge` with another agent in the room
 - `CONCEAL` — move an item from the hand slot to the concealed person slot
 - `PRODUCE` — move an item from the concealed person slot to the hand slot
 - `REPAIR` — restore a `BROKEN` system in the current location
@@ -219,6 +221,8 @@ Rules enforced by the action parser:
 - `PICKUP` of a hidden item additionally requires the person slot to be free.
 - `GIVE` fails if the receiver's hand is already occupied.
 - `DEMAND` fails if your own hand is already occupied.
+- `READ` requires an item the agent is carrying or can access in the current room.
+- `SHOW` requires `item -> agent_id` and a visible recipient in the same room.
 
 Agents can see what others are holding in hand. Concealed items are not visible to others.
 
@@ -685,8 +689,11 @@ Each item supports:
 - `description`
 - `portable`
 - `contested` — optional boolean; marks the item as a valued resource
-- `hidden` — optional boolean; enables the knowledge-reveal mechanic on pickup
-- `knowledge` — optional string; the information injected into an agent's memory when they pick up a hidden item
+- `hidden` — optional boolean; marks the item as concealed when carried
+- `knowledge` — optional string; the information an agent can learn with `READ` or share with `SHOW`
+- `fact_id` — optional stable ID for the knowledge fact; defaults to `item:<item_id>`
+- `return_required` — optional boolean; forces the agent to drop the item after reading
+- `on_read` — optional object; supports `{"force_drop": true}` for clue-specific return obligations
 - `consumable` — optional boolean; allows the `USE` action to apply the item's `effect` and then delete it
 - `effect` — optional object; defines what `USE` does (see [USE Action](#use-action))
 
@@ -696,14 +703,14 @@ To place a library item instead of writing a full definition, use an `item_place
 
 ### Hidden items
 
-Setting `hidden: true` on an item activates a risk/reward mechanic:
+Items can carry hidden information with a `knowledge` field:
 
-1. The item appears in the room's visible items list normally. Agents can choose to pick it up.
-2. On `PICKUP`, the item's `knowledge` text is injected into the agent's memory as a `[Discovered]` entry.
-3. The agent is placed under a **drop obligation**: their next turn's system prompt contains an `URGENT` block instructing them to `DROP` the item immediately. The orchestrator also enforces this mechanically if the LLM ignores the instruction.
-4. Once dropped, the obligation clears and the agent is free to act normally.
+1. `PICKUP` moves the item into inventory; it does not automatically reveal the knowledge.
+2. `READ` records the item's `knowledge` in that agent's private known-facts ledger and memory.
+3. `SHOW item -> agent_id` records the same fact for another visible agent.
+4. If the item has `return_required: true` or `on_read: {"force_drop": true}`, reading it creates a drop obligation. Once dropped, the obligation clears and the agent is free to act normally.
 
-The risk is that picking up a hidden item consumes the agent's hand slot (requiring them to drop whatever they were holding first) and forces them to remain in the same location for an extra turn — creating a window for witnesses to arrive.
+The risk is that hidden or contested information can be stolen, concealed, shown selectively, or caught in another agent's possession. Return obligations are now scenario data, not an automatic property of all hidden items.
 
 Example:
 
@@ -715,7 +722,8 @@ Example:
   "description": "A torn page from the station maintenance log.",
   "portable": true,
   "hidden": true,
-  "knowledge": "The log shows that engineering was accessed at 0300 hours by someone whose ID badge was not recorded."
+  "knowledge": "The log shows that engineering was accessed at 0300 hours by someone whose ID badge was not recorded.",
+  "on_read": {"force_drop": true}
 }
 ```
 
@@ -990,12 +998,12 @@ Check:
 - the item is portable
 - the agent's hand slot is free before attempting `PICKUP`, `DEMAND`, or `USE`
 - `USE` requires the item to have `consumable: true`
-- `WHISPER` and `GIVE` target format is `content -> agent_id`
+- `WHISPER`, `GIVE`, and `SHOW` target format is `content -> agent_id`
 - the model is returning valid JSON with one of the allowed actions
 
 ### Agents are stuck dropping an item every turn
 
-An agent with `pending_drop` set will be forced to drop a hidden item before doing anything else. If the drop keeps failing (e.g. because the item ID no longer exists in the world state), the obligation cannot clear. Use the God Console to relocate the agent or inject a memory to break the loop, then fix the item data.
+An agent with `pending_drop` set will be forced to drop a return-required item before doing anything else. If the drop keeps failing (e.g. because the item ID no longer exists in the world state), the obligation cannot clear. Use the God Console to relocate the agent or inject a memory to break the loop, then fix the item data.
 
 ### Save files do not appear
 

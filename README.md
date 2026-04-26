@@ -102,7 +102,7 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **Inventory** — each agent holds at most two items: one in hand (visible to others) and one concealed on their person (hidden items only).
 
-**Hidden items** — picking up a `hidden: true` item injects its `knowledge` text into the agent's memory and places them under a one-turn drop obligation, forcing them to stay in place.
+**Hidden information** — items with `knowledge` can be inspected with `READ` and disclosed with `SHOW item -> agent_id`. Facts are recorded per agent, so information can spread independently of who currently holds the item. Items can opt into a return obligation with `on_read.force_drop` or `return_required`.
 
 **Contested items** — `contested: true` items remind agents they are valued resources that others may be competing for.
 
@@ -348,6 +348,6 @@ See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flag
 - **Agent library** — browse `library/agents.json`, add agents to the current scenario with one click, push edits back to the library; agents and items are both reusable assets
 - Agent definition editor — name, role, archetype, perception slider, persona, secret goal
 - Simulation slot editor — assign definitions to slots with location and inventory dropdowns
-- Item editor — inline items and library placements, with conditional fields for hidden knowledge and consumable effects
+- Item editor — inline items and library placements, with conditional fields for hidden knowledge, return obligations, and consumable effects
 - Location editor — connections multiselect, status effects, inline system add/remove
 - Relationship editor — preset dropdowns for each directed agent pair with descriptions inline

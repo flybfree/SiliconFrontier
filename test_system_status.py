@@ -82,6 +82,15 @@ world_data = {
             "location": "engineer_torres",   # in agent's possession (owner = agent_id)
             "owner": "engineer_torres",
             "portable": True
+        },
+        "hidden_log": {
+            "name": "Hidden Log",
+            "location": "command_deck",
+            "owner": None,
+            "portable": True,
+            "hidden": True,
+            "knowledge": "The reactor was accessed with an override code.",
+            "on_read": {"force_drop": True}
         }
     },
     "agents": {
@@ -186,5 +195,28 @@ world._data["locations"]["command_deck"]["systems"]["life_support_console"]["sta
 
 ok, msg = parser._handle_sabotage(unit7, "life_support_console", {})
 check("SABOTAGE blocked (engineer_torres also in command_deck)", ok, msg, expect_success=False)
+
+
+# ---------------------------------------------------------------------------
+# TEST 4 — hidden information can be read and shown
+# ---------------------------------------------------------------------------
+print("\n=== TEST 4: READ/SHOW hidden information ===")
+
+world._data["agents"]["unit7"]["location"] = "command_deck"
+world._data["agents"]["engineer_torres"]["location"] = "command_deck"
+
+ok, msg = parser.execute(unit7, {"action": "READ", "action_target": "Hidden Log"})
+check("READ Hidden Log records a known fact", ok, msg, expect_success=True)
+unit7_facts = world.get_known_facts("unit7")
+print(f"         unit7 known facts: {list(unit7_facts)}")
+
+ok, msg = parser.execute(unit7, {"action": "SHOW", "action_target": "Hidden Log -> engineer_torres"})
+check("SHOW Hidden Log shares the known fact", ok, msg, expect_success=True)
+engineer_facts = world.get_known_facts("engineer_torres")
+print(f"         engineer_torres known facts: {list(engineer_facts)}")
+
+shared = "item:hidden_log" in engineer_facts
+status = PASS if shared else FAIL
+print(f"  [{status}] engineer_torres received item:hidden_log")
 
 print()

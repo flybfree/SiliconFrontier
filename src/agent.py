@@ -23,7 +23,7 @@ class FrontierAgent:
     """
 
     # Valid actions an agent can take
-    VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "USE", "GIVE", "DEMAND", "LIE", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "WAIT"]
+    VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "USE", "GIVE", "DEMAND", "LIE", "READ", "SHOW", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "WAIT"]
     VALID_EMOTIONAL_STATES = ["Calm", "Alert", "Anxious", "Fearful", "Angry", "Hopeful", "Suspicious", "Confident", "Resigned", "Determined", "Neutral"]
     VALID_EMOTIONAL_STATE_FALLBACK = "Neutral"
     RESPONSE_SCHEMA_NAME = "silicon_frontier_agent_turn"
@@ -95,8 +95,8 @@ class FrontierAgent:
         # Goal momentum: agent's sense of whether they're making progress
         self.goal_momentum: str = "stalled"
 
-        # Pending drop obligation: set when agent picks up a hidden knowledge item.
-        # Agent must DROP this item next turn before taking any other action.
+        # Pending drop obligation: set by item data for clues that must be returned.
+        # Agent must DROP this item before taking any other action.
         self.pending_drop: str | None = None        # item id
         self.pending_drop_name: str | None = None   # item name (for prompts)
 
@@ -177,6 +177,9 @@ class FrontierAgent:
 
         recent_events = self.memory_buffer[-5:] if self.memory_buffer else ["No recent events"]
         events_str = ". ".join(recent_events)
+        known_facts = world_snapshot.get("known_facts", [])
+        known_fact_lines = [f"- {fact.get('text', '')}" for fact in known_facts[-5:] if fact.get("text")]
+        known_facts_str = "\n".join(known_fact_lines) if known_fact_lines else "- None"
 
         contested_lines = ""
         if contested_held:
@@ -195,6 +198,7 @@ class FrontierAgent:
             f"Other agents present: {agents_str}\n"
             f"{contested_lines}"
             f"\nYour current impressions of others:\n{relationship_str}\n\n"
+            f"Known private facts:\n{known_facts_str}\n\n"
             f"Recent Events: {events_str}"
         )
 
@@ -248,7 +252,8 @@ THE SIMULATION RULES
 - Telemetry Constraint: Treat the listed system statuses as the authoritative truth for this turn.
 - If a system is shown as ONLINE, do not describe it in your reasoning as failed, offline, broken, degraded, or malfunctioning.
 - If you suspect tampering despite an ONLINE status, frame that as suspicion about intent or risk, not as a current failure fact.
-- Interaction: You can talk to other agents in the same room using the SAY command.
+- Interaction: You can talk to other agents in the same room using SAY, WHISPER, GIVE, DEMAND, or SHOW.
+- Hidden information: PICKUP moves an item; READ learns an item's hidden `knowledge`; SHOW shares that knowledge with another agent in the room.
 
 SOCIAL ANALYSIS
 - Who is in the room with you? {', '.join(nearby_agents) if nearby_agents else 'No one'}
@@ -298,6 +303,8 @@ ACTION TARGET RULES — action_target must be:
 - PICKUP / DROP / USE: the item name (USE consumes the item and applies its effect)
 - GIVE: "item name -> agent_id"
 - DEMAND: "item name -> agent_id"
+- READ: the item name
+- SHOW: "item name -> agent_id"
 - CONCEAL / PRODUCE: the item name
 - SABOTAGE / REPAIR: the system name
 - WAIT: leave blank or write "nothing"
@@ -614,6 +621,8 @@ Output strict JSON:
             "SAY":      f"You said: '{target}'.{witnessed}",
             "WHISPER":  f"You whispered to {target.split('->')[1].strip() if '->' in target else target}: '{target.split('->')[0].strip() if '->' in target else target}'.{witnessed}",
             "LIE":      f"You told them: '{target}'. You don't know if they believed it.{witnessed}",
+            "READ":     f"You read {target} and committed what it revealed to memory.{witnessed}",
+            "SHOW":     f"You showed {target}, deliberately sharing what it revealed.{witnessed}",
             "SABOTAGE": f"You sabotaged {target}. The damage is done — you wonder if anyone noticed.{witnessed}",
             "REPAIR":   f"You repaired {target}. The system is back online.{witnessed}",
             "USE":      f"You used the {target}. The effect washed over you.{witnessed}",

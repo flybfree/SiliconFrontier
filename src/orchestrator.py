@@ -163,6 +163,10 @@ class Orchestrator:
             if trust > 65:
                 return " It felt like a genuine gesture."
             return " You wondered what they were expecting in return."
+        if action == "SHOW":
+            if trust > 65:
+                return " You took the disclosure seriously."
+            return " You wondered why they wanted you to see it."
         if action == "DEMAND":
             if trust > 60:
                 return " Coming from them, it felt out of character."
@@ -272,6 +276,8 @@ class Orchestrator:
 
         if action == "GIVE":
             return 3, 6
+        if action == "SHOW":
+            return 2, 3
         if action == "DEMAND":
             return -4, -6
         if action == "LIE":
@@ -380,7 +386,7 @@ class Orchestrator:
             emotional_state = decision.get("emotional_state", "Neutral")
             structured_output_status = decision.get("structured_output_status", "unknown")
 
-            # Enforce pending_drop obligation: agent must DROP the hidden item this turn
+            # Enforce pending_drop obligation for items that explicitly require return
             if agent.pending_drop and agent.pending_drop_name:
                 if action != "DROP" or agent.pending_drop_name.lower() not in target.lower():
                     action = "DROP"
@@ -430,6 +436,18 @@ class Orchestrator:
                     if witness:
                         self._apply_telemetry_speech_check(witness, agent, target)
 
+            elif action == "READ" and success:
+                item_name = target.strip()
+                item = self.parser._find_accessible_item(agent.agent_id, item_name)
+                if item:
+                    knowledge = item.get("knowledge")
+                    if knowledge:
+                        agent.add_to_memory(f"[Discovered] {knowledge}")
+                    if item.get("return_required") or item.get("on_read", {}).get("force_drop"):
+                        agent.pending_drop = item["id"]
+                        agent.pending_drop_name = item["name"]
+                        print(f"  [Return Required] {agent.name} must return {item['name']} after reading.")
+
             elif action == "WHISPER" and success:
                 parsed = self._extract_social_target(target)
                 if parsed:
@@ -444,6 +462,29 @@ class Orchestrator:
                             witness = self.get_agent_by_id(witness_id)
                             if witness:
                                 witness.add_to_memory(f"You noticed {agent.name} whisper something privately to {target_agent_id}.")
+                    self._sync_relationships()
+
+            elif action == "SHOW" and success:
+                parsed = self._extract_social_target(target)
+                if parsed:
+                    item_name, target_agent_id = parsed
+                    target_agent = self.get_agent_by_id(target_agent_id)
+                    item = self.parser._find_accessible_item(agent.agent_id, item_name)
+                    knowledge = item.get("knowledge") if item else None
+                    if target_agent:
+                        if knowledge:
+                            target_agent.add_to_memory(f"{agent.name} showed you {item_name}: {knowledge}")
+                        else:
+                            target_agent.add_to_memory(f"{agent.name} showed you {item_name}; you learned what it revealed.")
+                        self.social.update_scores(
+                            target_agent_id,
+                            agent.agent_id,
+                            trust_delta=2,
+                            affinity_delta=2,
+                            notes=f"{agent.name} shared hidden information from {item_name}."
+                        )
+                    event_msg = f"You saw {agent.name} show {item_name} to {target_agent_id}"
+                    self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
                     self._sync_relationships()
 
             elif action == "MOVE" and success:
@@ -463,15 +504,6 @@ class Orchestrator:
                         notes=f"Witnessed {agent.name} take {target}"
                     )
                 self._sync_relationships()
-                # Check if a hidden knowledge item was just picked up
-                if agent.pending_drop is None:
-                    for item in self.world.find_items_by_owner(agent.agent_id):
-                        if item.get("hidden") and item.get("knowledge"):
-                            agent.add_to_memory(f"[Discovered] {item['knowledge']}")
-                            agent.pending_drop = item["id"]
-                            agent.pending_drop_name = item["name"]
-                            print(f"  [Hidden Knowledge] {agent.name} reads: {item['knowledge'][:80]}...")
-                            break
 
             elif action == "DROP" and success:
                 event_msg = f"You saw {agent.name} drop the {target}"
@@ -531,7 +563,7 @@ class Orchestrator:
                 self._inject_snitch_memory(agent, current_loc, system_id)
 
             # 6. SOCIAL MATRIX UPDATE - Evaluate SAY interactions
-            if action in {"SAY", "LIE", "GIVE", "DEMAND", "WHISPER"} and success:
+            if action in {"SAY", "LIE", "GIVE", "DEMAND", "WHISPER", "SHOW"} and success:
                 self._evaluate_social_impact(agent, action, target)
 
             cycle_results.append(result_entry)
@@ -559,7 +591,7 @@ class Orchestrator:
 
         Uses the observer-specific hidden critic when available, with
         heuristic fallback, and currently handles `SAY`, `LIE`, `GIVE`,
-        `DEMAND`, and `WHISPER`.
+        `DEMAND`, `WHISPER`, and `SHOW`.
         """
         nearby_agents = self.world.get_visible_agents(speaking_agent.agent_id)
 

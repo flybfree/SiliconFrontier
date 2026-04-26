@@ -26,13 +26,15 @@ class WorldState:
             "items": {},
             "agents": {},
             "relationships": {},
-            "suspicions": {}
+            "suspicions": {},
+            "known_facts": {}
         }
         self._data.setdefault("locations", {})
         self._data.setdefault("items", {})
         self._data.setdefault("agents", {})
         self._data.setdefault("relationships", {})
         self._data.setdefault("suspicions", {})
+        self._data.setdefault("known_facts", {})
 
     @classmethod
     def from_json(cls, filepath: str | Path) -> "WorldState":
@@ -65,6 +67,37 @@ class WorldState:
     @property
     def suspicions(self) -> dict[str, Any]:
         return self._data["suspicions"]
+
+    @property
+    def known_facts(self) -> dict[str, Any]:
+        return self._data["known_facts"]
+
+    def remember_fact(
+        self,
+        agent_id: str,
+        fact_id: str,
+        text: str,
+        source_item_id: str | None = None,
+        shared_by: str | None = None
+    ) -> bool:
+        """Record that an agent knows a discrete fact."""
+        if agent_id not in self._data["agents"] or not fact_id or not text:
+            return False
+
+        facts = self._data["known_facts"].setdefault(agent_id, {})
+        if fact_id in facts:
+            return False
+
+        facts[fact_id] = {
+            "text": text,
+            "source_item_id": source_item_id,
+            "shared_by": shared_by
+        }
+        return True
+
+    def get_known_facts(self, agent_id: str) -> dict[str, Any]:
+        """Return facts known by one agent."""
+        return self._data["known_facts"].get(agent_id, {})
 
     def get_relationship_view(self, agent_id: str, other_agent_id: str) -> dict[str, Any]:
         """Return one agent's current relationship view of another."""
@@ -307,6 +340,10 @@ class WorldState:
                 }
                 for other_id in visible_agents
             },
+            "known_facts": [
+                {"id": fact_id, **fact}
+                for fact_id, fact in self.get_known_facts(agent_id).items()
+            ],
             "agent_inventory": [
                 {"id": iid, **self.items[iid]}
                 for iid in self._data["agents"].get(agent_id, {}).get("inventory", [])
