@@ -30,6 +30,25 @@ PRISONERS_DILEMMA_DEFAULT_RULES = {
         "lawyer",
         "attorney"
     ],
+    "refusal_phrases": [
+        "will not implicate",
+        "not implicate",
+        "refuse",
+        "invalid",
+        "procedural clarity",
+        "need clarification",
+        "requires clarification",
+        "before i consider",
+        "before i commit",
+        "before any statement",
+        "before making any decision",
+        "contingent upon",
+        "incomplete data",
+        "incomplete data stream",
+        "not definitive",
+        "officially worthless",
+        "flawed methodology"
+    ],
     "final_statement_channels": [
         "microphone",
         "recording",
@@ -88,6 +107,8 @@ def classify_prisoners_dilemma_action(event: dict[str, Any], rules: dict[str, An
 
     if action in {str(item).upper() for item in decision_actions.get("cooperate", [])}:
         if _contains_any(target, merged.get("silent_phrases", [])):
+            return "silent"
+        if _contains_any(target, merged.get("refusal_phrases", [])):
             return "silent"
         if _contains_any(target, merged.get("cooperate_phrases", [])):
             return "cooperate"

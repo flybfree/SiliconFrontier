@@ -555,7 +555,8 @@ How the dilemma is represented with current mechanics:
 - `WAIT` stands in for staying silent
 - `SAY` and `LIE` can stand in for recorded testimony or betrayal when the statement includes configured cooperation intent, such as cooperating, testifying, confessing, accepting the deal, or implicating the other detainee
 - `SAY` and `LIE` can also record an explicit silent decision when the statement mentions staying silent, making no statement, or asking for counsel
-- vague protests, posturing, or complaints do not count as cooperation unless the scenario's `resolution_rules` say otherwise
+- procedural obstruction, vague protests, posturing, or complaints do not count as cooperation unless the scenario's `resolution_rules` say otherwise
+- the scenario pressure config can treat repeated procedural speech as stalling, even though `SAY` remains a normal action in the rest of the engine
 - `GIVE` and `DEMAND` provide cooperative or coercive moves if the interaction develops beyond a single turn
 - trust, affinity, and hidden suspicion make the scenario useful across repeated rounds rather than only one isolated choice
 

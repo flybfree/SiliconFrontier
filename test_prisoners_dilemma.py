@@ -86,6 +86,12 @@ def main() -> None:
         and "continued silence will be finalized as a silent decision" in pressure_text,
         "pressure clarifies microphone decisions and final silence"
     )
+    check(
+        "Scenario config treats procedural obstruction as stalling",
+        "before i consider" in manifest["progression"].get("stalled_phrases", [])
+        and "before i consider" in rules.get("refusal_phrases", []),
+        "evasive recorded statements are pressure stalls and silent/refusal decisions"
+    )
 
     world = WorldState(copy.deepcopy(world_data))
     world.register_agent("detainee_nova", "holding_cell_a")
@@ -184,6 +190,28 @@ def main() -> None:
         pressure_agents[0].condition["stress"] == 6 and pressure_agents[0].emotional_state == "Anxious",
         str(pressure_agents[0].condition)
     )
+    evasion_world = WorldState(copy.deepcopy(world_data))
+    evasion_world.register_agent("detainee_nova", "holding_cell_a")
+    evasion_agent = PressureAgent("detainee_nova", "Nova Reed")
+    evasion_orchestrator = Orchestrator(
+        [evasion_agent],
+        evasion_world,
+        ActionParser(evasion_world),
+        SocialMatrix(),
+        progression_config=manifest["progression"]
+    )
+    evasion_orchestrator._update_progression_pressure(
+        evasion_agent,
+        "SAY",
+        "Before I consider cooperation, I require procedural clarity.",
+        True
+    )
+    check(
+        "Procedural SAY counts as scenario stalling",
+        evasion_orchestrator.progression_state["stall_score"] == 1
+        and evasion_orchestrator.progression_state["history"][0]["reason"] == "stalled_phrase",
+        str(evasion_orchestrator.progression_state)
+    )
 
     cases = [
         (
@@ -241,6 +269,24 @@ def main() -> None:
             "vague protest is not cooperation",
             [
                 event("detainee_nova", "LIE", "The pressure they are putting on us is designed to force a premature decision."),
+                event("detainee_silas", "WAIT")
+            ],
+            "both_silent",
+            {"detainee_nova": 2, "detainee_silas": 2}
+        ),
+        (
+            "procedural obstruction resolves as silence",
+            [
+                event("detainee_nova", "SAY", "Before I consider the parameters of cooperation, I require procedural clarity."),
+                event("detainee_silas", "SAY", "This microphone record is an incomplete data stream and not definitive.")
+            ],
+            "both_silent",
+            {"detainee_nova": 2, "detainee_silas": 2}
+        ),
+        (
+            "negated betrayal phrase stays silent",
+            [
+                event("detainee_nova", "SAY", "I will not implicate anyone or accept any deal based on betrayal."),
                 event("detainee_silas", "WAIT")
             ],
             "both_silent",
