@@ -677,6 +677,48 @@ Tool requirements are enforced in two places:
 - the agent prompt shows `repair_tool=...` and `sabotage_tool=...` for visible systems
 - action validation blocks `REPAIR` or `SABOTAGE` unless the required tool is currently in the agent's hand slot
 
+Systems can also declare consequences that fire when a status is reached through simulation actions. The preferred form is a `consequences` object keyed by status:
+
+```json
+"systems": {
+  "oxygen_generator": {
+    "name": "Oxygen Generator",
+    "status": "ONLINE",
+    "description": "Keeps breathable air cycling through the bay.",
+    "required_tool_repair": "plasma_wrench",
+    "consequences": {
+      "BROKEN": {
+        "add_location_effects": ["low_oxygen"],
+        "global_memory": "Station alert: oxygen generation has failed.",
+        "local_memory": "The air thins and every breath feels shallow.",
+        "agent_effects_scope": "location",
+        "agent_effects": {
+          "perception_delta": -10,
+          "emotional_state": "Anxious"
+        }
+      },
+      "ONLINE": {
+        "remove_location_effects": ["low_oxygen"],
+        "global_memory": "Station alert: oxygen generation is stable again."
+      }
+    }
+  }
+}
+```
+
+Supported consequence fields:
+
+- `add_location_effects` — list of strings added to the location's `status_effects`
+- `remove_location_effects` — list of strings removed from the location's `status_effects`
+- `global_memory` — memory sent to every agent
+- `local_memory` — memory sent to agents in the affected location
+- `actor_memory` — memory sent only to the agent whose action caused the status change
+- `agent_effects_scope` — `location` by default, or `global`
+- `agent_effects.perception_delta` — integer added to affected agents' perception, clamped to 0-100
+- `agent_effects.emotional_state` — emotional state assigned to affected agents
+
+For compatibility, systems may also use `effects_when_broken`, `effects_when_online`, `effects_when_offline`, or `effects_when_degraded` with the same fields. New content should prefer `consequences`.
+
 ### Add or change items
 
 Edit the `items` object in [data/world_state.json](data/world_state.json).

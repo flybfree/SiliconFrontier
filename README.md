@@ -116,6 +116,8 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **Tool-gated systems** — systems can optionally require one tool for `REPAIR`, one tool for `SABOTAGE`, or the same tool for both via `required_tool_repair` and `required_tool_sabotage`.
 
+**System consequences** — systems can declare status-triggered consequences that add/remove location effects, broadcast memories, and apply runtime agent effects when `SABOTAGE` or `REPAIR` changes system status.
+
 **Relationship labels** — numeric trust/affinity/suspicion scores are displayed to agents as human-readable labels (`colleagues`, `rivals`, `hostile`, etc.) using nearest-neighbor matching against the preset table in `library/relationship_presets.json`.
 
 **Goal momentum** — after every reflection phase, agents assess their own progress as `advancing`, `stalled`, or `setback`. This feeds back into subsequent prompts.

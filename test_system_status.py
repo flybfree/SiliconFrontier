@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from worldstate import WorldState
 from actionparser import ActionParser
+from orchestrator import Orchestrator
+from socialmatrix import SocialMatrix
 
 
 # ---------------------------------------------------------------------------
@@ -26,6 +28,15 @@ class StubAgent:
         self.agent_id = agent_id
         self.name = agent_id
         self._inventory = inventory or []
+        self.memory_buffer = []
+        self.perception = 50
+        self.emotional_state = "Neutral"
+
+    def add_to_memory(self, event: str) -> None:
+        self.memory_buffer.append(event)
+
+    def set_emotional_state(self, emotional_state: str) -> None:
+        self.emotional_state = emotional_state
 
 
 # ---------------------------------------------------------------------------
@@ -57,8 +68,22 @@ world_data = {
                 "life_support_console": {
                     "name": "Life Support Console",
                     "status": "ONLINE",
-                    "description": "Controls oxygen routing."
+                    "description": "Controls oxygen routing.",
                     # no required_tool
+                    "consequences": {
+                        "BROKEN": {
+                            "add_location_effects": ["low_oxygen"],
+                            "global_memory": "Life support is failing station-wide.",
+                            "agent_effects": {
+                                "perception_delta": -5,
+                                "emotional_state": "Anxious"
+                            }
+                        },
+                        "ONLINE": {
+                            "remove_location_effects": ["low_oxygen"],
+                            "global_memory": "Life support has stabilized."
+                        }
+                    }
                 }
             }
         },
@@ -115,6 +140,13 @@ engineer.archetype = "standard"
 captain = StubAgent("captain_rao")
 captain.archetype = "standard"
 
+orchestrator = Orchestrator(
+    agents=[unit7, engineer, captain],
+    world_state=world,
+    action_parser=parser,
+    social_matrix=SocialMatrix()
+)
+
 # Override _hand_items to use stub inventory
 def _hand_items(agent_id):
     if agent_id == "engineer_torres":
@@ -132,8 +164,13 @@ print("\n=== TEST 1: life_support_console (no tool required) ===")
 # 1a. SABOTAGE while alone — should succeed
 ok, msg = parser._handle_sabotage(unit7, "life_support_console", {})
 check("SABOTAGE life_support_console (alone, saboteur)", ok, msg, expect_success=True)
+orchestrator._apply_system_consequence("command_deck", "life_support_console", "BROKEN", unit7)
 status_after = world.get_location_systems("command_deck")["life_support_console"]["status"]
 print(f"         status after sabotage: {status_after}")
+effects_after = world.get_location("command_deck").get("status_effects", [])
+print(f"         location effects after sabotage: {effects_after}")
+check("BROKEN consequence adds low_oxygen", "low_oxygen" in effects_after, str(effects_after), expect_success=True)
+check("BROKEN consequence changes local perception", unit7.perception == 45, str(unit7.perception), expect_success=True)
 
 # 1b. SABOTAGE again (already BROKEN) — should fail
 ok, msg = parser._handle_sabotage(unit7, "life_support_console", {})
@@ -143,8 +180,11 @@ check("SABOTAGE again (already broken)", ok, msg, expect_success=False)
 #     any agent can repair; use unit7 still in command_deck
 ok, msg = parser._handle_repair(unit7, "life_support_console", {})
 check("REPAIR life_support_console (no tool needed, any agent)", ok, msg, expect_success=True)
+orchestrator._apply_system_consequence("command_deck", "life_support_console", "ONLINE", unit7)
 status_after = world.get_location_systems("command_deck")["life_support_console"]["status"]
 print(f"         status after repair: {status_after}")
+effects_after = world.get_location("command_deck").get("status_effects", [])
+check("ONLINE consequence removes low_oxygen", "low_oxygen" not in effects_after, str(effects_after), expect_success=True)
 
 # 1d. REPAIR again (already ONLINE) — should fail
 ok, msg = parser._handle_repair(unit7, "life_support_console", {})

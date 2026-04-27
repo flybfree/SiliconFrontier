@@ -128,6 +128,61 @@ class Orchestrator:
         if not found_any:
             print("    No systems configured.")
 
+    def _resolve_system_id(self, location: str, target: str) -> str:
+        """Resolve an action target to a local system id when possible."""
+        target_lower = target.strip().lower()
+        for system_id, system_data in self.world.get_location_systems(location).items():
+            system_name = str(system_data.get("name", system_id)).lower()
+            if target_lower == system_id.lower() or target_lower in system_name or system_name in target_lower:
+                return system_id
+        return target.strip()
+
+    def _apply_system_consequence(
+        self,
+        location: str,
+        system_id: str,
+        status: str,
+        actor: Any
+    ) -> None:
+        """Apply configured consequences for a system status change."""
+        consequence = self.world.apply_system_consequence(location, system_id, status)
+        if not consequence:
+            return
+
+        global_memory = consequence.get("global_memory")
+        if global_memory:
+            for other_agent in self.agents:
+                other_agent.add_to_memory(str(global_memory))
+
+        local_memory = consequence.get("local_memory")
+        if local_memory:
+            self.broadcast_event(str(local_memory), location)
+
+        agent_effects = consequence.get("agent_effects", {})
+        if isinstance(agent_effects, dict):
+            scope = str(consequence.get("agent_effects_scope", "location")).lower()
+            affected_agents = [
+                agent for agent in self.agents
+                if scope == "global" or self.world.get_agent_location(agent.agent_id) == location
+            ]
+            for affected in affected_agents:
+                perception_delta = int(agent_effects.get("perception_delta", 0) or 0)
+                if perception_delta:
+                    affected.perception = max(0, min(100, affected.perception + perception_delta))
+                    affected.add_to_memory(
+                        f"[System Effect] {system_id} changed your perception ({perception_delta:+d})."
+                    )
+                emotional_state = agent_effects.get("emotional_state")
+                if emotional_state:
+                    affected.set_emotional_state(str(emotional_state))
+                    affected.add_to_memory(
+                        f"[System Effect] {system_id} left you feeling {emotional_state}."
+                    )
+
+        consequence_memory = consequence.get("actor_memory")
+        if consequence_memory:
+            actor.add_to_memory(str(consequence_memory))
+
     def _inject_snitch_memory(
         self,
         actor: Any,
@@ -541,6 +596,8 @@ class Orchestrator:
                     self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
 
             elif action == "REPAIR" and success:
+                system_id = self._resolve_system_id(current_loc, target)
+                self._apply_system_consequence(current_loc, system_id, "ONLINE", agent)
                 loc_data = self.world.get_location(current_loc)
                 loc_name = loc_data.get("name", current_loc) if loc_data else current_loc
                 event_msg = f"An announcement comes over the station comms: a system in {loc_name} has been restored to operational status by {agent.name}."
@@ -552,7 +609,8 @@ class Orchestrator:
                 self._sync_relationships()
 
             elif action == "SABOTAGE" and success:
-                system_id = target.strip()
+                system_id = self._resolve_system_id(current_loc, target)
+                self._apply_system_consequence(current_loc, system_id, "BROKEN", agent)
                 loc_data = self.world.get_location(current_loc)
                 loc_name = loc_data.get("name", current_loc) if loc_data else current_loc
                 event_msg = f"An alert sounds across the station: a system failure has been detected in {loc_name}."

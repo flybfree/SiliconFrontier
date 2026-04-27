@@ -141,6 +141,8 @@ class FrontierAgent:
         location_desc = loc.get("description", "") if loc else ""
         connected = loc.get("connected_to", []) if loc else []
         exits_str = ", ".join(connected) if connected else "none"
+        location_effects = loc.get("status_effects", []) if loc else []
+        location_effects_str = ", ".join(location_effects) if location_effects else "None"
 
         visible_items = [item["name"] for item in world_snapshot["visible_items"]]
         items_str = ", ".join(visible_items) if visible_items else "None"
@@ -192,6 +194,7 @@ class FrontierAgent:
             f"{location_desc}\n\n"
             f"Verified station telemetry below is authoritative for this turn.\n"
             f"Exits (valid MOVE targets): {exits_str}\n"
+            f"Location effects: {location_effects_str}\n"
             f"Items here: {items_str}\n"
             f"Systems here: {systems_str}\n"
             f"Known systems needing attention:\n{abnormal_systems_str}\n"

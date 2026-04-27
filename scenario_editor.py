@@ -1084,6 +1084,9 @@ def render_tab_locations() -> None:
                     updated_system["required_tool_repair"] = str(sys_repair_tool_val).strip()
                 if str(sys_sabotage_tool_val).strip():
                     updated_system["required_tool_sabotage"] = str(sys_sabotage_tool_val).strip()
+                for consequence_key in ("consequences", "effects_when_broken", "effects_when_online", "effects_when_offline", "effects_when_degraded"):
+                    if consequence_key in systems[sys_id]:
+                        updated_system[consequence_key] = systems[sys_id][consequence_key]
                 systems[sys_id] = updated_system
 
             c_apply, c_del, _ = st.columns([1, 1, 4])

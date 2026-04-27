@@ -468,6 +468,8 @@ class SimulationState:
                     "memory_buffer": list(a.memory_buffer),
                     "long_term_memory": a.long_term_memory,
                     "emotional_state": a.emotional_state,
+                    "pending_drop": getattr(a, "pending_drop", None),
+                    "pending_drop_name": getattr(a, "pending_drop_name", None),
                 }
                 for a in self.agents
             ],
@@ -513,6 +515,8 @@ class SimulationState:
             agent.memory_buffer = saved["memory_buffer"]
             agent.long_term_memory = saved["long_term_memory"]
             agent.emotional_state = saved["emotional_state"]
+            agent.pending_drop = saved.get("pending_drop")
+            agent.pending_drop_name = saved.get("pending_drop_name")
 
         # Restore relationships
         self.orchestrator.social._relationships = copy.deepcopy(data["relationships"])

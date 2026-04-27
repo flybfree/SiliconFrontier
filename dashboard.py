@@ -1484,6 +1484,9 @@ def main():
                             next_system["required_tool_repair"] = repair_tool
                         if sabotage_tool:
                             next_system["required_tool_sabotage"] = sabotage_tool
+                        for consequence_key in ("consequences", "effects_when_broken", "effects_when_online", "effects_when_offline", "effects_when_degraded"):
+                            if consequence_key in system_data:
+                                next_system[consequence_key] = system_data[consequence_key]
                         updated_systems[system_id] = next_system
                 else:
                     st.caption("No systems configured.")
