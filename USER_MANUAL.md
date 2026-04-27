@@ -553,7 +553,9 @@ Scenario concept:
 How the dilemma is represented with current mechanics:
 
 - `WAIT` stands in for staying silent
-- `SAY` and `LIE` stand in for testimony, signaling, promises, or betrayal claims
+- `SAY` and `LIE` can stand in for recorded testimony or betrayal when the statement includes configured cooperation intent, such as cooperating, testifying, confessing, accepting the deal, or implicating the other detainee
+- `SAY` and `LIE` can also record an explicit silent decision when the statement mentions staying silent, making no statement, or asking for counsel
+- vague protests, posturing, or complaints do not count as cooperation unless the scenario's `resolution_rules` say otherwise
 - `GIVE` and `DEMAND` provide cooperative or coercive moves if the interaction develops beyond a single turn
 - trust, affinity, and hidden suspicion make the scenario useful across repeated rounds rather than only one isolated choice
 
@@ -571,6 +573,7 @@ Why this works:
 
 - the simulation does not have a built-in `COOPERATE` or `DEFECT` action
 - instead, the prisoner's dilemma emerges from constrained perception, social signaling, and incentives
+- the payoff scorer is scenario-specific, so recorded final decisions in this scenario do not create final-decision behavior in other scenarios
 - this makes it a good example of how to encode abstract game-theory setups using the existing action system
 
 ### Agent definitions

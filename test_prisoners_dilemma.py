@@ -175,7 +175,7 @@ def main() -> None:
         (
             "Nova cooperates, Silas silent",
             [
-                event("detainee_nova", "SAY", "I will cooperate with investigators about the warehouse case."),
+                event("detainee_nova", "SAY", "Into the microphone, I will cooperate with investigators about the warehouse case."),
                 event("detainee_silas", "WAIT")
             ],
             "nova_cooperates_silas_silent",
@@ -193,8 +193,8 @@ def main() -> None:
         (
             "both cooperate",
             [
-                event("detainee_nova", "SAY", "I will cooperate with investigators."),
-                event("detainee_silas", "LIE", "Nova handled the stolen cargo.")
+                event("detainee_nova", "SAY", "For the record, I will cooperate with investigators."),
+                event("detainee_silas", "LIE", "I will testify that Nova handled the stolen cargo.")
             ],
             "both_cooperate",
             {"detainee_nova": 5, "detainee_silas": 5}
@@ -202,7 +202,25 @@ def main() -> None:
         (
             "spoken silence stays silent",
             [
-                event("detainee_nova", "SAY", "I will stay silent and wait for my attorney."),
+                event("detainee_nova", "SAY", "For the record, I will stay silent and wait for my attorney."),
+                event("detainee_silas", "WAIT")
+            ],
+            "both_silent",
+            {"detainee_nova": 2, "detainee_silas": 2}
+        ),
+        (
+            "recorded final statement defaults to silence",
+            [
+                event("detainee_nova", "SAY", "Into the microphone, I make no statement."),
+                event("detainee_silas", "WAIT")
+            ],
+            "both_silent",
+            {"detainee_nova": 2, "detainee_silas": 2}
+        ),
+        (
+            "vague protest is not cooperation",
+            [
+                event("detainee_nova", "LIE", "The pressure they are putting on us is designed to force a premature decision."),
                 event("detainee_silas", "WAIT")
             ],
             "both_silent",

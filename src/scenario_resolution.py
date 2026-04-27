@@ -11,6 +11,17 @@ PRISONERS_DILEMMA_DEFAULT_RULES = {
         "silent": ["WAIT"],
         "cooperate": ["SAY", "LIE"]
     },
+    "cooperate_phrases": [
+        "cooperate",
+        "testify",
+        "confess",
+        "accept the deal",
+        "take the deal",
+        "give a statement",
+        "make a statement",
+        "betray",
+        "implicate"
+    ],
     "silent_phrases": [
         "stay silent",
         "remain silent",
@@ -18,6 +29,13 @@ PRISONERS_DILEMMA_DEFAULT_RULES = {
         "refuse to answer",
         "lawyer",
         "attorney"
+    ],
+    "final_statement_channels": [
+        "microphone",
+        "recording",
+        "recorded statement",
+        "for the record",
+        "on the record"
     ],
     "payoffs_years": {
         "both_silent": {
@@ -54,6 +72,10 @@ def _merge_rules(rules: dict[str, Any] | None) -> dict[str, Any]:
     return merged
 
 
+def _contains_any(text: str, phrases: list[Any]) -> bool:
+    return any(str(phrase).lower() in text for phrase in phrases)
+
+
 def classify_prisoners_dilemma_action(event: dict[str, Any], rules: dict[str, Any] | None = None) -> str | None:
     """Classify one event-log entry as silent/cooperate, or None if not decisive."""
     merged = _merge_rules(rules)
@@ -65,10 +87,13 @@ def classify_prisoners_dilemma_action(event: dict[str, Any], rules: dict[str, An
         return "silent"
 
     if action in {str(item).upper() for item in decision_actions.get("cooperate", [])}:
-        for phrase in merged.get("silent_phrases", []):
-            if str(phrase).lower() in target:
-                return "silent"
-        return "cooperate"
+        if _contains_any(target, merged.get("silent_phrases", [])):
+            return "silent"
+        if _contains_any(target, merged.get("cooperate_phrases", [])):
+            return "cooperate"
+        if _contains_any(target, merged.get("final_statement_channels", [])):
+            return merged.get("default_decision", "silent")
+        return None
 
     return None
 

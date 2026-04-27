@@ -91,7 +91,7 @@ Runtime `logs/` and `saves/` are created next to the packaged executable bundle.
 | Scenario | Agents | Concept |
 |---|---|---|
 | `scenarios/default` | 4 | Station crew with one saboteur and hidden evidence items |
-| `scenarios/prisoners_dilemma` | 2 | Two detainees with sealed plea deals and no direct communication |
+| `scenarios/prisoners_dilemma` | 2 | Two detainees with sealed plea deals, recorded statements, and no direct communication |
 | `scenarios/cascade_failure` | 8 | Dual saboteurs, 11 locations, 5 hidden forensic evidence items |
 
 Scenarios can also be loaded as dashboard saves from `saves/`.
