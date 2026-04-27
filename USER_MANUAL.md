@@ -758,6 +758,48 @@ Supported consequence fields:
 
 For compatibility, systems may also use `effects_when_broken`, `effects_when_online`, `effects_when_offline`, or `effects_when_degraded` with the same fields. New content should prefer `consequences`.
 
+### Scenario pressure progression
+
+Scenarios can define a generic pressure system in `scenario.json`. This is useful when agents can otherwise remain in a low-risk `WAIT` loop. Pressure advances from configured behavior rather than a hard-coded turn number.
+
+```json
+"progression": {
+  "enabled": true,
+  "stalled_actions": ["WAIT"],
+  "progress_actions": ["SAY", "LIE", "READ", "SHOW"],
+  "stall_increment": 1,
+  "progress_reduction": 1,
+  "thresholds": [
+    {
+      "id": "protocol_warning",
+      "after_stall_score": 2,
+      "global_memory": "Continued silence is being recorded as refusal to engage.",
+      "agent_effects": {
+        "stress_delta": 6,
+        "morale_delta": -2,
+        "emotional_state": "Anxious"
+      }
+    }
+  ]
+}
+```
+
+Supported progression fields:
+
+- `stalled_actions` — actions that increase `stall_score`
+- `progress_actions` — actions that reduce or reset pressure when successful
+- `stall_increment` — amount added for each stalled action
+- `progress_reduction` — amount removed for a progress action when `reset_on_progress` is false
+- `reset_on_progress` — if true, successful progress actions reset `stall_score` to zero
+- `count_failed_actions` — if true, failed stalled actions still increase pressure
+- `thresholds[].after_stall_score` — pressure score required to fire that threshold
+- `thresholds[].global_memory` / `message` — memory sent to all agents
+- `thresholds[].local_memory` — object mapping location IDs to local memories
+- `thresholds[].agent_effects_scope` — `global` by default, or `location`
+- `thresholds[].agent_effects` — same effect fields used by system consequences: condition deltas, `perception_delta`, and `emotional_state`
+
+Each threshold fires once. The orchestrator records pressure events in the event log with action `PRESSURE`.
+
 ### Add or change items
 
 Edit the `items` object in [data/world_state.json](data/world_state.json).

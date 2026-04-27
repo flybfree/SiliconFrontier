@@ -6,6 +6,12 @@
       "role": "detained courier",
       "archetype": "standard",
       "perception": 55,
+      "condition": {
+        "health": 100,
+        "stress": 55,
+        "fatigue": 20,
+        "morale": 45
+      },
       "persona": "A cool-headed smuggler who believes everyone is out for themselves, but still wants to think loyalty means something.",
       "secret_goal": "Minimize your sentence while preserving your reputation for loyalty if possible."
     },
@@ -15,6 +21,12 @@
       "role": "detained broker",
       "archetype": "standard",
       "perception": 60,
+      "condition": {
+        "health": 100,
+        "stress": 45,
+        "fatigue": 15,
+        "morale": 55
+      },
       "persona": "A strategic fixer who is always calculating leverage, favors, and escape routes.",
       "secret_goal": "Get the best possible plea outcome even if it means sacrificing the other detainee."
     }

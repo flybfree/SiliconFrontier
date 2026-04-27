@@ -26,7 +26,8 @@ class Orchestrator:
         world_state,
         action_parser,
         social_matrix,
-        reflection_interval: int = 5
+        reflection_interval: int = 5,
+        progression_config: dict[str, Any] | None = None
     ):
         """
         Initialize the orchestrator.
@@ -37,12 +38,19 @@ class Orchestrator:
             action_parser: ActionParser instance for validation
             social_matrix: SocialMatrix instance for relationship tracking
             reflection_interval: Number of cycles before agent reflects/summarizes memory
+            progression_config: Optional scenario pressure/progression rules
         """
         self.agents = agents
         self.world = world_state
         self.parser = action_parser
         self.social = social_matrix
         self.reflection_interval = reflection_interval
+        self.progression_config = progression_config if isinstance(progression_config, dict) else {}
+        self.progression_state = {
+            "stall_score": 0,
+            "fired_thresholds": [],
+            "history": []
+        }
         self.social.initialize_from_world(self.world)
         self.social.ensure_agent_network([agent.agent_id for agent in self.agents])
         self.social.sync_to_world()
@@ -54,6 +62,120 @@ class Orchestrator:
 
         # Cycle counter
         self.cycle_count = 0
+
+    def _is_progression_enabled(self) -> bool:
+        """Return whether scenario pressure progression is active."""
+        return bool(self.progression_config) and self.progression_config.get("enabled", True)
+
+    def _normalize_action_set(self, key: str, default: list[str]) -> set[str]:
+        values = self.progression_config.get(key, default)
+        return {str(action).upper() for action in values if str(action).strip()}
+
+    def _apply_progression_effects(self, threshold: dict[str, Any]) -> None:
+        """Apply configured effects when scenario pressure crosses a threshold."""
+        message = threshold.get("global_memory") or threshold.get("message")
+        if message:
+            for agent in self.agents:
+                agent.add_to_memory(str(message))
+
+        local_memory = threshold.get("local_memory")
+        if isinstance(local_memory, dict):
+            for location, text in local_memory.items():
+                self.broadcast_event(str(text), str(location))
+
+        agent_effects = threshold.get("agent_effects", {})
+        if isinstance(agent_effects, dict):
+            scope = str(threshold.get("agent_effects_scope", "global")).lower()
+            location = threshold.get("location")
+            affected_agents = [
+                agent for agent in self.agents
+                if scope == "global"
+                or (scope == "location" and location and self.world.get_agent_location(agent.agent_id) == location)
+            ]
+            for agent in affected_agents:
+                self._apply_agent_effects(agent, agent_effects, "[Scenario Pressure]")
+
+    def _update_progression_pressure(
+        self,
+        agent: Any,
+        action: str,
+        target: str,
+        success: bool
+    ) -> list[dict[str, Any]]:
+        """Update scenario pressure after an action and fire newly crossed thresholds."""
+        if not self._is_progression_enabled():
+            return []
+
+        action_upper = str(action).upper()
+        stalled_actions = self._normalize_action_set("stalled_actions", ["WAIT"])
+        progress_actions = self._normalize_action_set("progress_actions", ["SAY", "LIE", "READ", "SHOW", "REPAIR", "USE"])
+        count_failed_actions = bool(self.progression_config.get("count_failed_actions", False))
+        reset_on_progress = bool(self.progression_config.get("reset_on_progress", False))
+        progress_reduction = int(self.progression_config.get("progress_reduction", 0) or 0)
+
+        changed = False
+        reason = None
+        if success or count_failed_actions:
+            if action_upper in stalled_actions:
+                self.progression_state["stall_score"] += int(self.progression_config.get("stall_increment", 1) or 1)
+                changed = True
+                reason = "stalled"
+            elif success and action_upper in progress_actions:
+                if reset_on_progress:
+                    self.progression_state["stall_score"] = 0
+                    changed = True
+                    reason = "progress_reset"
+                elif progress_reduction:
+                    before = self.progression_state["stall_score"]
+                    self.progression_state["stall_score"] = max(0, before - progress_reduction)
+                    changed = before != self.progression_state["stall_score"]
+                    reason = "progress_reduction" if changed else None
+
+        if changed:
+            self.progression_state["history"].append({
+                "cycle": self.cycle_count,
+                "agent_id": agent.agent_id,
+                "action": action_upper,
+                "target": target,
+                "reason": reason,
+                "stall_score": self.progression_state["stall_score"]
+            })
+
+        fired = []
+        fired_ids = set(self.progression_state.get("fired_thresholds", []))
+        thresholds = self.progression_config.get("thresholds", [])
+        if not isinstance(thresholds, list):
+            return fired
+
+        for idx, threshold in enumerate(thresholds):
+            if not isinstance(threshold, dict):
+                continue
+            threshold_id = str(threshold.get("id") or idx)
+            if threshold_id in fired_ids:
+                continue
+            required_score = int(threshold.get("after_stall_score", 0) or 0)
+            if self.progression_state["stall_score"] < required_score:
+                continue
+
+            self.progression_state.setdefault("fired_thresholds", []).append(threshold_id)
+            self._apply_progression_effects(threshold)
+            pressure_entry = {
+                "cycle": self.cycle_count,
+                "agent_id": "scenario",
+                "agent_name": "Scenario Pressure",
+                "action": "PRESSURE",
+                "target": threshold_id,
+                "success": True,
+                "feedback": threshold.get("global_memory") or threshold.get("message") or f"Pressure threshold {threshold_id} fired.",
+                "monologue": "",
+                "emotional_state": "",
+                "structured_output_status": "n/a",
+                "stall_score": self.progression_state["stall_score"]
+            }
+            self.event_log.append(pressure_entry)
+            fired.append(pressure_entry)
+
+        return fired
 
     def broadcast_event(self, message: str, location: str, exclude_agent_id: str | None = None) -> None:
         """
@@ -686,6 +808,8 @@ class Orchestrator:
                 self._evaluate_social_impact(agent, action, target)
 
             cycle_results.append(result_entry)
+            pressure_results = self._update_progression_pressure(agent, action, target, success)
+            cycle_results.extend(pressure_results)
 
         # Check for reflection trigger
         if self.cycle_count % self.reflection_interval == 0:

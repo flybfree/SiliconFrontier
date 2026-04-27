@@ -144,6 +144,7 @@ class SimulationState:
         self._baseline_simulation_slots = None
         self.agent_definitions = {"agents": []}
         self.simulation_slots = {"slots": []}
+        self.scenario_manifest = {}
 
     def _build_runtime_from_loaded_config(self, materialize_world_state: bool = False) -> None:
         """Rebuild world-facing agent objects from current definitions and slots."""
@@ -181,7 +182,8 @@ class SimulationState:
             world_state=self.world_state,
             action_parser=action_parser,
             social_matrix=social_matrix,
-            reflection_interval=5
+            reflection_interval=5,
+            progression_config=self.scenario_manifest.get("progression")
         )
 
     def initialize(self, config_dir: str = "data", llm_url: str | None = None, llm_model: str | None = None):
@@ -196,6 +198,7 @@ class SimulationState:
             self.llm_base_url = llm_url
         if llm_model:
             self.llm_model = llm_model
+        self.scenario_manifest = load_scenario_manifest(config_dir)
 
         # Load and resolve world state
         with open(Path(config_dir) / "world_state.json", "r", encoding="utf-8") as f:
@@ -458,6 +461,8 @@ class SimulationState:
             "world_state": copy.deepcopy(self.world_state._data),
             "agent_definitions": copy.deepcopy(self.agent_definitions),
             "simulation_slots": copy.deepcopy(self.simulation_slots),
+            "scenario_manifest": copy.deepcopy(self.scenario_manifest),
+            "progression_state": copy.deepcopy(getattr(self.orchestrator, "progression_state", {})),
             "agents": [
                 {
                     "agent_id": a.agent_id,
@@ -499,6 +504,7 @@ class SimulationState:
         self.world_state = WorldState(copy.deepcopy(data["world_state"]))
         self.agent_definitions = data.get("agent_definitions", self.agent_definitions)
         self.simulation_slots = data.get("simulation_slots", self.simulation_slots)
+        self.scenario_manifest = data.get("scenario_manifest", self.scenario_manifest)
         self._baseline_world = copy.deepcopy(self.world_state._data)
         self._baseline_agent_definitions = copy.deepcopy(self.agent_definitions)
         self._baseline_simulation_slots = copy.deepcopy(self.simulation_slots)
@@ -533,6 +539,9 @@ class SimulationState:
 
         # Restore log and counters
         self.orchestrator.event_log = list(data["event_log"])
+        self.orchestrator.progression_state = copy.deepcopy(
+            data.get("progression_state", getattr(self.orchestrator, "progression_state", {}))
+        )
         self.current_cycle = data["metadata"]["cycle"]
         self.orchestrator.cycle_count = data["metadata"]["cycle"]
         self.results_history = list(data["event_log"])

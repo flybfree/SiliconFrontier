@@ -348,6 +348,7 @@ See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flag
 - Save and load full simulation state
 - Export current state as a reusable scenario directory
 - Optional file logging — mirrors all simulation output to a timestamped file in `logs/`
+- Scenario pressure progression — optional scenario-level rules that raise stakes when agents stall or avoid resolution
 
 ## Scenario editor features
 

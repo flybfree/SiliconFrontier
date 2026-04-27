@@ -9,7 +9,9 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from actionparser import ActionParser
 from configloader import load_scenario_manifest
+from orchestrator import Orchestrator
 from scenario_resolution import evaluate_prisoners_dilemma
+from socialmatrix import SocialMatrix
 from worldstate import WorldState
 
 
@@ -31,6 +33,31 @@ def event(agent_id: str, action: str, target: str = "") -> dict:
         "target": target,
         "success": True
     }
+
+
+class PressureAgent:
+    def __init__(self, agent_id: str, name: str):
+        self.agent_id = agent_id
+        self.name = name
+        self.condition = {"health": 100, "stress": 0, "fatigue": 0, "morale": 50}
+        self.memory_buffer = []
+        self.emotional_state = "Neutral"
+
+    def add_to_memory(self, memory: str) -> None:
+        self.memory_buffer.append(memory)
+
+    def adjust_condition(self, **deltas: int) -> dict[str, int]:
+        changed = {}
+        for key, delta in deltas.items():
+            before = self.condition[key]
+            after = max(0, min(100, before + int(delta)))
+            self.condition[key] = after
+            if after != before:
+                changed[key] = after - before
+        return changed
+
+    def set_emotional_state(self, state: str) -> None:
+        self.emotional_state = state
 
 
 def main() -> None:
@@ -75,6 +102,34 @@ def main() -> None:
         "Reading plea sheet records private fact",
         "plea_terms:nova" in world.get_known_facts("detainee_nova"),
         str(world.get_known_facts("detainee_nova").keys())
+    )
+
+    pressure_world = WorldState(world_data)
+    pressure_world.register_agent("detainee_nova", "holding_cell_a")
+    pressure_world.register_agent("detainee_silas", "holding_cell_b")
+    pressure_agents = [
+        PressureAgent("detainee_nova", "Nova Reed"),
+        PressureAgent("detainee_silas", "Silas Voss")
+    ]
+    pressure_orchestrator = Orchestrator(
+        pressure_agents,
+        pressure_world,
+        ActionParser(pressure_world),
+        SocialMatrix(),
+        progression_config=manifest["progression"]
+    )
+    fired = []
+    for agent in pressure_agents:
+        fired.extend(pressure_orchestrator._update_progression_pressure(agent, "WAIT", "", True))
+    check(
+        "Scenario pressure fires from repeated stalling, not turn count",
+        bool(fired) and fired[0]["target"] == "protocol_warning",
+        str(fired)
+    )
+    check(
+        "Pressure changes agent condition",
+        pressure_agents[0].condition["stress"] == 6 and pressure_agents[0].emotional_state == "Anxious",
+        str(pressure_agents[0].condition)
     )
 
     cases = [

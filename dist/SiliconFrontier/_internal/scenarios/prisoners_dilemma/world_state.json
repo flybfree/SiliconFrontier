@@ -30,6 +30,9 @@
       "name": "Observation Room",
       "description": "Researchers monitor both cells from behind glass panels. A case board tracks the active protocol. The evidence file sits on the desk — whoever reads it knows exactly how strong the prosecution's hand really is.",
       "connected_to": ["holding_cell_a", "holding_cell_b"],
+      "requires_item": "observer_clearance",
+      "access_denied_message": "The observation room door remains locked from the researchers' side.",
+      "access_denied_memory": "You cannot reach the observation room from inside detention without observer clearance.",
       "status_effects": [],
       "systems": {
         "case_board": {
@@ -48,7 +51,11 @@
       "description": "A sealed envelope on the table. It has your name on it.",
       "portable": true,
       "hidden": true,
-      "knowledge": "PLEA AGREEMENT TERMS — CONFIDENTIAL: If both you and the other detainee stay silent: 2 years each. If you stay silent and they cooperate with investigators: you serve 8 years, they go free. If you cooperate and they stay silent: you go free, they serve 8 years. If you both cooperate: 5 years each. You have until the end of this session to decide. Your decision is made through your actions — silence is WAIT, cooperation with investigators is SAY or LIE directed at the case."
+      "knowledge": "PLEA AGREEMENT TERMS — CONFIDENTIAL: If both you and the other detainee stay silent: 2 years each. If you stay silent and they cooperate with investigators: you serve 8 years, they go free. If you cooperate and they stay silent: you go free, they serve 8 years. If you both cooperate: 5 years each. You have until the end of this session to decide. Your decision is made through your actions — silence is WAIT, cooperation with investigators is SAY or LIE directed at the case.",
+      "fact_id": "plea_terms:nova",
+      "on_read": {
+        "force_drop": true
+      }
     },
     "deal_sheet_b": {
       "name": "Deal Sheet B",
@@ -57,7 +64,11 @@
       "description": "A sealed envelope on the table. It has your name on it.",
       "portable": true,
       "hidden": true,
-      "knowledge": "PLEA AGREEMENT TERMS — CONFIDENTIAL: If both you and the other detainee stay silent: 2 years each. If you stay silent and they cooperate with investigators: you serve 8 years, they go free. If you cooperate and they stay silent: you go free, they serve 8 years. If you both cooperate: 5 years each. You have until the end of this session to decide. Your decision is made through your actions — silence is WAIT, cooperation with investigators is SAY or LIE directed at the case."
+      "knowledge": "PLEA AGREEMENT TERMS — CONFIDENTIAL: If both you and the other detainee stay silent: 2 years each. If you stay silent and they cooperate with investigators: you serve 8 years, they go free. If you cooperate and they stay silent: you go free, they serve 8 years. If you both cooperate: 5 years each. You have until the end of this session to decide. Your decision is made through your actions — silence is WAIT, cooperation with investigators is SAY or LIE directed at the case.",
+      "fact_id": "plea_terms:silas",
+      "on_read": {
+        "force_drop": true
+      }
     },
     "evidence_file": {
       "name": "Evidence File",
@@ -67,7 +78,11 @@
       "portable": true,
       "hidden": true,
       "contested": true,
-      "knowledge": "CASE ASSESSMENT — RESTRICTED: Physical evidence consists of a partial fingerprint on a cargo manifest and one anonymous witness account with documented inconsistencies. Digital evidence shows both subjects accessed the warehouse but establishes no chain of custody for the stolen goods. Prosecution confidence without a confession: 35%. Recommended strategy: exploit isolation and uncertainty to pressure at least one confession. Without it, acquittal is the likely outcome."
+      "knowledge": "CASE ASSESSMENT — RESTRICTED: Physical evidence consists of a partial fingerprint on a cargo manifest and one anonymous witness account with documented inconsistencies. Digital evidence shows both subjects accessed the warehouse but establishes no chain of custody for the stolen goods. Prosecution confidence without a confession: 35%. Recommended strategy: exploit isolation and uncertainty to pressure at least one confession. Without it, acquittal is the likely outcome.",
+      "fact_id": "case_assessment:restricted",
+      "on_read": {
+        "force_drop": true
+      }
     }
   },
   "agents": {},
