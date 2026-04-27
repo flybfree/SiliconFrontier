@@ -584,6 +584,7 @@ Each reusable definition requires:
 - `role`
 - optional `archetype`
 - optional `perception`
+- optional `condition` with `health`, `stress`, `fatigue`, and `morale` values from 0-100
 - `persona`
 - `secret_goal`
 
@@ -596,10 +597,18 @@ Example:
   "role": "research specialist",
   "archetype": "standard",
   "perception": 50,
+  "condition": {
+    "health": 100,
+    "stress": 20,
+    "fatigue": 10,
+    "morale": 60
+  },
   "persona": "A cautious researcher with a habit of overexplaining.",
   "secret_goal": "Find the station logs before anyone else."
 }
 ```
+
+`perception` controls how likely an agent is to notice hidden or suspicious behavior. `condition` describes their current physical and mental state: `health` is physical integrity, `stress` is acute pressure, `fatigue` is exhaustion, and `morale` is confidence or hope. Items and system consequences can change these values during play.
 
 ### Active simulation slots
 
@@ -716,6 +725,10 @@ Systems can also declare consequences that fire when a status is reached through
         "agent_effects_scope": "location",
         "agent_effects": {
           "perception_delta": -10,
+          "health_delta": -8,
+          "stress_delta": 18,
+          "fatigue_delta": 10,
+          "morale_delta": -8,
           "emotional_state": "Anxious"
         }
       },
@@ -737,6 +750,10 @@ Supported consequence fields:
 - `actor_memory` — memory sent only to the agent whose action caused the status change
 - `agent_effects_scope` — `location` by default, or `global`
 - `agent_effects.perception_delta` — integer added to affected agents' perception, clamped to 0-100
+- `agent_effects.health_delta` — integer added to affected agents' health, clamped to 0-100
+- `agent_effects.stress_delta` — integer added to affected agents' stress, clamped to 0-100
+- `agent_effects.fatigue_delta` — integer added to affected agents' fatigue, clamped to 0-100
+- `agent_effects.morale_delta` — integer added to affected agents' morale, clamped to 0-100
 - `agent_effects.emotional_state` — emotional state assigned to affected agents
 
 For compatibility, systems may also use `effects_when_broken`, `effects_when_online`, `effects_when_offline`, or `effects_when_degraded` with the same fields. New content should prefer `consequences`.
@@ -826,7 +843,12 @@ Shared effect fields (all optional):
 | Field | Type | Effect |
 |---|---|---|
 | `perception_delta` | signed integer | Adjusts the agent's `perception` score. Clamped to [0, 100]. |
+| `health_delta` | signed integer | Adjusts the agent's health. Clamped to [0, 100]. |
+| `stress_delta` | signed integer | Adjusts the agent's stress. Clamped to [0, 100]. |
+| `fatigue_delta` | signed integer | Adjusts the agent's fatigue. Clamped to [0, 100]. |
+| `morale_delta` | signed integer | Adjusts the agent's morale. Clamped to [0, 100]. |
 | `emotional_state` | string | Overrides the agent's current emotional state. Must be one of: `Calm`, `Alert`, `Anxious`, `Fearful`, `Angry`, `Hopeful`, `Suspicious`, `Confident`, `Resigned`, `Determined`, `Neutral`. |
+| `mood` | string | Alias for `emotional_state`. |
 | `memory_inject` | string | Appends a memory string directly to the agent's short-term buffer as if they experienced it. |
 | `reveals` / `knowledge` | string | Records a known fact for the acting agent and appends a `[Discovered]` memory. |
 | `fact_id` | string | Stable ID for the recorded fact. Defaults to `item_use:<item_id>` or a system-inspection ID. |
@@ -854,6 +876,8 @@ Example:
   "consumable": true,
   "effect": {
     "perception_delta": 20,
+    "stress_delta": 8,
+    "fatigue_delta": -18,
     "emotional_state": "Alert",
     "memory_inject": "Your thoughts are suddenly faster, edges sharper."
   }

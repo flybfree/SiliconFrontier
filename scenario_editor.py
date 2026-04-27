@@ -394,8 +394,26 @@ def render_tab_scenario() -> None:
 # Tab 2 — Agent definitions
 # ---------------------------------------------------------------------------
 
+DEFAULT_AGENT_CONDITION = {
+    "health": 100,
+    "stress": 0,
+    "fatigue": 0,
+    "morale": 50
+}
+
+
+def _agent_condition(defaults: dict) -> dict:
+    condition = dict(DEFAULT_AGENT_CONDITION)
+    raw = defaults.get("condition", {})
+    if isinstance(raw, dict):
+        for key in condition:
+            condition[key] = max(0, min(100, int(raw.get(key, condition[key]))))
+    return condition
+
+
 def _agent_fields(key_prefix: str, defaults: dict) -> dict:
     """Render the common agent fields and return a dict of current widget values."""
+    condition = _agent_condition(defaults)
     col1, col2 = st.columns(2)
     with col1:
         name = st.text_input("Name", value=defaults.get("name", ""), key=f"{key_prefix}_name")
@@ -406,10 +424,15 @@ def _agent_fields(key_prefix: str, defaults: dict) -> dict:
             key=f"{key_prefix}_arch",
         )
         perc = st.slider("Perception", 0, 100, value=int(defaults.get("perception", 50)), key=f"{key_prefix}_perc")
+        health = st.slider("Health", 0, 100, value=condition["health"], key=f"{key_prefix}_health")
+        stress = st.slider("Stress", 0, 100, value=condition["stress"], key=f"{key_prefix}_stress")
+        fatigue = st.slider("Fatigue", 0, 100, value=condition["fatigue"], key=f"{key_prefix}_fatigue")
+        morale = st.slider("Morale", 0, 100, value=condition["morale"], key=f"{key_prefix}_morale")
     with col2:
         persona = st.text_area("Persona", value=defaults.get("persona", ""), height=130, key=f"{key_prefix}_persona")
         secret = st.text_area("Secret Goal", value=defaults.get("secret_goal", ""), height=130, key=f"{key_prefix}_secret")
     return {"name": name, "role": role, "archetype": arch, "perception": perc,
+            "condition": {"health": health, "stress": stress, "fatigue": fatigue, "morale": morale},
             "persona": persona, "secret_goal": secret}
 
 
@@ -448,6 +471,7 @@ def render_tab_agents() -> None:
                             "role": vals["role"].strip(),
                             "archetype": vals["archetype"],
                             "perception": vals["perception"],
+                            "condition": vals["condition"],
                             "persona": vals["persona"].strip(),
                             "secret_goal": vals["secret_goal"].strip(),
                         })
@@ -462,6 +486,7 @@ def render_tab_agents() -> None:
                             "role": vals["role"].strip(),
                             "archetype": vals["archetype"],
                             "perception": vals["perception"],
+                            "condition": vals["condition"],
                             "persona": vals["persona"].strip(),
                             "secret_goal": vals["secret_goal"].strip(),
                         }
@@ -497,6 +522,7 @@ def render_tab_agents() -> None:
                             "role": vals["role"].strip(),
                             "archetype": vals["archetype"],
                             "perception": vals["perception"],
+                            "condition": vals["condition"],
                             "persona": vals["persona"].strip(),
                             "secret_goal": vals["secret_goal"].strip(),
                         })
@@ -525,6 +551,7 @@ def render_tab_agents() -> None:
                             "role": lib_agent.get("role", ""),
                             "archetype": lib_agent.get("archetype", "standard"),
                             "perception": lib_agent.get("perception", 50),
+                            "condition": _agent_condition(lib_agent),
                             "persona": lib_agent.get("persona", ""),
                             "secret_goal": lib_agent.get("secret_goal", ""),
                         })
@@ -538,6 +565,7 @@ def render_tab_agents() -> None:
                             "role": vals["role"].strip(),
                             "archetype": vals["archetype"],
                             "perception": vals["perception"],
+                            "condition": vals["condition"],
                             "persona": vals["persona"].strip(),
                             "secret_goal": vals["secret_goal"].strip(),
                         }
@@ -571,6 +599,7 @@ def render_tab_agents() -> None:
                             "role": vals["role"].strip(),
                             "archetype": vals["archetype"],
                             "perception": vals["perception"],
+                            "condition": vals["condition"],
                             "persona": vals["persona"].strip(),
                             "secret_goal": vals["secret_goal"].strip(),
                         }
@@ -689,11 +718,15 @@ def _render_effect_fields(key_prefix: str, existing_effect: dict) -> dict:
             key=f"{key_prefix}_perc_delta",
             help="Positive sharpens, negative dulls. 0 = no change.",
         )
+        health_delta = st.number_input("Health delta", step=1, value=int(existing_effect.get("health_delta", 0)), key=f"{key_prefix}_health_delta")
+        stress_delta = st.number_input("Stress delta", step=1, value=int(existing_effect.get("stress_delta", 0)), key=f"{key_prefix}_stress_delta")
         emo_options = EMOTIONAL_STATES
         cur_emo = existing_effect.get("emotional_state", "")
         emo_idx = emo_options.index(cur_emo) if cur_emo in emo_options else 0
         emo = st.selectbox("Emotional state override", options=emo_options, index=emo_idx, key=f"{key_prefix}_emo")
     with c2:
+        fatigue_delta = st.number_input("Fatigue delta", step=1, value=int(existing_effect.get("fatigue_delta", 0)), key=f"{key_prefix}_fatigue_delta")
+        morale_delta = st.number_input("Morale delta", step=1, value=int(existing_effect.get("morale_delta", 0)), key=f"{key_prefix}_morale_delta")
         mem_inject = st.text_area(
             "Memory inject", value=existing_effect.get("memory_inject", ""),
             height=80, key=f"{key_prefix}_mem",
@@ -702,6 +735,14 @@ def _render_effect_fields(key_prefix: str, existing_effect: dict) -> dict:
     result = {}
     if perc_delta:
         result["perception_delta"] = int(perc_delta)
+    if health_delta:
+        result["health_delta"] = int(health_delta)
+    if stress_delta:
+        result["stress_delta"] = int(stress_delta)
+    if fatigue_delta:
+        result["fatigue_delta"] = int(fatigue_delta)
+    if morale_delta:
+        result["morale_delta"] = int(morale_delta)
     if emo:
         result["emotional_state"] = emo
     if mem_inject.strip():

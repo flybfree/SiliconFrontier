@@ -161,6 +161,7 @@ def load_agent_configuration(config_dir: str | Path = "data") -> tuple[dict[str,
             "role": agent_cfg.get("role", "crew member"),
             "archetype": agent_cfg.get("archetype", "standard"),
             "perception": agent_cfg.get("perception", 50),
+            "condition": copy.deepcopy(agent_cfg.get("condition", {})),
             "persona": agent_cfg["persona"],
             "secret_goal": agent_cfg["secret_goal"]
         }

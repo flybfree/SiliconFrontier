@@ -106,7 +106,7 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **Contested items** — `contested: true` items remind agents they are valued resources that others may be competing for.
 
-**Consumable items** — items with `consumable: true` can be consumed with the `USE` action, applying `effect` fields (`perception_delta`, `emotional_state`, `memory_inject`) and deleting the item.
+**Consumable items** — items with `consumable: true` can be consumed with the `USE` action, applying `effect` fields (`health_delta`, `stress_delta`, `fatigue_delta`, `morale_delta`, `perception_delta`, `emotional_state`, `memory_inject`) and deleting the item.
 
 **Durable item effects** — non-consumable tools can define `use_effect` so `USE` can inspect systems, reveal facts, alter system status, broadcast memories, or change location effects without deleting the item.
 
@@ -144,7 +144,7 @@ Each agent turn is a round-trip between the simulation and the LLM.
 
 **1. Sense** — `WorldState.get_snapshot_for_agent()` produces a filtered dict of everything the agent can currently perceive: location, visible items and systems, other agents present (and what they're holding), relationship scores, and a station-wide list of systems whose status is not `ONLINE`. `agent.sense()` formats this into a human-readable situation report.
 
-**2. Prompt assembly** — `agent._build_system_prompt()` constructs the system message containing identity, persona, secret goal, inventory, emotional state, long-term memory, goal momentum, audience awareness note, and output format rules. The situation report becomes the user message.
+**2. Prompt assembly** — `agent._build_system_prompt()` constructs the system message containing identity, persona, secret goal, inventory, health/stress/fatigue/morale, emotional state, long-term memory, goal momentum, audience awareness note, and output format rules. The situation report becomes the user message.
 
 **3. LLM call** — the two-message payload is sent to the OpenAI-compatible endpoint. The model returns JSON:
 
@@ -353,7 +353,7 @@ See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flag
 
 - Load existing scenarios or scaffold new ones from the sidebar
 - **Agent library** — browse `library/agents.json`, add agents to the current scenario with one click, push edits back to the library; agents and items are both reusable assets
-- Agent definition editor — name, role, archetype, perception slider, persona, secret goal
+- Agent definition editor — name, role, archetype, perception, health, stress, fatigue, morale, persona, secret goal
 - Simulation slot editor — assign definitions to slots with location and inventory dropdowns
 - Item editor — inline items and library placements, with conditional fields for hidden knowledge, return obligations, durable use effects, and consumable effects
 - Location editor — connections multiselect, status effects, inline system add/remove

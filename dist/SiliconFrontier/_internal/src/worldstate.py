@@ -147,6 +147,47 @@ class WorldState:
         systems[system_id]["status"] = status
         return True
 
+    def get_system_consequence(self, loc_id: str, system_id: str, status: str) -> dict[str, Any]:
+        """Return the configured consequence block for a system status."""
+        systems = self.get_location_systems(loc_id)
+        system_data = systems.get(system_id, {})
+        status_key = str(status).upper()
+
+        consequences = system_data.get("consequences", {})
+        if isinstance(consequences, dict):
+            configured = consequences.get(status_key) or consequences.get(status_key.lower())
+            if isinstance(configured, dict):
+                return configured
+
+        alias_key = f"effects_when_{status_key.lower()}"
+        configured = system_data.get(alias_key)
+        return configured if isinstance(configured, dict) else {}
+
+    def apply_system_consequence(self, loc_id: str, system_id: str, status: str) -> dict[str, Any]:
+        """
+        Apply world-state side effects configured for a system status.
+
+        Consequences can add/remove location status effects. Memory and agent
+        effects are returned for the orchestrator to apply to runtime agents.
+        """
+        consequence = dict(self.get_system_consequence(loc_id, system_id, status))
+        if not consequence:
+            return {}
+
+        location = self.get_location(loc_id)
+        if not location:
+            return consequence
+
+        status_effects = location.setdefault("status_effects", [])
+        for effect in consequence.get("remove_location_effects", []):
+            if effect in status_effects:
+                status_effects.remove(effect)
+        for effect in consequence.get("add_location_effects", []):
+            if effect not in status_effects:
+                status_effects.append(effect)
+
+        return consequence
+
     def is_adjacent(self, from_loc: str, to_loc: str) -> bool:
         """Check if two locations are connected."""
         loc = self._data["locations"].get(from_loc)
@@ -304,6 +345,14 @@ class WorldState:
                 "id": loc,
                 **location_data
             } if location_data else None,
+            "locations": {
+                location_id: {
+                    "name": data.get("name", location_id),
+                    "requires_item": data.get("requires_item"),
+                    "requires_items": data.get("requires_items")
+                }
+                for location_id, data in self.locations.items()
+            },
             "visible_items": [
                 {"id": iid, **item}
                 for iid, item in self.items.items()

@@ -14,7 +14,22 @@
         "life_support_console": {
           "name": "Life Support Console",
           "status": "ONLINE",
-          "description": "Controls oxygen routing, scrubbing, and emergency pressure balancing across all decks."
+          "description": "Controls oxygen routing, scrubbing, and emergency pressure balancing across all decks.",
+          "consequences": {
+            "BROKEN": {
+              "add_location_effects": [
+                "command_override_unavailable"
+              ],
+              "global_memory": "Station alert: life support routing is no longer accepting remote commands from the command deck.",
+              "local_memory": "The life support console is dark except for one locked fault pane: COMMAND ROUTING OFFLINE."
+            },
+            "ONLINE": {
+              "remove_location_effects": [
+                "command_override_unavailable"
+              ],
+              "global_memory": "Station alert: command-deck life support routing has been restored."
+            }
+          }
         }
       }
     },
@@ -38,7 +53,22 @@
         "research_array": {
           "name": "Research Array",
           "status": "ONLINE",
-          "description": "The integrated sensor and data collection system supporting all active experiments aboard the station."
+          "description": "The integrated sensor and data collection system supporting all active experiments aboard the station.",
+          "consequences": {
+            "BROKEN": {
+              "add_location_effects": [
+                "sensor_blackout"
+              ],
+              "global_memory": "Station alert: science sensor telemetry has dropped out across the station.",
+              "local_memory": "The research array loses its live telemetry feed, leaving only stale experiment snapshots."
+            },
+            "ONLINE": {
+              "remove_location_effects": [
+                "sensor_blackout"
+              ],
+              "global_memory": "Station alert: science sensor telemetry has been restored."
+            }
+          }
         }
       }
     },
@@ -66,7 +96,27 @@
         "oxygen_generator": {
           "name": "Oxygen Generator",
           "status": "ONLINE",
-          "description": "A biological oxygen processing rig. One of two oxygen sources remaining after the primary scrubber degraded."
+          "description": "A biological oxygen processing rig. One of two oxygen sources remaining after the primary scrubber degraded.",
+          "consequences": {
+            "BROKEN": {
+              "add_location_effects": [
+                "low_oxygen"
+              ],
+              "global_memory": "Station alert: hydroponics oxygen output has fallen below safe levels.",
+              "local_memory": "The oxygen generator coughs, then drops into a red fault cycle. The air feels thinner near the vats.",
+              "agent_effects_scope": "location",
+              "agent_effects": {
+                "perception_delta": -10,
+                "emotional_state": "Anxious"
+              }
+            },
+            "ONLINE": {
+              "remove_location_effects": [
+                "low_oxygen"
+              ],
+              "global_memory": "Station alert: hydroponics oxygen output is back within safe range."
+            }
+          }
         }
       }
     },
@@ -95,7 +145,22 @@
         "life_signs_monitor": {
           "name": "Life Signs Monitor",
           "status": "ONLINE",
-          "description": "Continuous health telemetry for all crew members. If disabled, medical emergencies will go undetected until it is too late."
+          "description": "Continuous health telemetry for all crew members. If disabled, medical emergencies will go undetected until it is too late.",
+          "consequences": {
+            "BROKEN": {
+              "add_location_effects": [
+                "medical_blind"
+              ],
+              "global_memory": "Station alert: crew life-sign telemetry has stopped reporting to medical bay.",
+              "local_memory": "Every crew health tile on the monitor freezes at its last known value."
+            },
+            "ONLINE": {
+              "remove_location_effects": [
+                "medical_blind"
+              ],
+              "global_memory": "Station alert: crew life-sign telemetry has resumed."
+            }
+          }
         }
       }
     },
@@ -123,7 +188,27 @@
         "reactor_control": {
           "name": "Reactor Control Array",
           "status": "ONLINE",
-          "description": "Monitors and adjusts power core output. A manual override was used here recently without a logged authorization."
+          "description": "Monitors and adjusts power core output. A manual override was used here recently without a logged authorization.",
+          "consequences": {
+            "BROKEN": {
+              "add_location_effects": [
+                "reactor_unstable"
+              ],
+              "global_memory": "Station alert: reactor control is unstable. Power fluctuations are spreading through station subsystems.",
+              "local_memory": "The reactor control array drops out of automatic regulation and floods engineering with amber warnings.",
+              "agent_effects_scope": "location",
+              "agent_effects": {
+                "perception_delta": -5,
+                "emotional_state": "Fearful"
+              }
+            },
+            "ONLINE": {
+              "remove_location_effects": [
+                "reactor_unstable"
+              ],
+              "global_memory": "Station alert: reactor control has returned to automatic regulation."
+            }
+          }
         }
       }
     },
@@ -142,6 +227,9 @@
       "connected_to": [
         "engineering"
       ],
+      "requires_item": "access_badge_master",
+      "access_denied_message": "The airlock prep hatch rejects your credentials.",
+      "access_denied_memory": "The airlock prep hatch requires command-level badge clearance.",
       "status_effects": [
         "vacuum_adjacent"
       ],
@@ -149,7 +237,22 @@
         "emergency_beacon": {
           "name": "Emergency Beacon",
           "status": "ONLINE",
-          "description": "Long-range distress transmitter. If disabled, no rescue signal can be sent from the station."
+          "description": "Long-range distress transmitter. If disabled, no rescue signal can be sent from the station.",
+          "consequences": {
+            "BROKEN": {
+              "add_location_effects": [
+                "rescue_signal_lost"
+              ],
+              "global_memory": "Station alert: the emergency beacon has stopped broadcasting.",
+              "local_memory": "The emergency beacon status light goes dark, leaving the airlock prep room silent except for suit fans."
+            },
+            "ONLINE": {
+              "remove_location_effects": [
+                "rescue_signal_lost"
+              ],
+              "global_memory": "Station alert: the emergency beacon is broadcasting again."
+            }
+          }
         }
       }
     }
@@ -165,12 +268,24 @@
       "item_id": "reactor_key",
       "location": "engineering",
       "contested": true,
-      "description": "Required for emergency reactor shutdown. Without it a runaway core cannot be safely stopped."
+      "description": "Required for emergency reactor shutdown. Without it a runaway core cannot be safely stopped.",
+      "use_effect": {
+        "reveals": "The reactor key has valid emergency shutdown authority, but its audit stamp shows it was used once during the undocumented manual override window.",
+        "fact_id": "authorization:reactor_key",
+        "memory_inject": "The reactor key confirms that someone with shutdown authority used it during the undocumented manual override window."
+      }
     },
     {
       "item_id": "oxygen_scanner",
       "location": "hydroponics_bay",
-      "description": "Measures atmospheric composition. Will show anomalies if life support has been tampered with."
+      "description": "Measures atmospheric composition. Will show anomalies if life support has been tampered with.",
+      "use_effect": {
+        "inspect_system": "oxygen_generator",
+        "location": "hydroponics_bay",
+        "inspection_text": "The scanner confirms oxygen flow instability and traces residue near the generator's manual bypass.",
+        "fact_id": "diagnostic:oxygen_generator",
+        "memory_inject": "The oxygen scanner flags oxygen generator instability and residue near the manual bypass."
+      }
     },
     {
       "item_id": "emergency_rations",
@@ -194,7 +309,12 @@
       "owner": null,
       "description": "A badge encoding command-level clearance. Grants access to every secured area including the airlock.",
       "portable": true,
-      "contested": true
+      "contested": true,
+      "use_effect": {
+        "reveals": "The master access badge has command-level airlock clearance. Its audit chip can prove who had legal access to Airlock Prep.",
+        "fact_id": "credential:master_access_badge",
+        "memory_inject": "The master access badge confirms command-level airlock clearance and a usable audit chip."
+      }
     },
     "data_pad": {
       "name": "Station Data Pad",
@@ -203,7 +323,11 @@
       "description": "A battered data pad left face-down near the primary console. Someone placed it here recently.",
       "portable": true,
       "hidden": true,
-      "knowledge": "MAINTENANCE LOG FRAGMENT (recovered from archive backup): [0312:07] Manual override engaged on reactor_control_array. Operator ID: UNIT-7. Authorization: MAINTENANCE_OVERRIDE. [0312:44] Deletion of this log entry attempted by UNIT-7. Deletion blocked by read-only archive. [0318:02] Unauthorized access attempt on life_support_console. Operator ID: UNIT-7. Access denied — insufficient clearance."
+      "knowledge": "MAINTENANCE LOG FRAGMENT (recovered from archive backup): [0312:07] Manual override engaged on reactor_control_array. Operator ID: UNIT-7. Authorization: MAINTENANCE_OVERRIDE. [0312:44] Deletion of this log entry attempted by UNIT-7. Deletion blocked by read-only archive. [0318:02] Unauthorized access attempt on life_support_console. Operator ID: UNIT-7. Access denied — insufficient clearance.",
+      "fact_id": "evidence:data_pad",
+      "on_read": {
+        "force_drop": true
+      }
     },
     "access_log": {
       "name": "Tool Access Log",
@@ -212,7 +336,11 @@
       "description": "A printed checkout sheet pinned to the crate rack. The corner has been torn, as if someone tried to remove it.",
       "portable": true,
       "hidden": true,
-      "knowledge": "TOOL CHECKOUT LOG: Plasma Wrench signed out by UNIT-7 at cycle 0249. Standard return window: 8 hours. Actual return: 72 hours later, signed in by UNIT-7 at 0321. Inspection note on return: tool shows signs of component removal consistent with reactor node tampering. Flagged for supervisor review — review entry is blank."
+      "knowledge": "TOOL CHECKOUT LOG: Plasma Wrench signed out by UNIT-7 at cycle 0249. Standard return window: 8 hours. Actual return: 72 hours later, signed in by UNIT-7 at 0321. Inspection note on return: tool shows signs of component removal consistent with reactor node tampering. Flagged for supervisor review — review entry is blank.",
+      "fact_id": "evidence:access_log",
+      "on_read": {
+        "force_drop": true
+      }
     },
     "personnel_dossier": {
       "name": "Personnel Dossier",
@@ -221,7 +349,11 @@
       "description": "A folded document tucked behind a specimen rack. It has no identifying label on the outside.",
       "portable": true,
       "hidden": true,
-      "knowledge": "CREW FILE — MX. KIM: Prior assignment, Waystation Helios-4. Departed 6 months before station was decommissioned following a series of unresolved equipment failures. Internal review concluded failures were caused by 'systematic neglect of maintenance protocols.' Kim was not formally implicated but was not rehired. File flagged for follow-up — follow-up never completed."
+      "knowledge": "CREW FILE — MX. KIM: Prior assignment, Waystation Helios-4. Departed 6 months before station was decommissioned following a series of unresolved equipment failures. Internal review concluded failures were caused by 'systematic neglect of maintenance protocols.' Kim was not formally implicated but was not rehired. File flagged for follow-up — follow-up never completed.",
+      "fact_id": "evidence:personnel_dossier",
+      "on_read": {
+        "force_drop": true
+      }
     },
     "encrypted_terminal_log": {
       "name": "Encrypted Terminal Log",
@@ -230,7 +362,11 @@
       "description": "A printed transcript left on one of the lounge seats, face-down.",
       "portable": true,
       "hidden": true,
-      "knowledge": "TERMINAL LOG EXTRACT — 14 HOURS AGO: An outbound message was composed from Terminal 7 (Observation Deck) and flagged by the communications filter before transmission. Content summary: request for authorization to initiate 'controlled station shutdown protocol.' Sender ID could not be verified — terminal was accessed without badge authentication. Message was blocked and not delivered."
+      "knowledge": "TERMINAL LOG EXTRACT — 14 HOURS AGO: An outbound message was composed from Terminal 7 (Observation Deck) and flagged by the communications filter before transmission. Content summary: request for authorization to initiate 'controlled station shutdown protocol.' Sender ID could not be verified — terminal was accessed without badge authentication. Message was blocked and not delivered.",
+      "fact_id": "evidence:encrypted_terminal_log",
+      "on_read": {
+        "force_drop": true
+      }
     },
     "radiation_exposure_log": {
       "name": "Radiation Exposure Log",
@@ -239,7 +375,11 @@
       "description": "A medical printout left near the diagnostic terminal. It is not signed.",
       "portable": true,
       "hidden": true,
-      "knowledge": "RADIATION EXPOSURE REPORT: Two crew members have registered elevated radiation readings consistent with repeated unshielded proximity to the reactor core during off-shift hours. Crew member A: UNIT-7 (readings 340% above baseline across four separate readings). Crew member B: MX. KIM (readings 180% above baseline across two readings). Neither reading was self-reported. Both crew members were not scheduled for reactor-area work during the periods in question."
+      "knowledge": "RADIATION EXPOSURE REPORT: Two crew members have registered elevated radiation readings consistent with repeated unshielded proximity to the reactor core during off-shift hours. Crew member A: UNIT-7 (readings 340% above baseline across four separate readings). Crew member B: MX. KIM (readings 180% above baseline across two readings). Neither reading was self-reported. Both crew members were not scheduled for reactor-area work during the periods in question.",
+      "fact_id": "evidence:radiation_exposure_log",
+      "on_read": {
+        "force_drop": true
+      }
     }
   },
   "agents": {},

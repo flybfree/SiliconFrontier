@@ -140,7 +140,20 @@ class FrontierAgent:
         location_name = loc.get("name", "Unknown") if loc else "Unknown"
         location_desc = loc.get("description", "") if loc else ""
         connected = loc.get("connected_to", []) if loc else []
-        exits_str = ", ".join(connected) if connected else "none"
+        locations = world_snapshot.get("locations", {})
+        exit_labels = []
+        for loc_id in connected:
+            dest = locations.get(loc_id, {})
+            required = dest.get("requires_item") or dest.get("requires_items")
+            if isinstance(required, list):
+                required_text = ", ".join(str(item) for item in required)
+            else:
+                required_text = str(required) if required else ""
+            suffix = f" (requires: {required_text})" if required_text else ""
+            exit_labels.append(f"{loc_id}{suffix}")
+        exits_str = ", ".join(exit_labels) if exit_labels else "none"
+        location_effects = loc.get("status_effects", []) if loc else []
+        location_effects_str = ", ".join(location_effects) if location_effects else "None"
 
         visible_items = [item["name"] for item in world_snapshot["visible_items"]]
         items_str = ", ".join(visible_items) if visible_items else "None"
@@ -192,6 +205,7 @@ class FrontierAgent:
             f"{location_desc}\n\n"
             f"Verified station telemetry below is authoritative for this turn.\n"
             f"Exits (valid MOVE targets): {exits_str}\n"
+            f"Location effects: {location_effects_str}\n"
             f"Items here: {items_str}\n"
             f"Systems here: {systems_str}\n"
             f"Known systems needing attention:\n{abnormal_systems_str}\n"
@@ -300,7 +314,7 @@ ACTION TARGET RULES — action_target must be:
 - SAY: the spoken message itself, as a full sentence. Not a name. Example: "We should keep monitoring the reactor."
 - LIE: the false statement to speak aloud, as a full sentence. Not a name.
 - WHISPER: "your message here -> agent_id" — message first, then the recipient's agent ID
-- PICKUP / DROP / USE: the item name (USE consumes the item and applies its effect)
+- PICKUP / DROP / USE: the item name (USE applies the item's configured effect; consumables are removed afterward)
 - GIVE: "item name -> agent_id"
 - DEMAND: "item name -> agent_id"
 - READ: the item name
@@ -625,7 +639,7 @@ Output strict JSON:
             "SHOW":     f"You showed {target}, deliberately sharing what it revealed.{witnessed}",
             "SABOTAGE": f"You sabotaged {target}. The damage is done — you wonder if anyone noticed.{witnessed}",
             "REPAIR":   f"You repaired {target}. The system is back online.{witnessed}",
-            "USE":      f"You used the {target}. The effect washed over you.{witnessed}",
+            "USE":      f"You used the {target}. Its configured effect took hold.{witnessed}",
             "CONCEAL":  f"You slipped {target} out of sight, concealed on your person.{witnessed}",
             "PRODUCE":  f"You produced {target}, bringing it into plain view.{witnessed}",
             "WAIT":     f"You held back and watched.{witnessed}",

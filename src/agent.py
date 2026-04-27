@@ -33,6 +33,12 @@ class FrontierAgent:
     STRUCTURED_STATUS_DISABLED = "structured_disabled"
     STRUCTURED_STATUS_VALIDATED = "structured_validated"
     STRUCTURED_STATUS_VALIDATED_CORRECTED = "structured_validated_corrected"
+    DEFAULT_CONDITION = {
+        "health": 100,
+        "stress": 0,
+        "fatigue": 0,
+        "morale": 50
+    }
 
     _ONLINE_NEGATIVE_TERMS = (
         "fail", "failed", "failing", "failure", "offline", "broken", "degraded",
@@ -51,6 +57,7 @@ class FrontierAgent:
         role: str | None = None,
         archetype: str | None = None,
         perception: int = 50,
+        condition: dict[str, Any] | None = None,
         llm_base_url: str = "http://192.168.3.181:1234/v1",
         llm_model: str = "unsloth/qwen3.5-35b-a3b",
         enable_structured_output: bool = False,
@@ -75,6 +82,7 @@ class FrontierAgent:
         self.role = role or "crew member"
         self.archetype = archetype or "standard"
         self.perception = max(0, min(100, int(perception)))
+        self.condition = self._normalize_condition(condition)
         self.enable_structured_output = enable_structured_output
 
         # Memory systems
@@ -99,6 +107,34 @@ class FrontierAgent:
         # Agent must DROP this item before taking any other action.
         self.pending_drop: str | None = None        # item id
         self.pending_drop_name: str | None = None   # item name (for prompts)
+
+    @classmethod
+    def _normalize_condition(cls, condition: dict[str, Any] | None) -> dict[str, int]:
+        """Return a complete, clamped condition block for an agent."""
+        normalized = dict(cls.DEFAULT_CONDITION)
+        if isinstance(condition, dict):
+            for key in normalized:
+                if key in condition:
+                    normalized[key] = max(0, min(100, int(condition[key])))
+        return normalized
+
+    def condition_text(self) -> str:
+        """Return condition as compact prompt text."""
+        return ", ".join(f"{key}={value}" for key, value in self.condition.items())
+
+    def adjust_condition(self, **deltas: int) -> dict[str, int]:
+        """Apply clamped condition deltas and return changed fields."""
+        changed = {}
+        for key in self.DEFAULT_CONDITION:
+            delta = int(deltas.get(key, 0) or 0)
+            if not delta:
+                continue
+            before = self.condition.get(key, self.DEFAULT_CONDITION[key])
+            after = max(0, min(100, before + delta))
+            self.condition[key] = after
+            if after != before:
+                changed[key] = after - before
+        return changed
 
     # Preset anchors for label matching (mirrors library/relationship_presets.json)
     _RELATIONSHIP_PRESETS = [
@@ -254,6 +290,7 @@ class FrontierAgent:
 YOUR IDENTITY
 Persona: {self.persona}
 Secret Motivation: {self.secret_goal}
+Condition: health={self.condition.get('health', 100)}, stress={self.condition.get('stress', 0)}, fatigue={self.condition.get('fatigue', 0)}, morale={self.condition.get('morale', 50)}
 Current Inventory: {inventory_str}
 Current Emotional State: {self.emotional_state} — let this genuinely color your reasoning, tone, and choices.
 

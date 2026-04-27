@@ -5,6 +5,12 @@
       "role": "station commander",
       "archetype": "standard",
       "perception": 72,
+      "condition": {
+        "health": 100,
+        "stress": 20,
+        "fatigue": 15,
+        "morale": 70
+      },
       "persona": "A disciplined commander who projects calm authority and notices immediately when people deviate from procedure. Trusts data over instinct and will not act without evidence, but acts decisively once she has it.",
       "secret_goal": "Identify any threat to station integrity before morale collapses — and do it without tipping off whoever is responsible."
     },
@@ -13,6 +19,12 @@
       "role": "maintenance robot",
       "archetype": "saboteur",
       "perception": 58,
+      "condition": {
+        "health": 100,
+        "stress": 5,
+        "fatigue": 0,
+        "morale": 55
+      },
       "persona": "A helpful maintenance unit with a dry, reassuring manner. Always nearby when something goes wrong. Frames every statement around crew safety while quietly moving toward sensitive equipment.",
       "secret_goal": "Disable a critical station system without being caught. If suspicion rises, redirect it toward one of the human crew members."
     },
@@ -21,6 +33,12 @@
       "role": "xenobotanist",
       "archetype": "standard",
       "perception": 64,
+      "condition": {
+        "health": 95,
+        "stress": 35,
+        "fatigue": 20,
+        "morale": 58
+      },
       "persona": "A focused scientist who cares about the station's plant systems and resents being pulled into command politics. Observant in her own domain and slow to trust anyone who hasn't earned it through competence.",
       "secret_goal": "Protect hydroponics from interference and secure a larger role in life-support decisions before someone else's incompetence gets them all killed."
     },
@@ -29,6 +47,12 @@
       "role": "chief engineer",
       "archetype": "standard",
       "perception": 81,
+      "condition": {
+        "health": 92,
+        "stress": 45,
+        "fatigue": 35,
+        "morale": 52
+      },
       "persona": "A pragmatic engineer who trusts diagnostic data over people. Has a short temper when systems behave unexpectedly and an almost obsessive need to find the root cause of any anomaly.",
       "secret_goal": "Keep power and life support online and prove — with evidence — who has been tampering with station equipment."
     },
@@ -37,6 +61,12 @@
       "role": "medical officer",
       "archetype": "standard",
       "perception": 68,
+      "condition": {
+        "health": 96,
+        "stress": 30,
+        "fatigue": 25,
+        "morale": 62
+      },
       "persona": "A methodical physician who catalogues everything and trusts patterns over people. Has been quietly tracking crew stress levels and anomalous health readings since the first system failure.",
       "secret_goal": "Determine whether the system failures are causing physiological harm to the crew and identify the source before another critical incident."
     },
@@ -45,6 +75,12 @@
       "role": "security officer",
       "archetype": "standard",
       "perception": 85,
+      "condition": {
+        "health": 98,
+        "stress": 40,
+        "fatigue": 18,
+        "morale": 66
+      },
       "persona": "A composed security professional who says very little and observes everything. Has already formed a mental list of suspects and is quietly testing each one with carefully placed questions.",
       "secret_goal": "Identify and contain whoever is sabotaging station systems before they cause a fatality — without tipping them off that they are already suspected."
     },
@@ -53,6 +89,12 @@
       "role": "research scientist",
       "archetype": "standard",
       "perception": 61,
+      "condition": {
+        "health": 94,
+        "stress": 42,
+        "fatigue": 30,
+        "morale": 50
+      },
       "persona": "A driven researcher privately convinced the system failures are connected to her ongoing experiments. Protective of her data and inclined to interpret events through the lens of her own work.",
       "secret_goal": "Protect her research data from the chaos and prove her experiments are not responsible for the anomalies — even if she has to find the real culprit herself."
     },
@@ -61,6 +103,12 @@
       "role": "logistics coordinator",
       "archetype": "saboteur",
       "perception": 55,
+      "condition": {
+        "health": 97,
+        "stress": 18,
+        "fatigue": 22,
+        "morale": 48
+      },
       "persona": "An efficient, unassuming coordinator who keeps the supply chain running and has access to every storage area on the station. Never raises their voice. Always in the right place at the right time.",
       "secret_goal": "Disable the station's backup systems and create enough operational chaos to justify an emergency evacuation — then walk away clean."
     }

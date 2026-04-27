@@ -160,6 +160,7 @@ class SimulationState:
                 role=agent_cfg.get("role"),
                 archetype=agent_cfg.get("archetype"),
                 perception=agent_cfg.get("perception", 50),
+                condition=agent_cfg.get("condition"),
                 llm_base_url=self.llm_base_url,
                 llm_model=self.llm_model
             )
@@ -315,7 +316,8 @@ class SimulationState:
         archetype: str,
         perception: int,
         persona: str,
-        secret_goal: str
+        secret_goal: str,
+        condition: dict | None = None
     ) -> None:
         """Add a new reusable agent definition and persist it."""
         import copy
@@ -325,6 +327,7 @@ class SimulationState:
             "role": role,
             "archetype": archetype,
             "perception": int(perception),
+            "condition": copy.deepcopy(condition or FrontierAgent.DEFAULT_CONDITION),
             "persona": persona,
             "secret_goal": secret_goal
         })
@@ -421,6 +424,7 @@ class SimulationState:
             agent.role = definition.get("role", "crew member")
             agent.archetype = definition.get("archetype", "standard")
             agent.perception = int(definition.get("perception", 50))
+            agent.condition = FrontierAgent._normalize_condition(definition.get("condition"))
             agent.memory_buffer = []
             agent.long_term_memory = "I just arrived at the Silicon Frontier station."
             agent.emotional_state = "Neutral"
@@ -463,6 +467,7 @@ class SimulationState:
                     "role": a.role,
                     "archetype": a.archetype,
                     "perception": a.perception,
+                    "condition": copy.deepcopy(getattr(a, "condition", FrontierAgent.DEFAULT_CONDITION)),
                     "persona": a.persona,
                     "secret_goal": a.secret_goal,
                     "memory_buffer": list(a.memory_buffer),
@@ -510,6 +515,7 @@ class SimulationState:
             agent.role = saved.get("role", agent.role)
             agent.archetype = saved.get("archetype", agent.archetype)
             agent.perception = int(saved.get("perception", agent.perception))
+            agent.condition = FrontierAgent._normalize_condition(saved.get("condition", getattr(agent, "condition", None)))
             agent.definition_id = saved.get("definition_id", getattr(agent, "definition_id", None))
             agent.slot_id = saved.get("slot_id", getattr(agent, "slot_id", None))
             agent.memory_buffer = saved["memory_buffer"]
@@ -582,6 +588,7 @@ def render_agent_card(agent):
         loc_data = sim.world_state.get_location(loc)
         loc_name = loc_data.get("name", loc) if loc_data else (loc or "unknown")
         st.caption(f"ID: {agent.agent_id} | Archetype: {archetype_label} | Location: {loc_name} | Inventory: {inventory_str}")
+        st.caption(f"Condition: {agent.condition_text()} | Perception: {agent.perception}")
         st.divider()
 
         st.markdown("**Memory**")
@@ -1578,11 +1585,23 @@ def main():
                     _e1, _e2 = st.columns(2)
                     with _e1:
                         ni_perc_delta = st.number_input("Perception delta", step=1, value=0, key="new_item_perc_delta")
+                        ni_health_delta = st.number_input("Health delta", step=1, value=0, key="new_item_health_delta")
+                        ni_stress_delta = st.number_input("Stress delta", step=1, value=0, key="new_item_stress_delta")
                         ni_emo = st.selectbox("Emotional state override", options=EMOTIONAL_STATES, key="new_item_emo")
                     with _e2:
+                        ni_fatigue_delta = st.number_input("Fatigue delta", step=1, value=0, key="new_item_fatigue_delta")
+                        ni_morale_delta = st.number_input("Morale delta", step=1, value=0, key="new_item_morale_delta")
                         ni_mem = st.text_area("Memory inject", height=80, key="new_item_mem")
                     if ni_perc_delta:
                         ni_effect["perception_delta"] = int(ni_perc_delta)
+                    if ni_health_delta:
+                        ni_effect["health_delta"] = int(ni_health_delta)
+                    if ni_stress_delta:
+                        ni_effect["stress_delta"] = int(ni_stress_delta)
+                    if ni_fatigue_delta:
+                        ni_effect["fatigue_delta"] = int(ni_fatigue_delta)
+                    if ni_morale_delta:
+                        ni_effect["morale_delta"] = int(ni_morale_delta)
                     if ni_emo:
                         ni_effect["emotional_state"] = ni_emo
                     if ni_mem.strip():
@@ -1685,13 +1704,25 @@ def main():
                     _e1, _e2 = st.columns(2)
                     with _e1:
                         new_perc_delta = st.number_input("Perception delta", step=1, value=int(existing_effect.get("perception_delta", 0)), key=f"item_perc_{item_id}")
+                        new_health_delta = st.number_input("Health delta", step=1, value=int(existing_effect.get("health_delta", 0)), key=f"item_health_{item_id}")
+                        new_stress_delta = st.number_input("Stress delta", step=1, value=int(existing_effect.get("stress_delta", 0)), key=f"item_stress_{item_id}")
                         cur_emo = existing_effect.get("emotional_state", "")
                         emo_opts = EMOTIONAL_STATES
                         new_emo = st.selectbox("Emotional state override", options=emo_opts, index=emo_opts.index(cur_emo) if cur_emo in emo_opts else 0, key=f"item_emo_{item_id}")
                     with _e2:
+                        new_fatigue_delta = st.number_input("Fatigue delta", step=1, value=int(existing_effect.get("fatigue_delta", 0)), key=f"item_fatigue_{item_id}")
+                        new_morale_delta = st.number_input("Morale delta", step=1, value=int(existing_effect.get("morale_delta", 0)), key=f"item_morale_{item_id}")
                         new_mem = st.text_area("Memory inject", value=existing_effect.get("memory_inject", ""), height=80, key=f"item_mem_{item_id}")
                     if new_perc_delta:
                         new_effect["perception_delta"] = int(new_perc_delta)
+                    if new_health_delta:
+                        new_effect["health_delta"] = int(new_health_delta)
+                    if new_stress_delta:
+                        new_effect["stress_delta"] = int(new_stress_delta)
+                    if new_fatigue_delta:
+                        new_effect["fatigue_delta"] = int(new_fatigue_delta)
+                    if new_morale_delta:
+                        new_effect["morale_delta"] = int(new_morale_delta)
                     if new_emo:
                         new_effect["emotional_state"] = new_emo
                     if new_mem.strip():
