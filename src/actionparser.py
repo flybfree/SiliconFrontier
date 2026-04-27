@@ -93,9 +93,46 @@ class ActionParser:
                 f"Connected locations: {', '.join(connected) if connected else 'none'}."
             )
 
+        has_access, access_message = self._check_location_access(agent.agent_id, dest_info)
+        if not has_access:
+            return False, access_message
+
         # Execute move
         self.world.set_agent_location(agent.agent_id, target)
         return True, f"Success: You moved to {target}."
+
+    def _check_location_access(self, agent_id: str, location_data: dict[str, Any]) -> tuple[bool, str]:
+        """Check optional item-gated access requirements for a destination."""
+        required_items = location_data.get("requires_item") or location_data.get("requires_items")
+        if not required_items:
+            return True, ""
+
+        if isinstance(required_items, str):
+            required = [required_items]
+        else:
+            required = [str(item) for item in required_items if str(item).strip()]
+
+        if not required:
+            return True, ""
+
+        carried = self.world.find_items_by_owner(agent_id)
+        for required_item in required:
+            if any(
+                item.get("id") == required_item
+                or required_item.lower() in item.get("name", "").lower()
+                for item in carried
+            ):
+                return True, ""
+
+        denied = location_data.get("access_denied_message") or location_data.get("access_denied_memory")
+        if denied:
+            return False, f"Failure: {denied}"
+
+        location_name = location_data.get("name", "that location")
+        return False, (
+            f"Failure: {location_name} requires access item: "
+            f"{', '.join(required)}."
+        )
 
     def _handle_say(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
         """Handle SAY action - returns success but actual broadcasting is done by Orchestrator."""
@@ -498,13 +535,31 @@ class ActionParser:
 
     # Validation utilities for Orchestrator to use before executing actions
     @staticmethod
-    def validate_move(current_loc: str, target: str, world_state: WorldState) -> tuple[bool, str]:
+    def validate_move(current_loc: str, target: str, world_state: WorldState, agent_id: str | None = None) -> tuple[bool, str]:
         """Pre-validate a MOVE action without executing."""
-        if not world_state.get_location(target):
+        dest_info = world_state.get_location(target)
+        if not dest_info:
             return False, f"Location '{target}' does not exist."
 
         if not world_state.is_adjacent(current_loc, target):
             return False, f"'{target}' is not connected to '{current_loc}'."
+
+        if agent_id:
+            required_items = dest_info.get("requires_item") or dest_info.get("requires_items")
+            if required_items:
+                if isinstance(required_items, str):
+                    required = [required_items]
+                else:
+                    required = [str(item) for item in required_items if str(item).strip()]
+                carried = world_state.find_items_by_owner(agent_id)
+                has_access = any(
+                    item.get("id") == required_item
+                    or required_item.lower() in item.get("name", "").lower()
+                    for required_item in required
+                    for item in carried
+                )
+                if not has_access:
+                    return False, f"'{target}' requires access item: {', '.join(required)}."
 
         return True, ""
 

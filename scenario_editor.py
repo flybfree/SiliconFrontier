@@ -1099,6 +1099,9 @@ def render_tab_locations() -> None:
                         "connected_to": n_conn,
                         "status_effects": status_effects,
                     }
+                    for access_key in ("requires_item", "requires_items", "access_denied_message", "access_denied_memory"):
+                        if access_key in loc:
+                            locations[loc_id][access_key] = loc[access_key]
                     if systems:
                         locations[loc_id]["systems"] = systems
                     _mark_dirty()

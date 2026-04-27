@@ -89,7 +89,7 @@ world_data = {
         },
         "engineering": {
             "name": "Engineering",
-            "connected_to": [],
+            "connected_to": ["secure_airlock"],
             "status_effects": [],
             "systems": {
                 "reactor_control": {
@@ -99,6 +99,13 @@ world_data = {
                     "required_tool": "plasma_wrench"
                 }
             }
+        },
+        "secure_airlock": {
+            "name": "Secure Airlock",
+            "connected_to": ["engineering"],
+            "status_effects": [],
+            "requires_item": "access_badge",
+            "access_denied_message": "The airlock rejects your credentials."
         }
     },
     "items": {
@@ -127,6 +134,12 @@ world_data = {
                 "inspection_text": "Life support shows oxygen flow instability.",
                 "fact_id": "diagnostic:life_support_console"
             }
+        },
+        "access_badge": {
+            "name": "Access Badge",
+            "location": "engineering",
+            "owner": None,
+            "portable": True
         }
     },
     "agents": {
@@ -296,5 +309,24 @@ facts = world.get_known_facts("unit7")
 check("USE records diagnostic fact", "diagnostic:life_support_console" in facts, str(list(facts)), expect_success=True)
 still_owned = any(item["id"] == "oxygen_scanner" for item in world.find_items_by_owner("unit7"))
 check("Durable scanner remains in inventory", still_owned, str(still_owned), expect_success=True)
+
+
+# ---------------------------------------------------------------------------
+# TEST 6 — optional access-gated movement
+# ---------------------------------------------------------------------------
+print("\n=== TEST 6: optional access-gated movement ===")
+
+world._data["agents"]["unit7"]["location"] = "engineering"
+world._data["items"]["access_badge"]["owner"] = None
+world._data["items"]["access_badge"]["location"] = "engineering"
+if "access_badge" in world._data["agents"]["unit7"].setdefault("inventory", []):
+    world._data["agents"]["unit7"]["inventory"].remove("access_badge")
+
+ok, msg = parser.execute(unit7, {"action": "MOVE", "action_target": "secure_airlock"})
+check("MOVE into secure_airlock blocked without access badge", ok, msg, expect_success=False)
+
+world.add_item_to_agent_inventory("unit7", "access_badge")
+ok, msg = parser.execute(unit7, {"action": "MOVE", "action_target": "secure_airlock"})
+check("MOVE into secure_airlock succeeds with access badge", ok, msg, expect_success=True)
 
 print()

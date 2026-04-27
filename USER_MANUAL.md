@@ -203,6 +203,7 @@ Important constraints:
 - Agents can only see items in their current location.
 - Agents can only talk to agents in the same location.
 - Movement only succeeds if the destination is listed under the current location's `connected_to`. Valid exits are shown explicitly in each agent's situation report.
+- Some destinations can optionally require an access item. This is configured per location and only applies where the scenario sets `requires_item` or `requires_items`.
 - Pickup only succeeds if the item is in the current room and is portable.
 - Each agent has a two-slot inventory: one item in hand and one concealed on their person. See [Inventory](#inventory) below.
 - Agent prompts include local system status plus a station-wide list of any systems whose status is not `ONLINE`.
@@ -634,9 +635,30 @@ Each location should define:
 - `description`
 - `connected_to`
 - `status_effects`
+- optional `requires_item` or `requires_items`
+- optional `access_denied_message`
 - optional `systems`
 
 Connections should be kept logically consistent. If `A` connects to `B`, add the reverse link too unless you intentionally want one-way travel semantics in the data.
+
+Access-gated movement is optional and destination-based. If a destination has `requires_item`, an agent must be carrying an item whose ID or name matches that requirement before `MOVE` succeeds:
+
+```json
+"secure_airlock": {
+  "name": "Secure Airlock",
+  "description": "A restricted staging area before the external lock.",
+  "connected_to": ["engineering"],
+  "status_effects": ["vacuum_adjacent"],
+  "requires_item": "access_badge_master",
+  "access_denied_message": "The airlock door rejects your credentials."
+}
+```
+
+Use `requires_items` when any one of several items should grant access:
+
+```json
+"requires_items": ["access_badge_master", "commander_id_card"]
+```
 
 Example system block:
 

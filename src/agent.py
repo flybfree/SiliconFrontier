@@ -140,7 +140,18 @@ class FrontierAgent:
         location_name = loc.get("name", "Unknown") if loc else "Unknown"
         location_desc = loc.get("description", "") if loc else ""
         connected = loc.get("connected_to", []) if loc else []
-        exits_str = ", ".join(connected) if connected else "none"
+        locations = world_snapshot.get("locations", {})
+        exit_labels = []
+        for loc_id in connected:
+            dest = locations.get(loc_id, {})
+            required = dest.get("requires_item") or dest.get("requires_items")
+            if isinstance(required, list):
+                required_text = ", ".join(str(item) for item in required)
+            else:
+                required_text = str(required) if required else ""
+            suffix = f" (requires: {required_text})" if required_text else ""
+            exit_labels.append(f"{loc_id}{suffix}")
+        exits_str = ", ".join(exit_labels) if exit_labels else "none"
         location_effects = loc.get("status_effects", []) if loc else []
         location_effects_str = ", ".join(location_effects) if location_effects else "None"
 

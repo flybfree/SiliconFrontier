@@ -114,6 +114,8 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **Conceal / Produce** — agents can move items between their hand slot and concealed person slot, managing what is visible to others.
 
+**Access-gated movement** — locations can optionally declare `requires_item` or `requires_items`; only those destinations require a matching carried item.
+
 **System telemetry** — prompts include local system status plus any non-`ONLINE` systems known elsewhere on the station.
 
 **Tool-gated systems** — systems can optionally require one tool for `REPAIR`, one tool for `SABOTAGE`, or the same tool for both via `required_tool_repair` and `required_tool_sabotage`.
@@ -249,6 +251,7 @@ The single source of truth for all simulation state. Nothing exists unless it is
 | `get_location(loc_id)` / `add_location(...)` | Read or create a location |
 | `get_location_systems(loc_id)` / `set_system_status(loc_id, system_id, status)` | Read or update a system inside a location |
 | `is_adjacent(from_loc, to_loc)` | Check whether two locations are connected |
+| location `requires_item` / `requires_items` | Optional movement gate checked when entering a destination |
 | `get_item(item_id)` / `add_item(...)` | Read or create an item |
 | `find_items_by_location(loc_id)` / `find_items_by_owner(agent_id)` | Query items by where they are or who holds them |
 | `set_item_hidden(item_id, hidden)` | Toggle concealment flag (used by CONCEAL / PRODUCE actions) |

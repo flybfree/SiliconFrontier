@@ -345,6 +345,14 @@ class WorldState:
                 "id": loc,
                 **location_data
             } if location_data else None,
+            "locations": {
+                location_id: {
+                    "name": data.get("name", location_id),
+                    "requires_item": data.get("requires_item"),
+                    "requires_items": data.get("requires_items")
+                }
+                for location_id, data in self.locations.items()
+            },
             "visible_items": [
                 {"id": iid, **item}
                 for iid, item in self.items.items()
