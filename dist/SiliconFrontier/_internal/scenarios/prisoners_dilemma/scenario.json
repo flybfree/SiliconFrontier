@@ -69,6 +69,10 @@
   "resolution_rules": {
     "type": "prisoners_dilemma",
     "default_decision": "silent",
+    "terminal": {
+      "enabled": true,
+      "requires_fired_threshold": "final_pressure"
+    },
     "agents": {
       "detainee_nova": {
         "label": "Nova Reed"

@@ -183,7 +183,8 @@ class SimulationState:
             action_parser=action_parser,
             social_matrix=social_matrix,
             reflection_interval=5,
-            progression_config=self.scenario_manifest.get("progression")
+            progression_config=self.scenario_manifest.get("progression"),
+            resolution_config=self.scenario_manifest.get("resolution_rules")
         )
 
     def initialize(self, config_dir: str = "data", llm_url: str | None = None, llm_model: str | None = None):
@@ -400,6 +401,8 @@ class SimulationState:
         results = self.orchestrator.run_cycle()
         self.results_history.extend(results)
         self.current_cycle += 1
+        if getattr(self.orchestrator, "terminal_state", {}).get("resolved"):
+            self.stop()
 
     def reset_locations(self) -> None:
         """Restore locations to baseline from original world_state.json."""
@@ -463,6 +466,7 @@ class SimulationState:
             "simulation_slots": copy.deepcopy(self.simulation_slots),
             "scenario_manifest": copy.deepcopy(self.scenario_manifest),
             "progression_state": copy.deepcopy(getattr(self.orchestrator, "progression_state", {})),
+            "terminal_state": copy.deepcopy(getattr(self.orchestrator, "terminal_state", {})),
             "agents": [
                 {
                     "agent_id": a.agent_id,
@@ -542,6 +546,9 @@ class SimulationState:
         self.orchestrator.progression_state = copy.deepcopy(
             data.get("progression_state", getattr(self.orchestrator, "progression_state", {}))
         )
+        self.orchestrator.terminal_state = copy.deepcopy(
+            data.get("terminal_state", getattr(self.orchestrator, "terminal_state", {"resolved": False}))
+        )
         self.current_cycle = data["metadata"]["cycle"]
         self.orchestrator.cycle_count = data["metadata"]["cycle"]
         self.results_history = list(data["event_log"])
@@ -576,6 +583,9 @@ def process_queued_cycles() -> None:
     except Exception as e:
         sim.stop()
         st.error(f"Error on cycle {sim.current_cycle}: {e}")
+        return
+
+    if not sim.is_running:
         return
 
     sim.pending_cycles -= 1
@@ -1239,6 +1249,7 @@ def main():
                 sim.reset_items()
                 sim.reset_locations()
                 sim.orchestrator.event_log.clear()
+                sim.orchestrator.terminal_state = {"resolved": False}
                 sim.results_history.clear()
                 sim.current_cycle = 0
                 sim.orchestrator.cycle_count = 0
@@ -1531,7 +1542,10 @@ def main():
                             format_func=_tool_label,
                             key=f"loc_add_sys_sabotage_tool_{loc_id}"
                         )
-                    add_system_submitted = st.form_submit_button("Add System")
+                    add_system_submitted = st.form_submit_button(
+                        "Add System",
+                        key=f"loc_add_system_submit_{loc_id}"
+                    )
                 if sys_to_delete and sys_to_delete in updated_systems:
                     del updated_systems[sys_to_delete]
                     loc_data["systems"] = updated_systems

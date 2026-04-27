@@ -172,7 +172,8 @@ def run_demo_simulation(
         action_parser=action_parser,
         social_matrix=social_matrix,
         reflection_interval=5,  # Reflect every 5 cycles
-        progression_config=scenario_manifest.get("progression")
+        progression_config=scenario_manifest.get("progression"),
+        resolution_config=scenario_manifest.get("resolution_rules")
     )
 
     # Run simulation

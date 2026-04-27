@@ -27,7 +27,8 @@ class Orchestrator:
         action_parser,
         social_matrix,
         reflection_interval: int = 5,
-        progression_config: dict[str, Any] | None = None
+        progression_config: dict[str, Any] | None = None,
+        resolution_config: dict[str, Any] | None = None
     ):
         """
         Initialize the orchestrator.
@@ -39,6 +40,7 @@ class Orchestrator:
             social_matrix: SocialMatrix instance for relationship tracking
             reflection_interval: Number of cycles before agent reflects/summarizes memory
             progression_config: Optional scenario pressure/progression rules
+            resolution_config: Optional scenario resolution rules
         """
         self.agents = agents
         self.world = world_state
@@ -46,10 +48,14 @@ class Orchestrator:
         self.social = social_matrix
         self.reflection_interval = reflection_interval
         self.progression_config = progression_config if isinstance(progression_config, dict) else {}
+        self.resolution_config = resolution_config if isinstance(resolution_config, dict) else {}
         self.progression_state = {
             "stall_score": 0,
             "fired_thresholds": [],
             "history": []
+        }
+        self.terminal_state = {
+            "resolved": False
         }
         self.social.initialize_from_world(self.world)
         self.social.ensure_agent_network([agent.agent_id for agent in self.agents])
@@ -62,6 +68,63 @@ class Orchestrator:
 
         # Cycle counter
         self.cycle_count = 0
+
+    def _terminal_resolution_enabled(self) -> bool:
+        terminal_config = self.resolution_config.get("terminal", {})
+        return bool(terminal_config.get("enabled")) and self.resolution_config.get("type") == "prisoners_dilemma"
+
+    def _terminal_threshold_satisfied(self) -> bool:
+        terminal_config = self.resolution_config.get("terminal", {})
+        required_threshold = terminal_config.get("requires_fired_threshold")
+        if not required_threshold:
+            return True
+        return str(required_threshold) in {
+            str(item) for item in self.progression_state.get("fired_thresholds", [])
+        }
+
+    def _update_terminal_resolution(self) -> dict[str, Any] | None:
+        """Finalize an opt-in scenario once all required agents have scorable decisions."""
+        if self.terminal_state.get("resolved") or not self._terminal_resolution_enabled():
+            return None
+        if not self._terminal_threshold_satisfied():
+            return None
+
+        try:
+            from scenario_resolution import evaluate_prisoners_dilemma
+        except Exception:
+            return None
+
+        result = evaluate_prisoners_dilemma(self.event_log, self.resolution_config)
+        agents = list(self.resolution_config.get("agents", {}).keys())
+        if not agents:
+            agents = [agent.agent_id for agent in self.agents]
+        decisive_events = result.get("decisive_events", {})
+        if not all(agent_id in decisive_events for agent_id in agents):
+            return None
+
+        self.terminal_state = {
+            "resolved": True,
+            "cycle": self.cycle_count,
+            "result": result
+        }
+        sentences = result.get("sentences_years", {})
+        sentence_text = ", ".join(f"{agent_id}: {years} years" for agent_id, years in sentences.items())
+        terminal_entry = {
+            "cycle": self.cycle_count,
+            "agent_id": "scenario",
+            "agent_name": "Scenario Resolution",
+            "action": "RESOLUTION",
+            "target": result.get("outcome", ""),
+            "success": True,
+            "feedback": f"Scenario resolved as {result.get('outcome')}. {sentence_text}",
+            "monologue": "",
+            "emotional_state": "",
+            "structured_output_status": "n/a",
+            "resolution": result
+        }
+        self.event_log.append(terminal_entry)
+        print(f"  [Resolution] {terminal_entry['feedback']}")
+        return terminal_entry
 
     def _is_progression_enabled(self) -> bool:
         """Return whether scenario pressure progression is active."""
@@ -845,6 +908,10 @@ class Orchestrator:
             cycle_results.append(result_entry)
             pressure_results = self._update_progression_pressure(agent, action, target, success)
             cycle_results.extend(pressure_results)
+            terminal_entry = self._update_terminal_resolution()
+            if terminal_entry:
+                cycle_results.append(terminal_entry)
+                break
 
         # Check for reflection trigger
         if self.cycle_count % self.reflection_interval == 0:
@@ -906,6 +973,8 @@ class Orchestrator:
         for _ in range(rounds):
             cycle_results = self.run_cycle()
             all_results.append(cycle_results)
+            if self.terminal_state.get("resolved"):
+                break
 
             if delay_seconds > 0:
                 time.sleep(delay_seconds)

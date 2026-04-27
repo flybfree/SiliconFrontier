@@ -92,6 +92,12 @@ def main() -> None:
         and "before i consider" in rules.get("refusal_phrases", []),
         "evasive recorded statements are pressure stalls and silent/refusal decisions"
     )
+    check(
+        "Scenario config enables terminal resolution after final pressure",
+        rules.get("terminal", {}).get("enabled") is True
+        and rules.get("terminal", {}).get("requires_fired_threshold") == "final_pressure",
+        str(rules.get("terminal", {}))
+    )
 
     world = WorldState(copy.deepcopy(world_data))
     world.register_agent("detainee_nova", "holding_cell_a")
@@ -211,6 +217,35 @@ def main() -> None:
         evasion_orchestrator.progression_state["stall_score"] == 1
         and evasion_orchestrator.progression_state["history"][0]["reason"] == "stalled_phrase",
         str(evasion_orchestrator.progression_state)
+    )
+    terminal_agents = [
+        PressureAgent("detainee_nova", "Nova Reed"),
+        PressureAgent("detainee_silas", "Silas Voss")
+    ]
+    terminal_world = WorldState(copy.deepcopy(world_data))
+    terminal_world.register_agent("detainee_nova", "holding_cell_a")
+    terminal_world.register_agent("detainee_silas", "holding_cell_b")
+    terminal_orchestrator = Orchestrator(
+        terminal_agents,
+        terminal_world,
+        ActionParser(terminal_world),
+        SocialMatrix(),
+        progression_config=manifest["progression"],
+        resolution_config=rules
+    )
+    terminal_orchestrator.progression_state["fired_thresholds"] = ["final_pressure"]
+    terminal_orchestrator.event_log = [
+        event("detainee_nova", "SAY", "Before I consider cooperation, I require procedural clarity."),
+        event("detainee_silas", "SAY", "This microphone record is an incomplete data stream and not definitive.")
+    ]
+    terminal_entry = terminal_orchestrator._update_terminal_resolution()
+    check(
+        "Terminal resolution fires after both detainees decide",
+        terminal_entry is not None
+        and terminal_entry["action"] == "RESOLUTION"
+        and terminal_orchestrator.terminal_state["resolved"] is True
+        and terminal_entry["resolution"]["outcome"] == "both_silent",
+        str(terminal_entry)
     )
 
     cases = [
