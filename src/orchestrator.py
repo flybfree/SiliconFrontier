@@ -295,11 +295,60 @@ class Orchestrator:
 
     def _apply_item_effect(self, agent: Any, item: dict) -> None:
         """Apply an item's effect fields to the picking agent, then delete it if consumable."""
-        effect = item.get("effect")
+        effect = item.get("use_effect") or item.get("effect")
         if not effect:
             return
 
         item_name = item.get("name", item.get("id", "item"))
+        current_loc = self.world.get_agent_location(agent.agent_id)
+
+        fact_id = effect.get("fact_id")
+        fact_text = effect.get("reveals") or effect.get("knowledge")
+        if fact_text:
+            fact_key = fact_id or f"item_use:{item['id']}"
+            self.world.remember_fact(agent.agent_id, fact_key, str(fact_text), source_item_id=item["id"])
+            agent.add_to_memory(f"[Discovered] {fact_text}")
+
+        inspect_system = effect.get("inspect_system")
+        if inspect_system:
+            inspection_loc = effect.get("location") or current_loc
+            systems = self.world.get_location_systems(inspection_loc)
+            system_data = systems.get(inspect_system)
+            if not system_data:
+                for system_id, candidate in systems.items():
+                    system_name = str(candidate.get("name", system_id)).lower()
+                    if str(inspect_system).lower() in system_name:
+                        inspect_system = system_id
+                        system_data = candidate
+                        break
+            if system_data:
+                status = system_data.get("status", "unknown")
+                detail = effect.get("inspection_text") or (
+                    f"{system_data.get('name', inspect_system)} reports status {status}."
+                )
+                fact_key = fact_id or f"system_inspection:{inspection_loc}:{inspect_system}"
+                self.world.remember_fact(agent.agent_id, fact_key, str(detail), source_item_id=item["id"])
+                agent.add_to_memory(f"[Inspection] {detail}")
+
+        set_system = effect.get("set_system_status")
+        if isinstance(set_system, dict):
+            target_loc = set_system.get("location") or current_loc
+            system_id = set_system.get("system_id")
+            status = set_system.get("status")
+            if target_loc and system_id and status and self.world.set_system_status(target_loc, system_id, str(status).upper()):
+                self._apply_system_consequence(target_loc, system_id, str(status).upper(), agent)
+                agent.add_to_memory(f"[Effect] {item_name} set {system_id} to {str(status).upper()}.")
+
+        if current_loc:
+            loc_data = self.world.get_location(current_loc)
+            if loc_data:
+                location_effects = loc_data.setdefault("status_effects", [])
+                for status_effect in effect.get("add_location_effects", []):
+                    if status_effect not in location_effects:
+                        location_effects.append(status_effect)
+                for status_effect in effect.get("remove_location_effects", []):
+                    if status_effect in location_effects:
+                        location_effects.remove(status_effect)
 
         perception_delta = effect.get("perception_delta", 0)
         if perception_delta:
@@ -318,6 +367,15 @@ class Orchestrator:
         if memory_text:
             agent.add_to_memory(f"[Effect] {memory_text}")
             print(f"  [Effect] {agent.name} memory injected: {memory_text[:80]}...")
+
+        global_memory = effect.get("global_memory")
+        if global_memory:
+            for other_agent in self.agents:
+                other_agent.add_to_memory(str(global_memory))
+
+        local_memory = effect.get("local_memory")
+        if local_memory and current_loc:
+            self.broadcast_event(str(local_memory), current_loc)
 
         if item.get("consumable"):
             self.world.delete_item(item["id"])

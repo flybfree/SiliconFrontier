@@ -736,6 +736,7 @@ Each item supports:
 - `fact_id` — optional stable ID for the knowledge fact; defaults to `item:<item_id>`
 - `return_required` — optional boolean; forces the agent to drop the item after reading
 - `on_read` — optional object; supports `{"force_drop": true}` for clue-specific return obligations
+- `use_effect` — optional object; allows a durable item to do something when used without being deleted
 - `consumable` — optional boolean; allows the `USE` action to apply the item's `effect` and then delete it
 - `effect` — optional object; defines what `USE` does (see [USE Action](#use-action))
 
@@ -792,19 +793,34 @@ This is useful for private coordination, covert deals, or saboteur signaling wit
 
 ## USE Action
 
-`USE` consumes a held consumable item and applies its effects.
+`USE` applies a held item's configured effect. Consumables use `effect` and are deleted afterward; durable tools use `use_effect` and remain in inventory.
 
-- Only items with `consumable: true` can be used.
+- An item can be used if it has `consumable: true` or a `use_effect` object.
 - The item must be in the agent's hand slot (not concealed on person).
-- On success, the item's `effect` fields are applied and the item is deleted from the world.
+- On success, the item's effect fields are applied. Consumable items are then deleted from the world.
 
-Effect fields (all optional):
+Shared effect fields (all optional):
 
 | Field | Type | Effect |
 |---|---|---|
 | `perception_delta` | signed integer | Adjusts the agent's `perception` score. Clamped to [0, 100]. |
 | `emotional_state` | string | Overrides the agent's current emotional state. Must be one of: `Calm`, `Alert`, `Anxious`, `Fearful`, `Angry`, `Hopeful`, `Suspicious`, `Confident`, `Resigned`, `Determined`, `Neutral`. |
 | `memory_inject` | string | Appends a memory string directly to the agent's short-term buffer as if they experienced it. |
+| `reveals` / `knowledge` | string | Records a known fact for the acting agent and appends a `[Discovered]` memory. |
+| `fact_id` | string | Stable ID for the recorded fact. Defaults to `item_use:<item_id>` or a system-inspection ID. |
+| `global_memory` | string | Appends a memory to every agent. |
+| `local_memory` | string | Appends a memory to agents in the current location. |
+| `add_location_effects` | list | Adds environmental tags to the current location. |
+| `remove_location_effects` | list | Removes environmental tags from the current location. |
+
+Durable `use_effect` additionally supports:
+
+| Field | Type | Effect |
+|---|---|---|
+| `inspect_system` | string | Reads a local system by ID or name and records a diagnostic fact. |
+| `inspection_text` | string | Custom fact text for `inspect_system`; defaults to the system's current status. |
+| `location` | string | Optional location ID for `inspect_system` or `set_system_status`; defaults to the actor's current location. |
+| `set_system_status` | object | Changes a system status, then applies that system's configured consequences. Shape: `{"location": "engineering", "system_id": "reactor_control", "status": "DEGRADED"}`. |
 
 Example:
 
@@ -818,6 +834,21 @@ Example:
     "perception_delta": 20,
     "emotional_state": "Alert",
     "memory_inject": "Your thoughts are suddenly faster, edges sharper."
+  }
+}
+```
+
+Durable tool example:
+
+```json
+"oxygen_scanner": {
+  "name": "Oxygen Scanner",
+  "description": "A handheld atmospheric diagnostic tool.",
+  "portable": true,
+  "use_effect": {
+    "inspect_system": "oxygen_generator",
+    "inspection_text": "The oxygen generator shows signs of manual tampering.",
+    "fact_id": "diagnostic:oxygen_generator"
   }
 }
 ```
@@ -1039,7 +1070,7 @@ Check:
 - the item exists in the same room
 - the item is portable
 - the agent's hand slot is free before attempting `PICKUP`, `DEMAND`, or `USE`
-- `USE` requires the item to have `consumable: true`
+- `USE` requires the item to have `consumable: true` or `use_effect`
 - `WHISPER`, `GIVE`, and `SHOW` target format is `content -> agent_id`
 - the model is returning valid JSON with one of the allowed actions
 

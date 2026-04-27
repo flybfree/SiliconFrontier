@@ -108,6 +108,8 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **Consumable items** — items with `consumable: true` can be consumed with the `USE` action, applying `effect` fields (`perception_delta`, `emotional_state`, `memory_inject`) and deleting the item.
 
+**Durable item effects** — non-consumable tools can define `use_effect` so `USE` can inspect systems, reveal facts, alter system status, broadcast memories, or change location effects without deleting the item.
+
 **Whisper** — private directed communication to one agent in the room; bystanders see only that a whisper occurred.
 
 **Conceal / Produce** — agents can move items between their hand slot and concealed person slot, managing what is visible to others.
@@ -273,7 +275,7 @@ Validates and executes every action the LLM returns. It is the primary mutation 
 | `_handle_give` / `_handle_demand` | Transfer items between agents with slot enforcement |
 | `_handle_say` / `_handle_lie` | Validate non-empty speech; broadcasting is done by the orchestrator |
 | `_handle_whisper` | Validate presence of target agent; delivery and social update done by orchestrator |
-| `_handle_use` | Validate item is held and consumable; effect application done by orchestrator |
+| `_handle_use` | Validate item is held and has either `consumable` or `use_effect`; effect application done by orchestrator |
 | `_handle_sabotage` | Saboteur-only; requires solitude; sets system status to `BROKEN` |
 | `_handle_repair` | Any agent; restores a local `OFFLINE` or `BROKEN` system to `ONLINE` |
 | `_handle_conceal` | Move item from hand slot to concealed person slot |
@@ -350,6 +352,6 @@ See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flag
 - **Agent library** — browse `library/agents.json`, add agents to the current scenario with one click, push edits back to the library; agents and items are both reusable assets
 - Agent definition editor — name, role, archetype, perception slider, persona, secret goal
 - Simulation slot editor — assign definitions to slots with location and inventory dropdowns
-- Item editor — inline items and library placements, with conditional fields for hidden knowledge, return obligations, and consumable effects
+- Item editor — inline items and library placements, with conditional fields for hidden knowledge, return obligations, durable use effects, and consumable effects
 - Location editor — connections multiselect, status effects, inline system add/remove
 - Relationship editor — preset dropdowns for each directed agent pair with descriptions inline

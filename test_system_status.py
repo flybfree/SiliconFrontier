@@ -116,10 +116,21 @@ world_data = {
             "hidden": True,
             "knowledge": "The reactor was accessed with an override code.",
             "on_read": {"force_drop": True}
+        },
+        "oxygen_scanner": {
+            "name": "Oxygen Scanner",
+            "location": "unit7",
+            "owner": "unit7",
+            "portable": True,
+            "use_effect": {
+                "inspect_system": "life_support_console",
+                "inspection_text": "Life support shows oxygen flow instability.",
+                "fact_id": "diagnostic:life_support_console"
+            }
         }
     },
     "agents": {
-        "unit7": {"location": "command_deck"},
+        "unit7": {"location": "command_deck", "inventory": ["oxygen_scanner"]},
         "engineer_torres": {"location": "engineering"}
     },
     "relationships": {},
@@ -151,6 +162,8 @@ orchestrator = Orchestrator(
 def _hand_items(agent_id):
     if agent_id == "engineer_torres":
         return [{"id": "plasma_wrench", "name": "Plasma Wrench"}]
+    if agent_id == "unit7":
+        return [item for item in world.find_items_by_owner("unit7") if not item.get("hidden")]
     return []
 
 parser._hand_items = _hand_items
@@ -258,5 +271,30 @@ print(f"         engineer_torres known facts: {list(engineer_facts)}")
 shared = "item:hidden_log" in engineer_facts
 status = PASS if shared else FAIL
 print(f"  [{status}] engineer_torres received item:hidden_log")
+
+
+# ---------------------------------------------------------------------------
+# TEST 5 — durable USE effects
+# ---------------------------------------------------------------------------
+print("\n=== TEST 5: durable USE effects ===")
+
+world._data["agents"]["unit7"]["location"] = "command_deck"
+world._data["items"]["oxygen_scanner"]["owner"] = "unit7"
+world._data["items"]["oxygen_scanner"]["location"] = "unit7"
+if "oxygen_scanner" not in world._data["agents"]["unit7"].setdefault("inventory", []):
+    world._data["agents"]["unit7"]["inventory"].append("oxygen_scanner")
+
+ok, msg = parser.execute(unit7, {"action": "USE", "action_target": "Oxygen Scanner"})
+check("USE Oxygen Scanner succeeds without consuming it", ok, msg, expect_success=True)
+if ok:
+    used_item = next(
+        (item for item in world.find_items_by_owner("unit7") if item["id"] == "oxygen_scanner"),
+        None
+    )
+    orchestrator._apply_item_effect(unit7, used_item)
+facts = world.get_known_facts("unit7")
+check("USE records diagnostic fact", "diagnostic:life_support_console" in facts, str(list(facts)), expect_success=True)
+still_owned = any(item["id"] == "oxygen_scanner" for item in world.find_items_by_owner("unit7"))
+check("Durable scanner remains in inventory", still_owned, str(still_owned), expect_success=True)
 
 print()
