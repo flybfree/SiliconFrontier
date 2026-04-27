@@ -177,6 +177,27 @@ class Orchestrator:
 
         return fired
 
+    def _agent_holds_item(self, agent_id: str, item_id: str) -> bool:
+        """Return whether an item is currently in an agent inventory."""
+        return any(item.get("id") == item_id for item in self.world.find_items_by_owner(agent_id))
+
+    def _apply_read_side_effects(self, agent: Any, target: str) -> None:
+        """Apply memory and return-obligation side effects after a successful READ."""
+        item_name = target.strip()
+        item = self.parser._find_accessible_item(agent.agent_id, item_name)
+        if not item:
+            return
+
+        knowledge = item.get("knowledge")
+        if knowledge:
+            agent.add_to_memory(f"[Discovered] {knowledge}")
+
+        requires_return = item.get("return_required") or item.get("on_read", {}).get("force_drop")
+        if requires_return and self._agent_holds_item(agent.agent_id, item["id"]):
+            agent.pending_drop = item["id"]
+            agent.pending_drop_name = item["name"]
+            print(f"  [Return Required] {agent.name} must return {item['name']} after reading.")
+
     def broadcast_event(self, message: str, location: str, exclude_agent_id: str | None = None) -> None:
         """
         Send an event to all agents in a specific room.
@@ -626,7 +647,11 @@ class Orchestrator:
 
             # Enforce pending_drop obligation for items that explicitly require return
             if agent.pending_drop and agent.pending_drop_name:
-                if action != "DROP" or agent.pending_drop_name.lower() not in target.lower():
+                if not self._agent_holds_item(agent.agent_id, agent.pending_drop):
+                    print(f"  [Obligation cleared] {agent.name} is no longer carrying {agent.pending_drop_name}")
+                    agent.pending_drop = None
+                    agent.pending_drop_name = None
+                elif action != "DROP" or agent.pending_drop_name.lower() not in target.lower():
                     action = "DROP"
                     target = agent.pending_drop_name
                     print(f"  [Obligation enforced] {agent.name} must DROP {agent.pending_drop_name}")
@@ -675,16 +700,7 @@ class Orchestrator:
                         self._apply_telemetry_speech_check(witness, agent, target)
 
             elif action == "READ" and success:
-                item_name = target.strip()
-                item = self.parser._find_accessible_item(agent.agent_id, item_name)
-                if item:
-                    knowledge = item.get("knowledge")
-                    if knowledge:
-                        agent.add_to_memory(f"[Discovered] {knowledge}")
-                    if item.get("return_required") or item.get("on_read", {}).get("force_drop"):
-                        agent.pending_drop = item["id"]
-                        agent.pending_drop_name = item["name"]
-                        print(f"  [Return Required] {agent.name} must return {item['name']} after reading.")
+                self._apply_read_side_effects(agent, target)
 
             elif action == "WHISPER" and success:
                 parsed = self._extract_social_target(target)

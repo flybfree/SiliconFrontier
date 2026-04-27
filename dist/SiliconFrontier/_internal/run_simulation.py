@@ -73,6 +73,7 @@ from configloader import (
     load_agent_configuration,
     build_agent_instances,
     load_item_library,
+    load_scenario_manifest,
     load_relationship_presets,
     resolve_item_placements,
     resolve_relationship_presets,
@@ -156,6 +157,7 @@ def run_demo_simulation(
 
     # Load configuration
     world_state, agents = load_config(config_dir=config_dir, llm_base_url=llm_base_url, llm_model=llm_model)
+    scenario_manifest = load_scenario_manifest(config_dir)
 
     print(f"\n📍 World loaded: {len(world_state.locations)} locations, "
           f"{len(world_state.items)} items")
@@ -169,7 +171,8 @@ def run_demo_simulation(
         world_state=world_state,
         action_parser=action_parser,
         social_matrix=social_matrix,
-        reflection_interval=5  # Reflect every 5 cycles
+        reflection_interval=5,  # Reflect every 5 cycles
+        progression_config=scenario_manifest.get("progression")
     )
 
     # Run simulation

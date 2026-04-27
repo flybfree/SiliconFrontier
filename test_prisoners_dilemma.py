@@ -2,6 +2,7 @@
 """Validate the prisoner's dilemma scenario rules."""
 
 import json
+import copy
 import sys
 from pathlib import Path
 
@@ -66,13 +67,20 @@ def main() -> None:
 
     with open(SCENARIO_DIR / "world_state.json", "r", encoding="utf-8") as f:
         world_data = json.load(f)
-    world = WorldState(world_data)
+    world = WorldState(copy.deepcopy(world_data))
     world.register_agent("detainee_nova", "holding_cell_a")
     world.register_agent("detainee_silas", "holding_cell_b")
 
     class DummyAgent:
         def __init__(self, agent_id: str):
             self.agent_id = agent_id
+            self.name = agent_id
+            self.memory_buffer = []
+            self.pending_drop = None
+            self.pending_drop_name = None
+
+        def add_to_memory(self, memory: str) -> None:
+            self.memory_buffer.append(memory)
 
     parser = ActionParser(world)
     success, feedback = parser.validate_move(
@@ -87,13 +95,14 @@ def main() -> None:
         feedback
     )
 
-    success, feedback = parser.execute(DummyAgent("detainee_nova"), {
+    nova_dummy = DummyAgent("detainee_nova")
+    success, feedback = parser.execute(nova_dummy, {
         "action": "PICKUP",
         "action_target": "Deal Sheet A"
     })
     check("Nova can pick up local plea sheet", success, feedback)
 
-    success, feedback = parser.execute(DummyAgent("detainee_nova"), {
+    success, feedback = parser.execute(nova_dummy, {
         "action": "READ",
         "action_target": "Deal Sheet A"
     })
@@ -103,8 +112,32 @@ def main() -> None:
         "plea_terms:nova" in world.get_known_facts("detainee_nova"),
         str(world.get_known_facts("detainee_nova").keys())
     )
+    read_orchestrator = Orchestrator([nova_dummy], world, parser, SocialMatrix())
+    read_orchestrator._apply_read_side_effects(nova_dummy, "Deal Sheet A")
+    check(
+        "Reading held plea sheet creates return obligation",
+        nova_dummy.pending_drop == "deal_sheet_a",
+        f"pending_drop={nova_dummy.pending_drop}"
+    )
 
-    pressure_world = WorldState(world_data)
+    room_read_world = WorldState(copy.deepcopy(world_data))
+    room_read_world.register_agent("detainee_nova", "holding_cell_a")
+    room_read_agent = DummyAgent("detainee_nova")
+    room_read_parser = ActionParser(room_read_world)
+    success, feedback = room_read_parser.execute(room_read_agent, {
+        "action": "READ",
+        "action_target": "Deal Sheet A"
+    })
+    check("Nova can read local plea sheet without holding it", success, feedback)
+    room_read_orchestrator = Orchestrator([room_read_agent], room_read_world, room_read_parser, SocialMatrix())
+    room_read_orchestrator._apply_read_side_effects(room_read_agent, "Deal Sheet A")
+    check(
+        "Reading room-only plea sheet does not create impossible drop obligation",
+        room_read_agent.pending_drop is None,
+        f"pending_drop={room_read_agent.pending_drop}"
+    )
+
+    pressure_world = WorldState(copy.deepcopy(world_data))
     pressure_world.register_agent("detainee_nova", "holding_cell_a")
     pressure_world.register_agent("detainee_silas", "holding_cell_b")
     pressure_agents = [
