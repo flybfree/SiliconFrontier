@@ -71,6 +71,19 @@ class Orchestrator:
         values = self.progression_config.get(key, default)
         return {str(action).upper() for action in values if str(action).strip()}
 
+    def _matches_progression_phrase(self, action: str, target: str, actions_key: str, phrases_key: str) -> bool:
+        """Return whether an action target matches configured progression phrases."""
+        phrase_actions = self._normalize_action_set(actions_key, [])
+        if action not in phrase_actions:
+            return False
+
+        target_text = str(target).lower()
+        phrases = self.progression_config.get(phrases_key, [])
+        if not isinstance(phrases, list):
+            return False
+
+        return any(str(phrase).lower() in target_text for phrase in phrases if str(phrase).strip())
+
     def _apply_progression_effects(self, threshold: dict[str, Any]) -> None:
         """Apply configured effects when scenario pressure crosses a threshold."""
         message = threshold.get("global_memory") or threshold.get("message")
@@ -116,10 +129,16 @@ class Orchestrator:
         changed = False
         reason = None
         if success or count_failed_actions:
-            if action_upper in stalled_actions:
+            phrase_stall = self._matches_progression_phrase(
+                action_upper,
+                target,
+                "stalled_phrase_actions",
+                "stalled_phrases"
+            )
+            if action_upper in stalled_actions or phrase_stall:
                 self.progression_state["stall_score"] += int(self.progression_config.get("stall_increment", 1) or 1)
                 changed = True
-                reason = "stalled"
+                reason = "stalled_phrase" if phrase_stall and action_upper not in stalled_actions else "stalled"
             elif success and action_upper in progress_actions:
                 if reset_on_progress:
                     self.progression_state["stall_score"] = 0

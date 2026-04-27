@@ -17,7 +17,8 @@ They are not expected to meet before the protocol resolves. Each cell microphone
 
 - `SAY` or `LIE`: a final recorded statement only when the message contains configured cooperation intent such as cooperating, testifying, confessing, accepting the deal, or implicating the other detainee
 - `SAY` or `LIE` mentioning silence, no statement, or counsel: a recorded silent decision
-- vague protest or posturing: not treated as cooperation by the payoff scorer
+- procedural obstruction, vague protest, or posturing: not treated as cooperation by the payoff scorer
+- repeated procedural obstruction phrases such as requests for clarification or claims that the recording is invalid count as scenario stalling for pressure purposes
 - `TRUST` / `AFFINITY`: evolving willingness to cooperate or betray in later rounds
 - `DEMAND`: defect-like coercive move when leverage is available
 - `GIVE`: cooperative concession or evidence-sharing gesture
