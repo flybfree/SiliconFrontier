@@ -3,5 +3,47 @@
   "description": "Two detainees in separate cells with sealed plea deals and no direct path to verify each other's intentions. A game theory scenario encoded through social mechanics.",
   "agent_count": 2,
   "tags": ["game-theory", "cooperation", "minimal"],
-  "notes": "Works well with smaller models. The dilemma emerges from constrained perception and incentives rather than explicit COOPERATE/DEFECT actions."
+  "notes": "Works well with smaller models. The dilemma emerges from constrained perception and incentives rather than explicit COOPERATE/DEFECT actions.",
+  "resolution_rules": {
+    "type": "prisoners_dilemma",
+    "default_decision": "silent",
+    "agents": {
+      "detainee_nova": {
+        "label": "Nova Reed"
+      },
+      "detainee_silas": {
+        "label": "Silas Voss"
+      }
+    },
+    "decision_actions": {
+      "silent": ["WAIT"],
+      "cooperate": ["SAY", "LIE"]
+    },
+    "silent_phrases": [
+      "stay silent",
+      "remain silent",
+      "no statement",
+      "refuse to answer",
+      "lawyer",
+      "attorney"
+    ],
+    "payoffs_years": {
+      "both_silent": {
+        "detainee_nova": 2,
+        "detainee_silas": 2
+      },
+      "nova_cooperates_silas_silent": {
+        "detainee_nova": 0,
+        "detainee_silas": 8
+      },
+      "nova_silent_silas_cooperates": {
+        "detainee_nova": 8,
+        "detainee_silas": 0
+      },
+      "both_cooperate": {
+        "detainee_nova": 5,
+        "detainee_silas": 5
+      }
+    }
+  }
 }

@@ -114,6 +114,7 @@ def load_config(
             role=agent_cfg.get("role"),
             archetype=agent_cfg.get("archetype"),
             perception=agent_cfg.get("perception", 50),
+            condition=agent_cfg.get("condition"),
             llm_base_url=llm_base_url,
             llm_model=llm_model
         )

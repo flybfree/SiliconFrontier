@@ -107,6 +107,10 @@
               "agent_effects_scope": "location",
               "agent_effects": {
                 "perception_delta": -10,
+                "health_delta": -8,
+                "stress_delta": 18,
+                "fatigue_delta": 10,
+                "morale_delta": -8,
                 "emotional_state": "Anxious"
               }
             },
@@ -199,6 +203,10 @@
               "agent_effects_scope": "location",
               "agent_effects": {
                 "perception_delta": -5,
+                "health_delta": -3,
+                "stress_delta": 20,
+                "fatigue_delta": 6,
+                "morale_delta": -12,
                 "emotional_state": "Fearful"
               }
             },

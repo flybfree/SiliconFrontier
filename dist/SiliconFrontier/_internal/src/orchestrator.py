@@ -166,22 +166,36 @@ class Orchestrator:
                 if scope == "global" or self.world.get_agent_location(agent.agent_id) == location
             ]
             for affected in affected_agents:
-                perception_delta = int(agent_effects.get("perception_delta", 0) or 0)
-                if perception_delta:
-                    affected.perception = max(0, min(100, affected.perception + perception_delta))
-                    affected.add_to_memory(
-                        f"[System Effect] {system_id} changed your perception ({perception_delta:+d})."
-                    )
-                emotional_state = agent_effects.get("emotional_state")
-                if emotional_state:
-                    affected.set_emotional_state(str(emotional_state))
-                    affected.add_to_memory(
-                        f"[System Effect] {system_id} left you feeling {emotional_state}."
-                    )
+                self._apply_agent_effects(affected, agent_effects, f"[System Effect] {system_id}")
 
         consequence_memory = consequence.get("actor_memory")
         if consequence_memory:
             actor.add_to_memory(str(consequence_memory))
+
+    def _apply_agent_effects(self, agent: Any, effect: dict, source_label: str) -> None:
+        """Apply configured perception, mood, and condition effects to an agent."""
+        perception_delta = int(effect.get("perception_delta", 0) or 0)
+        if perception_delta:
+            agent.perception = max(0, min(100, agent.perception + perception_delta))
+            direction = "sharpened" if perception_delta > 0 else "dulled"
+            agent.add_to_memory(f"{source_label} {direction} your perception ({perception_delta:+d}).")
+            print(f"  [Effect] {agent.name} perception {perception_delta:+d} -> {agent.perception}")
+
+        condition_deltas = {}
+        for key in ("health", "stress", "fatigue", "morale"):
+            delta_key = f"{key}_delta"
+            if delta_key in effect:
+                condition_deltas[key] = int(effect.get(delta_key, 0) or 0)
+        changed = agent.adjust_condition(**condition_deltas) if condition_deltas else {}
+        for key, delta in changed.items():
+            agent.add_to_memory(f"{source_label} changed your {key} ({delta:+d}).")
+            print(f"  [Effect] {agent.name} {key} {delta:+d} -> {agent.condition[key]}")
+
+        forced_state = effect.get("emotional_state") or effect.get("mood")
+        if forced_state:
+            agent.set_emotional_state(str(forced_state))
+            agent.add_to_memory(f"{source_label} left you feeling {forced_state}.")
+            print(f"  [Effect] {agent.name} emotional state -> {forced_state}")
 
     def _inject_snitch_memory(
         self,
@@ -350,18 +364,7 @@ class Orchestrator:
                     if status_effect in location_effects:
                         location_effects.remove(status_effect)
 
-        perception_delta = effect.get("perception_delta", 0)
-        if perception_delta:
-            agent.perception = max(0, min(100, agent.perception + perception_delta))
-            direction = "sharpened" if perception_delta > 0 else "dulled"
-            agent.add_to_memory(f"[Effect] Your perception has {direction} ({perception_delta:+d}) after {item_name}.")
-            print(f"  [Effect] {agent.name} perception {perception_delta:+d} → {agent.perception}")
-
-        forced_state = effect.get("emotional_state")
-        if forced_state:
-            agent.set_emotional_state(forced_state)
-            agent.add_to_memory(f"[Effect] {item_name} left you feeling {forced_state}.")
-            print(f"  [Effect] {agent.name} emotional state → {forced_state}")
+        self._apply_agent_effects(agent, effect, f"[Effect] {item_name}")
 
         memory_text = effect.get("memory_inject")
         if memory_text:

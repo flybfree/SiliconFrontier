@@ -34,6 +34,10 @@
       "portable": true,
       "consumable": true,
       "effect": {
+        "health_delta": 15,
+        "stress_delta": -12,
+        "fatigue_delta": -6,
+        "morale_delta": 5,
         "emotional_state": "Calm",
         "memory_inject": "The kit steadied your hands and cleared your head."
       }
@@ -45,6 +49,8 @@
       "consumable": true,
       "effect": {
         "perception_delta": 20,
+        "stress_delta": 8,
+        "fatigue_delta": -18,
         "emotional_state": "Alert",
         "memory_inject": "Your thoughts are suddenly faster, edges sharper."
       }
@@ -56,6 +62,9 @@
       "consumable": true,
       "effect": {
         "perception_delta": -15,
+        "stress_delta": -20,
+        "fatigue_delta": 10,
+        "morale_delta": -4,
         "emotional_state": "Calm",
         "memory_inject": "A quiet warmth spreads through your thoughts. The urgency feels distant."
       }
@@ -85,6 +94,10 @@
       "consumable": true,
       "effect": {
         "perception_delta": 10,
+        "health_delta": 2,
+        "stress_delta": -4,
+        "fatigue_delta": -5,
+        "morale_delta": 4,
         "emotional_state": "Alert",
         "memory_inject": "the soda was refreshing and made me more alert"
       }
