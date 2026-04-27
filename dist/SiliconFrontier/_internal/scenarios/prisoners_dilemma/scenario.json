@@ -61,6 +61,17 @@
       "silent": ["WAIT"],
       "cooperate": ["SAY", "LIE"]
     },
+    "cooperate_phrases": [
+      "cooperate",
+      "testify",
+      "confess",
+      "accept the deal",
+      "take the deal",
+      "give a statement",
+      "make a statement",
+      "betray",
+      "implicate"
+    ],
     "silent_phrases": [
       "stay silent",
       "remain silent",
@@ -68,6 +79,13 @@
       "refuse to answer",
       "lawyer",
       "attorney"
+    ],
+    "final_statement_channels": [
+      "microphone",
+      "recording",
+      "recorded statement",
+      "for the record",
+      "on the record"
     ],
     "payoffs_years": {
       "both_silent": {

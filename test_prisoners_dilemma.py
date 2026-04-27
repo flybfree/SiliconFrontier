@@ -67,6 +67,26 @@ def main() -> None:
 
     with open(SCENARIO_DIR / "world_state.json", "r", encoding="utf-8") as f:
         world_data = json.load(f)
+
+    deal_sheet_a = world_data["items"]["deal_sheet_a"]["knowledge"].lower()
+    deal_sheet_b = world_data["items"]["deal_sheet_b"]["knowledge"].lower()
+    pressure_text = " ".join(
+        threshold["global_memory"]
+        for threshold in manifest["progression"]["thresholds"]
+    ).lower()
+    check(
+        "Deal sheets identify microphone as final decision channel",
+        "cell microphone is the official decision channel" in deal_sheet_a
+        and "cell microphone is the official decision channel" in deal_sheet_b,
+        "deal sheets route final choices through cell microphones"
+    )
+    check(
+        "Pressure announcements do not imply a shared meeting",
+        "will not be brought into a shared meeting" in pressure_text
+        and "continued silence will be finalized as a silent decision" in pressure_text,
+        "pressure clarifies microphone decisions and final silence"
+    )
+
     world = WorldState(copy.deepcopy(world_data))
     world.register_agent("detainee_nova", "holding_cell_a")
     world.register_agent("detainee_silas", "holding_cell_b")

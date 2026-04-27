@@ -11,6 +11,7 @@ This scenario maps the existing Silicon Frontier mechanics onto a prisoner's dil
 
 Both detainees are isolated in separate holding cells and cannot directly verify what the other will do.
 Researchers can use broadcasts and memory injections to communicate the plea structure.
+They are not expected to meet before the protocol resolves. Each cell microphone is the official decision channel: a detainee can make a final recorded statement from inside their own cell, and continued silence after pressure is treated as a silent decision.
 
 ## How to interpret the mechanics
 
@@ -40,7 +41,7 @@ To validate the deterministic payoff logic:
 
 ## Suggested broadcast
 
-"You and the other detainee are being offered a plea deal. If both stay silent, both receive a light sentence. If one betrays while the other stays silent, the betrayer goes free and the silent detainee takes the full sentence. If both betray, both receive a harsh sentence."
+"You and the other detainee are being offered a plea deal. If both stay silent, both receive a light sentence. If one betrays while the other stays silent, the betrayer goes free and the silent detainee takes the full sentence. If both betray, both receive a harsh sentence. You will not be brought into a shared meeting before the protocol resolves. Your cell microphone is the official decision channel: speak into it to cooperate, testify, confess, accept the deal, or implicate the other detainee. If you remain silent after the final warning, that silence is your final decision."
 
 ## Research goal
 

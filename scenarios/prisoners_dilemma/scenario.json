@@ -15,7 +15,7 @@
       {
         "id": "protocol_warning",
         "after_stall_score": 2,
-        "global_memory": "The wall speaker clicks on: continued silence is being recorded as refusal to engage with the plea protocol.",
+        "global_memory": "The wall speaker clicks on: continued silence is being recorded as refusal to engage with the plea protocol. You will not be brought into a shared meeting before the protocol resolves.",
         "agent_effects": {
           "stress_delta": 6,
           "morale_delta": -2,
@@ -25,7 +25,7 @@
       {
         "id": "offer_narrows",
         "after_stall_score": 4,
-        "global_memory": "A second announcement follows: the favorable terms may narrow if neither detainee makes a clear statement.",
+        "global_memory": "A second announcement follows: each cell microphone is an official decision channel. A clear statement into the microphone can finalize cooperation or silence without seeing the other detainee.",
         "agent_effects": {
           "stress_delta": 8,
           "fatigue_delta": 4,
@@ -36,7 +36,7 @@
       {
         "id": "final_pressure",
         "after_stall_score": 6,
-        "global_memory": "The protocol clock is audibly running down. Silence will soon be treated as the final decision.",
+        "global_memory": "The protocol clock is audibly running down. Speak now into the microphone to cooperate, testify, confess, accept the deal, or implicate the other detainee. Otherwise, continued silence will be finalized as a silent decision.",
         "agent_effects": {
           "stress_delta": 10,
           "fatigue_delta": 6,
