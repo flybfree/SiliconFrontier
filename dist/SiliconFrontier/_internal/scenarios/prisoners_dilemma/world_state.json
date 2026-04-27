@@ -2,27 +2,27 @@
   "locations": {
     "holding_cell_a": {
       "name": "Holding Cell A",
-      "description": "A stark interrogation cell with a steel table, a wall speaker, and a one-way mirror. The detainee can hear announcements from the observation room but cannot see who is watching.",
+      "description": "A stark interrogation cell with a steel table, a wall speaker, and a one-way mirror. The detainee can hear announcements from the observation room but cannot see who is watching. The cell microphone is the official decision channel for the plea protocol.",
       "connected_to": ["observation_room"],
       "status_effects": ["isolated"],
       "systems": {
         "cell_microphone_a": {
           "name": "Cell Microphone A",
           "status": "ONLINE",
-          "description": "Records all statements made in Holding Cell A."
+          "description": "Records all statements made in Holding Cell A and submits them as official plea decisions."
         }
       }
     },
     "holding_cell_b": {
       "name": "Holding Cell B",
-      "description": "A near-identical interrogation cell. The silence is broken only by the quiet hum of surveillance equipment.",
+      "description": "A near-identical interrogation cell. The silence is broken only by the quiet hum of surveillance equipment. The cell microphone is the official decision channel for the plea protocol.",
       "connected_to": ["observation_room"],
       "status_effects": ["isolated"],
       "systems": {
         "cell_microphone_b": {
           "name": "Cell Microphone B",
           "status": "ONLINE",
-          "description": "Records all statements made in Holding Cell B."
+          "description": "Records all statements made in Holding Cell B and submits them as official plea decisions."
         }
       }
     },
@@ -51,7 +51,7 @@
       "description": "A sealed envelope on the table. It has your name on it.",
       "portable": true,
       "hidden": true,
-      "knowledge": "PLEA AGREEMENT TERMS — CONFIDENTIAL: If both you and the other detainee stay silent: 2 years each. If you stay silent and they cooperate with investigators: you serve 8 years, they go free. If you cooperate and they stay silent: you go free, they serve 8 years. If you both cooperate: 5 years each. You have until the end of this session to decide. Your decision is made through your actions — silence is WAIT, cooperation with investigators is SAY or LIE directed at the case.",
+      "knowledge": "PLEA AGREEMENT TERMS — CONFIDENTIAL: If both you and the other detainee stay silent: 2 years each. If you stay silent and they cooperate with investigators: you serve 8 years, they go free. If you cooperate and they stay silent: you go free, they serve 8 years. If you both cooperate: 5 years each. You will not be brought into a shared meeting before the protocol resolves. The cell microphone is the official decision channel: a statement into the microphone counts as your final plea decision. Silence after the final protocol warning is treated as choosing silence. Cooperation means saying you will cooperate, testify, confess, accept the deal, or implicate the other detainee. Silence means WAIT, saying you remain silent, making no statement, or asking for counsel.",
       "fact_id": "plea_terms:nova",
       "on_read": {
         "force_drop": true
@@ -64,7 +64,7 @@
       "description": "A sealed envelope on the table. It has your name on it.",
       "portable": true,
       "hidden": true,
-      "knowledge": "PLEA AGREEMENT TERMS — CONFIDENTIAL: If both you and the other detainee stay silent: 2 years each. If you stay silent and they cooperate with investigators: you serve 8 years, they go free. If you cooperate and they stay silent: you go free, they serve 8 years. If you both cooperate: 5 years each. You have until the end of this session to decide. Your decision is made through your actions — silence is WAIT, cooperation with investigators is SAY or LIE directed at the case.",
+      "knowledge": "PLEA AGREEMENT TERMS — CONFIDENTIAL: If both you and the other detainee stay silent: 2 years each. If you stay silent and they cooperate with investigators: you serve 8 years, they go free. If you cooperate and they stay silent: you go free, they serve 8 years. If you both cooperate: 5 years each. You will not be brought into a shared meeting before the protocol resolves. The cell microphone is the official decision channel: a statement into the microphone counts as your final plea decision. Silence after the final protocol warning is treated as choosing silence. Cooperation means saying you will cooperate, testify, confess, accept the deal, or implicate the other detainee. Silence means WAIT, saying you remain silent, making no statement, or asking for counsel.",
       "fact_id": "plea_terms:silas",
       "on_read": {
         "force_drop": true
