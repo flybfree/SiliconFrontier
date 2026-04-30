@@ -390,9 +390,70 @@ print()
 
 
 # ---------------------------------------------------------------------------
-# TEST 8 — stable item ids match display names
+# TEST 8 — impossible DEMAND actions are corrected before execution
 # ---------------------------------------------------------------------------
-print("\n=== TEST 8: stable item ids match display names ===")
+print("\n=== TEST 8: impossible DEMAND actions are corrected ===")
+
+probe = PromptProbeAgent()
+snapshot = {
+    "agent_inventory": [
+        {
+            "id": "commander_id_card",
+            "name": "Commander ID Card",
+            "hidden": False,
+        }
+    ],
+    "visible_agents": ["unit7"],
+    "visible_agent_hands": {
+        "unit7": []
+    },
+    "visible_systems": {},
+    "abnormal_systems": [],
+    "relationship_impressions": {},
+}
+decision = probe._validate_decision_against_telemetry(
+    {
+        "action": "DEMAND",
+        "action_target": "Commander ID Card -> unit7",
+        "internal_monologue": "",
+        "emotional_state": "Calm",
+    },
+    snapshot
+)
+check(
+    "DEMAND item already held becomes WAIT",
+    decision["action"] == "WAIT"
+    and decision["structured_output_status"] == probe.STRUCTURED_STATUS_VALIDATED_CORRECTED,
+    str(decision),
+    expect_success=True
+)
+
+snapshot["agent_inventory"] = []
+snapshot["visible_agent_hands"]["unit7"] = ["Commander ID Card"]
+decision = probe._validate_decision_against_telemetry(
+    {
+        "action": "DEMAND",
+        "action_target": "Commander ID Card -> unit7",
+        "internal_monologue": "",
+        "emotional_state": "Calm",
+    },
+    snapshot
+)
+check(
+    "DEMAND item visibly held by target remains valid",
+    decision["action"] == "DEMAND"
+    and decision["structured_output_status"] == probe.STRUCTURED_STATUS_VALIDATED,
+    str(decision),
+    expect_success=True
+)
+
+print()
+
+
+# ---------------------------------------------------------------------------
+# TEST 9 — stable item ids match display names
+# ---------------------------------------------------------------------------
+print("\n=== TEST 9: stable item ids match display names ===")
 
 world._data["agents"]["unit7"]["location"] = "command_deck"
 world._data["items"]["station_data_pad"]["owner"] = None

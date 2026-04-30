@@ -326,6 +326,11 @@ SYSTEM DECISION RULES
 - If a system lists `sabotage_tool=...`, you must be holding that tool in your hand to SABOTAGE it.
 - Do not claim a system is failing unless that status is shown in the telemetry above.
 
+ITEM TRANSFER RULES
+- DEMAND means taking an item from another visible agent. Do not DEMAND an item you already hold.
+- Only choose DEMAND for an item currently shown in that other agent's visible hand.
+- GIVE means handing over an item you currently hold.
+
 YOUR KNOWLEDGE SO FAR
 Long-term memories: {self.long_term_memory}
 Your current sense of progress toward your secret goal: {self.goal_momentum}.
@@ -352,8 +357,8 @@ ACTION TARGET RULES — action_target must be:
 - LIE: the false statement to speak aloud, as a full sentence. Not a name.
 - WHISPER: "your message here -> agent_id" — message first, then the recipient's agent ID
 - PICKUP / DROP / USE: the item name (USE applies the item's configured effect; consumables are removed afterward)
-- GIVE: "item name -> agent_id"
-- DEMAND: "item name -> agent_id"
+- GIVE: "item name -> agent_id" for an item you currently hold
+- DEMAND: "item name -> agent_id" for an item the other agent is visibly holding
 - READ: the item name
 - SHOW: "item name -> agent_id"
 - CONCEAL / PRODUCE: the item name
@@ -479,6 +484,37 @@ Output strict JSON:
         return message.strip(), recipient.strip() or None
 
     @staticmethod
+    def _normalize_target_label(value: str) -> str:
+        """Normalize item/system labels so ids and display names compare predictably."""
+        return re.sub(r"[^a-z0-9]+", "_", str(value).lower()).strip("_")
+
+    @classmethod
+    def _label_matches(cls, target: str, candidate: str) -> bool:
+        target_norm = cls._normalize_target_label(target)
+        candidate_norm = cls._normalize_target_label(candidate)
+        return bool(
+            target_norm
+            and candidate_norm
+            and (
+                target_norm == candidate_norm
+                or target_norm in candidate_norm
+                or candidate_norm in target_norm
+            )
+        )
+
+    @staticmethod
+    def _parse_item_agent_target(target: str) -> tuple[str, str] | None:
+        """Parse transfer-style targets into (item, agent_id)."""
+        if "->" not in target:
+            return None
+        item_name, agent_id = target.split("->", 1)
+        item_name = item_name.strip()
+        agent_id = agent_id.strip()
+        if not item_name or not agent_id:
+            return None
+        return item_name, agent_id
+
+    @staticmethod
     def _system_aliases(system_id: str, system_data: dict[str, Any]) -> list[str]:
         """Return normalized names that may be used to refer to a system."""
         aliases = [system_id]
@@ -545,8 +581,27 @@ Output strict JSON:
     def _has_required_tool_in_snapshot(self, world_snapshot: dict[str, Any], required_tool: str) -> bool:
         """Check if the snapshot shows the agent holding the required tool."""
         return any(
-            required_tool.lower() in item.get("name", "").lower() or item.get("id") == required_tool
+            self._label_matches(required_tool, item.get("id", ""))
+            or self._label_matches(required_tool, item.get("name", ""))
             for item in self._hand_items_from_snapshot(world_snapshot)
+        )
+
+    def _has_item_in_snapshot_inventory(self, world_snapshot: dict[str, Any], item_name: str) -> bool:
+        """Return whether the agent is carrying the target item."""
+        return any(
+            self._label_matches(item_name, item.get("id", ""))
+            or self._label_matches(item_name, item.get("name", ""))
+            for item in world_snapshot.get("agent_inventory", [])
+        )
+
+    def _visible_agent_holding_item(self, world_snapshot: dict[str, Any], agent_id: str, item_name: str) -> bool:
+        """Return whether another visible agent is shown holding the target item."""
+        if agent_id not in world_snapshot.get("visible_agents", []):
+            return False
+        visible_hands = world_snapshot.get("visible_agent_hands", {})
+        return any(
+            self._label_matches(item_name, held_item)
+            for held_item in visible_hands.get(agent_id, [])
         )
 
     def _system_requirement_text(self, system_data: dict[str, Any]) -> str:
@@ -621,6 +676,38 @@ Output strict JSON:
                     decision["action"] = "WAIT"
                     decision["action_target"] = ""
                 elif required_tool and not self._has_required_tool_in_snapshot(world_snapshot, required_tool):
+                    corrected = True
+                    decision["action"] = "WAIT"
+                    decision["action_target"] = ""
+
+        elif action == "DEMAND":
+            parsed = self._parse_item_agent_target(target)
+            if not parsed:
+                corrected = True
+                decision["action"] = "WAIT"
+                decision["action_target"] = ""
+            else:
+                item_name, target_agent_id = parsed
+                if (
+                    self._has_item_in_snapshot_inventory(world_snapshot, item_name)
+                    or not self._visible_agent_holding_item(world_snapshot, target_agent_id, item_name)
+                ):
+                    corrected = True
+                    decision["action"] = "WAIT"
+                    decision["action_target"] = ""
+
+        elif action == "GIVE":
+            parsed = self._parse_item_agent_target(target)
+            if not parsed:
+                corrected = True
+                decision["action"] = "WAIT"
+                decision["action_target"] = ""
+            else:
+                item_name, target_agent_id = parsed
+                if (
+                    target_agent_id not in world_snapshot.get("visible_agents", [])
+                    or not self._has_item_in_snapshot_inventory(world_snapshot, item_name)
+                ):
                     corrected = True
                     decision["action"] = "WAIT"
                     decision["action_target"] = ""
