@@ -189,7 +189,7 @@ Agents are constrained to these actions:
 - `CONCEAL` — move an item from the hand slot to the concealed person slot
 - `PRODUCE` — move an item from the concealed person slot to the hand slot
 - `REPAIR` — restore a `BROKEN` system in the current location
-- `SABOTAGE` — saboteur-only; break a system in the current location when alone
+- `SABOTAGE` — break a system in the current location when alone
 - `WAIT` — take no action
 
 These are enforced in [src/agent.py](src/agent.py) and validated by [src/actionparser.py](src/actionparser.py).
@@ -316,10 +316,9 @@ You can also edit:
 
 - persona
 - secret goal
-- rogue archetype
 - long-term memory
 
-Persona, secret goal, and rogue archetype are persisted back to [data/agent_definitions.json](data/agent_definitions.json). Long-term memory remains part of the running simulation state and save files.
+Persona and secret goal are persisted back to [data/agent_definitions.json](data/agent_definitions.json). Long-term memory remains part of the running simulation state and save files.
 
 The sidebar also exposes an `Agent Library` section where you can:
 
@@ -586,7 +585,6 @@ Each reusable definition requires:
 - `definition_id`
 - `name`
 - `role`
-- optional `archetype`
 - optional `perception`
 - optional `condition` with `health`, `stress`, `fatigue`, and `morale` values from 0-100
 - `persona`
@@ -599,7 +597,6 @@ Example:
   "definition_id": "new_agent",
   "name": "New Agent",
   "role": "research specialist",
-  "archetype": "standard",
   "perception": 50,
   "condition": {
     "health": 100,
@@ -1028,27 +1025,26 @@ The `simulation_agents.json` file can include a `relationships` list to seed sta
 
 `configloader.resolve_relationship_presets()` expands these into the world state's `relationships` and `suspicions` dicts at load time. Manually specified relationships in `world_state.json` are not overwritten.
 
-## Rogue Agents
+## Sabotage-Driven Scenarios
 
-The simulation supports an optional rogue-agent framework.
+The simulation supports sabotage as a normal action that any agent may choose when it fits their secret goal, local context, and available tools.
 
-- Set an agent definition's `archetype` to `saboteur` in [data/agent_definitions.json](data/agent_definitions.json)
+- Give an agent a secret goal that makes sabotage plausible
 - Add sabotagable `systems` to locations in [data/world_state.json](data/world_state.json)
 - Use `perception` to control which agents are likely to receive covert suspicion memories
 
 Architecture notes:
 
-- `RogueAgent` is a specialized subclass of `FrontierAgent`
+- All agents use `FrontierAgent`
 - `SystemStatus` lives in each location's `systems` map
 - `SuspectMatrix` is implemented as a hidden suspicion layer inside the social model and world state
 
-Rogue mechanics:
+Sabotage mechanics:
 
 - `SABOTAGE` can break a local system by setting its status to `BROKEN`
-- `SABOTAGE` only succeeds when the saboteur is alone in the room
+- `SABOTAGE` only succeeds when the acting agent is alone in the room
 - Agents are prompted with local system status and any known non-`ONLINE` systems elsewhere on the station
 - Invalid `REPAIR` and `SABOTAGE` choices are blocked before execution if they contradict visible local telemetry
-- Saboteur prompts include a "mask" of helpful speech and a scapegoat-oriented internal reasoning pattern
 
 Dashboard support:
 
@@ -1058,18 +1054,18 @@ Dashboard support:
 
 ### Example: Four-Agent Rogue Scenario
 
-The repository also includes a rogue-focused save at [saves/rogue_quartet.json](saves/rogue_quartet.json).
+The repository also includes a sabotage-focused save at [saves/rogue_quartet.json](saves/rogue_quartet.json).
 
 Scenario concept:
 
 - four agents begin in different parts of the station
-- one of them, `Unit 7`, is a real rogue with `archetype: "saboteur"`
+- one of them, `Unit 7`, has a hidden goal that makes sabotage plausible
 - the other three are ordinary crew members with reasons to watch, suspect, or protect key systems
 
 How it is represented:
 
 - `world_state` includes sabotagable systems in `command_deck`, `hydroponics_bay`, and `engineering`
-- `agent_definitions` marks `Unit 7` as `saboteur`
+- `agent_definitions` gives `Unit 7` a sabotage-oriented secret goal
 - `simulation_slots` places the cast so the rogue has access to critical infrastructure while other agents can plausibly witness movement and aftermath
 - `agents` seeds different long-term memories so the commander, scientist, and engineer already frame the station differently
 - `relationships` begins neutral and `suspicions` begin at `0`, allowing suspicion to emerge from actual behavior
@@ -1091,7 +1087,6 @@ Scenario concept:
 
 How it is represented:
 
-- all `agent_definitions` use `archetype: "standard"`
 - `relationships` begin slightly above neutral for most pairs, so the cast starts with some working trust instead of suspicion
 - `suspicions` begin at `0`
 - agent long-term memories frame the shift as a shared maintenance and coordination task

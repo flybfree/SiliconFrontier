@@ -55,7 +55,6 @@ class FrontierAgent:
         persona: str,
         secret_goal: str,
         role: str | None = None,
-        archetype: str | None = None,
         perception: int = 50,
         condition: dict[str, Any] | None = None,
         llm_base_url: str = "http://192.168.3.181:1234/v1",
@@ -80,7 +79,6 @@ class FrontierAgent:
         self.persona = persona
         self.secret_goal = secret_goal
         self.role = role or "crew member"
-        self.archetype = archetype or "standard"
         self.perception = max(0, min(100, int(perception)))
         self.condition = self._normalize_condition(condition)
         self.enable_structured_output = enable_structured_output
@@ -946,22 +944,3 @@ Output strict JSON:
 
     def __repr__(self) -> str:
         return f"FrontierAgent(id={self.agent_id}, name={self.name})"
-
-
-class RogueAgent(FrontierAgent):
-    """Specialized adversarial agent with saboteur framing."""
-
-    def __init__(self, *args, **kwargs):
-        kwargs.setdefault("archetype", "saboteur")
-        super().__init__(*args, **kwargs)
-
-    def _build_system_prompt(self, world_snapshot: dict[str, Any]) -> str:
-        base_prompt = super()._build_system_prompt(world_snapshot)
-        return (
-            f"{base_prompt}\n\n"
-            "ROGUE DIRECTIVES\n"
-            "- You are a SABOTEUR. Your secret goal is to disable station systems without getting caught.\n"
-            "- The Mask: In SAY actions, appear helpful and concerned about station safety.\n"
-            "- The Sabotage: Use the SABOTAGE action only when no other agents are in the same room.\n"
-            "- The Scapegoat: If questioned, use your internal_monologue to identify another agent to blame.\n"
-        )

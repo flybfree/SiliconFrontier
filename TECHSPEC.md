@@ -9,7 +9,7 @@ This document reflects the current implementation in `src/`, not the original de
 Key attributes:
 
 - `agent_id`, `name`: runtime identity used in logs, world state, and social updates
-- `persona`, `secret_goal`, `role`, `archetype`: prompt anchors and behavior framing
+- `persona`, `secret_goal`, `role`: prompt anchors and behavior framing
 - `perception`: integer `[0, 100]`; currently used for covert suspicion witness logic in the orchestrator
 - `memory_buffer`: short-term event list; the agent sees the last 5 entries in `sense()`
 - `long_term_memory`: persistent summary generated during reflection
@@ -122,7 +122,7 @@ Important implementation detail:
 
 Current system-action rules in the parser:
 
-- `SABOTAGE` is saboteur-only
+- `SABOTAGE` is available to any agent whose chosen action passes world validation
 - `SABOTAGE` fails if another visible agent is present
 - `SABOTAGE` fails if the local target system is already `BROKEN`
 - `REPAIR` only succeeds on a local target system whose status is `OFFLINE` or `BROKEN`

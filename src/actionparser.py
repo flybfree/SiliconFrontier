@@ -444,9 +444,6 @@ class ActionParser:
 
     def _handle_sabotage(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
         """Handle SABOTAGE action on a local system."""
-        if getattr(agent, "archetype", "").lower() != "saboteur":
-            return False, "Failure: You are not equipped to perform sabotage."
-
         current_loc = self.world.get_agent_location(agent.agent_id)
         if not current_loc:
             return False, "Failure: You don't know where you are."

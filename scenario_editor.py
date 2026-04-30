@@ -418,11 +418,6 @@ def _agent_fields(key_prefix: str, defaults: dict) -> dict:
     with col1:
         name = st.text_input("Name", value=defaults.get("name", ""), key=f"{key_prefix}_name")
         role = st.text_input("Role", value=defaults.get("role", ""), key=f"{key_prefix}_role")
-        arch = st.selectbox(
-            "Archetype", ["standard", "saboteur"],
-            index=0 if defaults.get("archetype", "standard") == "standard" else 1,
-            key=f"{key_prefix}_arch",
-        )
         perc = st.slider("Perception", 0, 100, value=int(defaults.get("perception", 50)), key=f"{key_prefix}_perc")
         health = st.slider("Health", 0, 100, value=condition["health"], key=f"{key_prefix}_health")
         stress = st.slider("Stress", 0, 100, value=condition["stress"], key=f"{key_prefix}_stress")
@@ -431,7 +426,7 @@ def _agent_fields(key_prefix: str, defaults: dict) -> dict:
     with col2:
         persona = st.text_area("Persona", value=defaults.get("persona", ""), height=130, key=f"{key_prefix}_persona")
         secret = st.text_area("Secret Goal", value=defaults.get("secret_goal", ""), height=130, key=f"{key_prefix}_secret")
-    return {"name": name, "role": role, "archetype": arch, "perception": perc,
+    return {"name": name, "role": role, "perception": perc,
             "condition": {"health": health, "stress": stress, "fatigue": fatigue, "morale": morale},
             "persona": persona, "secret_goal": secret}
 
@@ -458,7 +453,7 @@ def render_tab_agents() -> None:
             did = agent["definition_id"]
             in_lib = did in lib_agents
             lib_badge = " 📚" if in_lib else ""
-            label = f"{agent['name']} — {agent['role']} [{agent['archetype']}]{lib_badge}"
+            label = f"{agent['name']} — {agent['role']}{lib_badge}"
 
             with st.expander(label, expanded=False):
                 vals = _agent_fields(f"adef_{did}", agent)
@@ -469,7 +464,6 @@ def render_tab_agents() -> None:
                         scenario_agents[idx].update({
                             "name": vals["name"].strip(),
                             "role": vals["role"].strip(),
-                            "archetype": vals["archetype"],
                             "perception": vals["perception"],
                             "condition": vals["condition"],
                             "persona": vals["persona"].strip(),
@@ -484,7 +478,6 @@ def render_tab_agents() -> None:
                         lib["agents"][did] = {
                             "name": vals["name"].strip(),
                             "role": vals["role"].strip(),
-                            "archetype": vals["archetype"],
                             "perception": vals["perception"],
                             "condition": vals["condition"],
                             "persona": vals["persona"].strip(),
@@ -520,7 +513,6 @@ def render_tab_agents() -> None:
                             "definition_id": clean_id,
                             "name": vals["name"].strip(),
                             "role": vals["role"].strip(),
-                            "archetype": vals["archetype"],
                             "perception": vals["perception"],
                             "condition": vals["condition"],
                             "persona": vals["persona"].strip(),
@@ -536,7 +528,7 @@ def render_tab_agents() -> None:
         for lib_id, lib_agent in lib_agents.items():
             already_in_scenario = lib_id in scenario_ids
             badge = " ✓ in scenario" if already_in_scenario else ""
-            label = f"{lib_agent.get('name', lib_id)} — {lib_agent.get('role', '')} [{lib_agent.get('archetype', 'standard')}]{badge}"
+            label = f"{lib_agent.get('name', lib_id)} — {lib_agent.get('role', '')}{badge}"
 
             with st.expander(label, expanded=False):
                 vals = _agent_fields(f"lib_{lib_id}", lib_agent)
@@ -549,7 +541,6 @@ def render_tab_agents() -> None:
                             "definition_id": lib_id,
                             "name": lib_agent.get("name", ""),
                             "role": lib_agent.get("role", ""),
-                            "archetype": lib_agent.get("archetype", "standard"),
                             "perception": lib_agent.get("perception", 50),
                             "condition": _agent_condition(lib_agent),
                             "persona": lib_agent.get("persona", ""),
@@ -563,7 +554,6 @@ def render_tab_agents() -> None:
                         lib["agents"][lib_id] = {
                             "name": vals["name"].strip(),
                             "role": vals["role"].strip(),
-                            "archetype": vals["archetype"],
                             "perception": vals["perception"],
                             "condition": vals["condition"],
                             "persona": vals["persona"].strip(),
@@ -597,7 +587,6 @@ def render_tab_agents() -> None:
                         lib["agents"][clean_id] = {
                             "name": vals["name"].strip(),
                             "role": vals["role"].strip(),
-                            "archetype": vals["archetype"],
                             "perception": vals["perception"],
                             "condition": vals["condition"],
                             "persona": vals["persona"].strip(),

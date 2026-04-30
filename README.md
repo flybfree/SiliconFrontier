@@ -15,7 +15,7 @@ Each simulation cycle:
 3. The action is validated against the world state and current telemetry, then executed.
 4. Social scores update, memories are written, and witnesses react.
 
-Agents accumulate memory, track goal momentum, and change their behavior based on emotional state, audience, and trust relationships. Two saboteur archetypes and multiple investigator roles are included.
+Agents accumulate memory, track goal momentum, and change their behavior based on emotional state, audience, trust relationships, and secret goals.
 
 ---
 
@@ -235,7 +235,7 @@ The base agent class. Each instance is one participant in the simulation.
 | `evaluate_social_exchange(...)` | Hidden critic call that returns trust/affinity/suspicion deltas after a social action |
 | `add_to_memory(event)` | Append a string to the short-term memory buffer (capped at 10 entries) |
 
-**`RogueAgent`** is a subclass that appends saboteur-specific framing to the system prompt. Instantiated automatically when `archetype == "saboteur"`.
+All configured agents use `FrontierAgent`; hostile or deceptive behavior emerges from persona, secret goal, memory, and world constraints rather than a special subclass.
 
 ---
 
@@ -354,7 +354,7 @@ See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flag
 
 - Load existing scenarios or scaffold new ones from the sidebar
 - **Agent library** — browse `library/agents.json`, add agents to the current scenario with one click, push edits back to the library; agents and items are both reusable assets
-- Agent definition editor — name, role, archetype, perception, health, stress, fatigue, morale, persona, secret goal
+- Agent definition editor — name, role, perception, health, stress, fatigue, morale, persona, secret goal
 - Simulation slot editor — assign definitions to slots with location and inventory dropdowns
 - Item editor — inline items and library placements, with conditional fields for hidden knowledge, return obligations, durable use effects, and consumable effects
 - Location editor — connections multiselect, status effects, inline system add/remove

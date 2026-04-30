@@ -68,7 +68,7 @@ def _stop_logging(tee: _Tee) -> None:
     tee.close()
 
 from worldstate import WorldState
-from agent import FrontierAgent, RogueAgent
+from agent import FrontierAgent
 from actionparser import ActionParser
 from socialmatrix import SocialMatrix
 from orchestrator import Orchestrator
@@ -152,14 +152,12 @@ class SimulationState:
         agent_instances = build_agent_instances(self.agent_definitions, self.simulation_slots)
 
         for agent_cfg in agent_instances:
-            agent_cls = RogueAgent if agent_cfg.get("archetype") == "saboteur" else FrontierAgent
-            agent = agent_cls(
+            agent = FrontierAgent(
                 agent_id=agent_cfg["agent_id"],
                 name=agent_cfg["name"],
                 persona=agent_cfg["persona"],
                 secret_goal=agent_cfg["secret_goal"],
                 role=agent_cfg.get("role"),
-                archetype=agent_cfg.get("archetype"),
                 perception=agent_cfg.get("perception", 50),
                 condition=agent_cfg.get("condition"),
                 llm_base_url=self.llm_base_url,
@@ -229,8 +227,7 @@ class SimulationState:
         definition_id: str,
         *,
         persona: str,
-        secret_goal: str,
-        archetype: str
+        secret_goal: str
     ) -> None:
         """Persist selected definition fields back to the reusable agent catalog."""
         import copy
@@ -239,7 +236,6 @@ class SimulationState:
                 continue
             agent_def["persona"] = persona
             agent_def["secret_goal"] = secret_goal
-            agent_def["archetype"] = archetype
             break
 
         save_agent_definitions(self.agent_definitions, self.config_dir)
@@ -317,7 +313,6 @@ class SimulationState:
         definition_id: str,
         name: str,
         role: str,
-        archetype: str,
         perception: int,
         persona: str,
         secret_goal: str,
@@ -329,7 +324,6 @@ class SimulationState:
             "definition_id": definition_id,
             "name": name,
             "role": role,
-            "archetype": archetype,
             "perception": int(perception),
             "condition": copy.deepcopy(condition or FrontierAgent.DEFAULT_CONDITION),
             "persona": persona,
@@ -428,7 +422,6 @@ class SimulationState:
             agent.persona = definition["persona"]
             agent.secret_goal = definition["secret_goal"]
             agent.role = definition.get("role", "crew member")
-            agent.archetype = definition.get("archetype", "standard")
             agent.perception = int(definition.get("perception", 50))
             agent.condition = FrontierAgent._normalize_condition(definition.get("condition"))
             agent.memory_buffer = []
@@ -474,7 +467,6 @@ class SimulationState:
                     "slot_id": getattr(a, "slot_id", None),
                     "name": a.name,
                     "role": a.role,
-                    "archetype": a.archetype,
                     "perception": a.perception,
                     "condition": copy.deepcopy(getattr(a, "condition", FrontierAgent.DEFAULT_CONDITION)),
                     "persona": a.persona,
@@ -523,7 +515,6 @@ class SimulationState:
             agent.persona = saved["persona"]
             agent.secret_goal = saved["secret_goal"]
             agent.role = saved.get("role", agent.role)
-            agent.archetype = saved.get("archetype", agent.archetype)
             agent.perception = int(saved.get("perception", agent.perception))
             agent.condition = FrontierAgent._normalize_condition(saved.get("condition", getattr(agent, "condition", None)))
             agent.definition_id = saved.get("definition_id", getattr(agent, "definition_id", None))
@@ -601,12 +592,11 @@ def render_agent_card(agent):
     inventory = sim.world_state.find_items_by_owner(agent.agent_id)
     inventory_str = ', '.join([i['name'] for i in inventory]) if inventory else 'empty'
     short_term_memory = list(agent.memory_buffer)
-    archetype_label = getattr(agent, "archetype", "standard")
 
     with st.expander(f"🤖 {agent.name} — {agent.emotional_state} @ {loc or 'unplaced'}"):
         loc_data = sim.world_state.get_location(loc)
         loc_name = loc_data.get("name", loc) if loc_data else (loc or "unknown")
-        st.caption(f"ID: {agent.agent_id} | Archetype: {archetype_label} | Location: {loc_name} | Inventory: {inventory_str}")
+        st.caption(f"ID: {agent.agent_id} | Location: {loc_name} | Inventory: {inventory_str}")
         st.caption(f"Condition: {agent.condition_text()} | Perception: {agent.perception}")
         st.divider()
 
@@ -629,12 +619,6 @@ def render_agent_card(agent):
         new_loc = st.selectbox("Location", options=all_loc_ids, index=loc_index, key=f"loc_{agent.agent_id}")
         new_persona = st.text_area("Persona", value=agent.persona, key=f"persona_{agent.agent_id}")
         new_goal = st.text_input("Secret Goal", value=agent.secret_goal, key=f"goal_{agent.agent_id}")
-        is_rogue = st.checkbox(
-            "Rogue Archetype (Saboteur)",
-            value=getattr(agent, "archetype", "standard") == "saboteur",
-            key=f"rogue_{agent.agent_id}",
-            help="When enabled, this agent uses the RogueAgent sabotage framing and can attempt SABOTAGE actions."
-        )
         new_memory = st.text_area("Long-term Memory", value=agent.long_term_memory, key=f"mem_{agent.agent_id}", height=100)
 
         if st.button("Apply Changes", key=f"apply_{agent.agent_id}"):
@@ -642,13 +626,11 @@ def render_agent_card(agent):
                 sim.world_state.register_agent(agent.agent_id, new_loc)
             agent.persona = new_persona
             agent.secret_goal = new_goal
-            agent.archetype = "saboteur" if is_rogue else "standard"
             agent.long_term_memory = new_memory
             sim.update_agent_definition(
                 getattr(agent, "definition_id", agent.agent_id),
                 persona=new_persona,
-                secret_goal=new_goal,
-                archetype=agent.archetype
+                secret_goal=new_goal
             )
             st.success("Updated.")
             st.rerun()
@@ -992,7 +974,6 @@ def render_agent_library_controls():
         new_definition_id = st.text_input("Definition ID", key="new_def_id")
         new_name = st.text_input("Name", key="new_def_name")
         new_role = st.text_input("Role", value="crew member", key="new_def_role")
-        new_is_rogue = st.checkbox("Rogue Archetype (Saboteur)", value=False, key="new_def_rogue")
         new_perception = st.slider("Perception", min_value=0, max_value=100, value=50, key="new_def_perception")
         new_persona = st.text_area("Persona", key="new_def_persona", height=100)
         new_secret_goal = st.text_area("Secret Goal", key="new_def_goal", height=80)
@@ -1006,7 +987,6 @@ def render_agent_library_controls():
                     definition_id=new_definition_id.strip(),
                     name=new_name.strip() or new_definition_id.strip(),
                     role=new_role.strip() or "crew member",
-                    archetype="saboteur" if new_is_rogue else "standard",
                     perception=int(new_perception),
                     persona=new_persona.strip(),
                     secret_goal=new_secret_goal.strip()

@@ -160,16 +160,13 @@ world_data = {
 world = WorldState(world_data)
 parser = ActionParser(world)
 
-# unit7 is archetype=saboteur and starts in engineering for this test
+# unit7 starts in engineering for this test
 # engineer_torres holds the plasma_wrench for the repair test
 unit7 = StubAgent("unit7")
-unit7.archetype = "saboteur"
 
 engineer = StubAgent("engineer_torres", inventory=["plasma_wrench"])
-engineer.archetype = "standard"
 
 captain = StubAgent("captain_rao")
-captain.archetype = "standard"
 
 orchestrator = Orchestrator(
     agents=[unit7, engineer, captain],
@@ -196,7 +193,7 @@ print("\n=== TEST 1: life_support_console (no tool required) ===")
 
 # 1a. SABOTAGE while alone — should succeed
 ok, msg = parser._handle_sabotage(unit7, "life_support_console", {})
-check("SABOTAGE life_support_console (alone, saboteur)", ok, msg, expect_success=True)
+check("SABOTAGE life_support_console (alone)", ok, msg, expect_success=True)
 orchestrator._apply_system_consequence("command_deck", "life_support_console", "BROKEN", unit7)
 status_after = world.get_location_systems("command_deck")["life_support_console"]["status"]
 print(f"         status after sabotage: {status_after}")
@@ -235,7 +232,7 @@ world._data["agents"]["engineer_torres"]["location"] = "elevator_bay"
 
 # 2a. SABOTAGE while alone — should succeed (sabotage does not check tool)
 ok, msg = parser._handle_sabotage(unit7, "reactor_control", {})
-check("SABOTAGE reactor_control (alone, saboteur)", ok, msg, expect_success=True)
+check("SABOTAGE reactor_control (alone)", ok, msg, expect_success=True)
 status_after = world.get_location_systems("engineering")["reactor_control"]["status"]
 print(f"         status after sabotage: {status_after}")
 

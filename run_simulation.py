@@ -65,7 +65,7 @@ ensure_runtime_dirs()
 os.chdir(data_path())
 
 from worldstate import WorldState
-from agent import FrontierAgent, RogueAgent
+from agent import FrontierAgent
 from actionparser import ActionParser
 from socialmatrix import SocialMatrix
 from orchestrator import Orchestrator
@@ -106,14 +106,12 @@ def load_config(
     # Initialize agents from config
     agents = []
     for agent_cfg in agent_instances:
-        agent_cls = RogueAgent if agent_cfg.get("archetype") == "saboteur" else FrontierAgent
-        agent = agent_cls(
+        agent = FrontierAgent(
             agent_id=agent_cfg["agent_id"],
             name=agent_cfg["name"],
             persona=agent_cfg["persona"],
             secret_goal=agent_cfg["secret_goal"],
             role=agent_cfg.get("role"),
-            archetype=agent_cfg.get("archetype"),
             perception=agent_cfg.get("perception", 50),
             condition=agent_cfg.get("condition"),
             llm_base_url=llm_base_url,

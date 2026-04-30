@@ -132,7 +132,7 @@ Examples of enforced constraints:
 - items must exist where claimed
 - inventory slot rules must hold
 - `WHISPER` requires a valid `message -> agent_id` target and a present recipient
-- `SABOTAGE` requires the saboteur archetype and no witnesses in the room
+- `SABOTAGE` requires no witnesses in the room and may require a configured sabotage tool
 - `REPAIR` requires a valid local broken/offline target and may require a specific tool
 
 The parser remains authoritative even when the agent layer has already prevalidated part of the decision.
