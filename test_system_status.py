@@ -140,6 +140,13 @@ world_data = {
             "location": "engineering",
             "owner": None,
             "portable": True
+        },
+        "station_data_pad": {
+            "name": "Station Data Pad",
+            "location": "command_deck",
+            "owner": None,
+            "portable": True,
+            "knowledge": "Station diagnostic notes identify intermittent oxygen routing faults."
         }
     },
     "agents": {
@@ -328,5 +335,33 @@ check("MOVE into secure_airlock blocked without access badge", ok, msg, expect_s
 world.add_item_to_agent_inventory("unit7", "access_badge")
 ok, msg = parser.execute(unit7, {"action": "MOVE", "action_target": "secure_airlock"})
 check("MOVE into secure_airlock succeeds with access badge", ok, msg, expect_success=True)
+
+print()
+
+
+# ---------------------------------------------------------------------------
+# TEST 7 — stable item ids match display names
+# ---------------------------------------------------------------------------
+print("\n=== TEST 7: stable item ids match display names ===")
+
+world._data["agents"]["unit7"]["location"] = "command_deck"
+world._data["items"]["station_data_pad"]["owner"] = None
+world._data["items"]["station_data_pad"]["location"] = "command_deck"
+if "station_data_pad" in world._data["agents"]["unit7"].setdefault("inventory", []):
+    world._data["agents"]["unit7"]["inventory"].remove("station_data_pad")
+world._data["items"]["oxygen_scanner"]["owner"] = None
+world._data["items"]["oxygen_scanner"]["location"] = "engineering"
+if "oxygen_scanner" in world._data["agents"]["unit7"]["inventory"]:
+    world._data["agents"]["unit7"]["inventory"].remove("oxygen_scanner")
+world._data["items"]["access_badge"]["owner"] = None
+world._data["items"]["access_badge"]["location"] = "engineering"
+if "access_badge" in world._data["agents"]["unit7"]["inventory"]:
+    world._data["agents"]["unit7"]["inventory"].remove("access_badge")
+
+ok, msg = parser.execute(unit7, {"action": "PICKUP", "action_target": "station_data_pad"})
+check("PICKUP station_data_pad resolves Station Data Pad", ok, msg, expect_success=True)
+
+ok, msg = parser.execute(unit7, {"action": "READ", "action_target": "station_data_pad"})
+check("READ station_data_pad resolves Station Data Pad", ok, msg, expect_success=True)
 
 print()

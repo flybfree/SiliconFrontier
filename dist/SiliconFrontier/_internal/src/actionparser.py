@@ -7,6 +7,7 @@ deterministic boundaries and preventing hallucinated abilities.
 
 from __future__ import annotations
 
+import re
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -118,8 +119,7 @@ class ActionParser:
         carried = self.world.find_items_by_owner(agent_id)
         for required_item in required:
             if any(
-                item.get("id") == required_item
-                or required_item.lower() in item.get("name", "").lower()
+                self._matches_entity(required_item, item.get("id", ""), item.get("name", ""))
                 for item in carried
             ):
                 return True, ""
@@ -164,10 +164,31 @@ class ActionParser:
         hand = self._hand_items(agent_id)
         holding = [item["name"] for item in hand]
         has_tool = any(
-            required_tool.lower() in item["name"].lower() or item["id"] == required_tool
+            self._matches_entity(required_tool, item.get("id", ""), item.get("name", ""))
             for item in hand
         )
         return has_tool, holding
+
+    @staticmethod
+    def _normalize_target(value: str) -> str:
+        """Normalize model-facing labels and stable ids into a comparable form."""
+        return re.sub(r"[^a-z0-9]+", "_", str(value).lower()).strip("_")
+
+    @classmethod
+    def _matches_entity(cls, target: str, entity_id: str, entity_name: str) -> bool:
+        """Match ids and display names while tolerating spaces, underscores, and case."""
+        target_norm = cls._normalize_target(target)
+        if not target_norm:
+            return False
+
+        id_norm = cls._normalize_target(entity_id)
+        name_norm = cls._normalize_target(entity_name)
+        return (
+            target_norm == id_norm
+            or target_norm == name_norm
+            or target_norm in name_norm
+            or target_norm in id_norm
+        )
 
     def _handle_pickup(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
         """Handle PICKUP action."""
@@ -180,7 +201,7 @@ class ActionParser:
         matching_item = None
 
         for item in items_here:
-            if target.lower() in item["name"].lower() or item["id"] == target:
+            if self._matches_entity(target, item.get("id", ""), item.get("name", "")):
                 matching_item = item
                 break
 
@@ -222,7 +243,7 @@ class ActionParser:
         matching_item = None
 
         for item in items_here:
-            if target.lower() in item["name"].lower() or item["id"] == target:
+            if self._matches_entity(target, item.get("id", ""), item.get("name", "")):
                 matching_item = item
                 break
 
@@ -242,7 +263,10 @@ class ActionParser:
         """Handle USE action — trigger a held item's configured effect."""
         hand = self._hand_items(agent.agent_id)
         matching_item = next(
-            (item for item in hand if target.lower() in item["name"].lower() or item["id"] == target),
+            (
+                item for item in hand
+                if self._matches_entity(target, item.get("id", ""), item.get("name", ""))
+            ),
             None
         )
         if not matching_item:
@@ -289,7 +313,10 @@ class ActionParser:
 
         owned_items = self.world.find_items_by_owner(agent.agent_id)
         matching_item = next(
-            (item for item in owned_items if item_name.lower() in item["name"].lower() or item["id"] == item_name),
+            (
+                item for item in owned_items
+                if self._matches_entity(item_name, item.get("id", ""), item.get("name", ""))
+            ),
             None
         )
         if not matching_item:
@@ -318,7 +345,10 @@ class ActionParser:
 
         held_items = self.world.find_items_by_owner(target_agent_id)
         matching_item = next(
-            (item for item in held_items if item_name.lower() in item["name"].lower() or item["id"] == item_name),
+            (
+                item for item in held_items
+                if self._matches_entity(item_name, item.get("id", ""), item.get("name", ""))
+            ),
             None
         )
         if not matching_item:
@@ -348,7 +378,10 @@ class ActionParser:
         if current_loc:
             candidates.extend(self.world.find_items_by_location(current_loc))
         return next(
-            (item for item in candidates if target.lower() in item["name"].lower() or item["id"] == target),
+            (
+                item for item in candidates
+                if self._matches_entity(target, item.get("id", ""), item.get("name", ""))
+            ),
             None
         )
 
@@ -425,7 +458,7 @@ class ActionParser:
         matching_system_id = None
         for system_id, system_data in systems_here.items():
             system_name = system_data.get("name", system_id)
-            if target.lower() in system_name.lower() or system_id == target:
+            if self._matches_entity(target, system_id, system_name):
                 matching_system_id = system_id
                 break
 
@@ -458,7 +491,7 @@ class ActionParser:
         matching_system_id = None
         for system_id, system_data in systems_here.items():
             system_name = system_data.get("name", system_id)
-            if target.lower() in system_name.lower() or system_id == target:
+            if self._matches_entity(target, system_id, system_name):
                 matching_system_id = system_id
                 break
 
@@ -501,7 +534,10 @@ class ActionParser:
         """Handle CONCEAL action — move an item from hand to the concealed person slot."""
         hand = self._hand_items(agent.agent_id)
         matching_item = next(
-            (item for item in hand if target.lower() in item["name"].lower() or item["id"] == target),
+            (
+                item for item in hand
+                if self._matches_entity(target, item.get("id", ""), item.get("name", ""))
+            ),
             None
         )
         if not matching_item:
@@ -519,7 +555,10 @@ class ActionParser:
         """Handle PRODUCE action — move a concealed item from person slot to hand."""
         person = self._person_items(agent.agent_id)
         matching_item = next(
-            (item for item in person if target.lower() in item["name"].lower() or item["id"] == target),
+            (
+                item for item in person
+                if self._matches_entity(target, item.get("id", ""), item.get("name", ""))
+            ),
             None
         )
         if not matching_item:
@@ -553,8 +592,7 @@ class ActionParser:
                     required = [str(item) for item in required_items if str(item).strip()]
                 carried = world_state.find_items_by_owner(agent_id)
                 has_access = any(
-                    item.get("id") == required_item
-                    or required_item.lower() in item.get("name", "").lower()
+                    ActionParser._matches_entity(required_item, item.get("id", ""), item.get("name", ""))
                     for required_item in required
                     for item in carried
                 )
@@ -574,7 +612,7 @@ class ActionParser:
         matching_item = None
 
         for item in items_here:
-            if item_name.lower() in item["name"].lower():
+            if ActionParser._matches_entity(item_name, item.get("id", ""), item.get("name", "")):
                 matching_item = item
                 break
 

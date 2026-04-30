@@ -461,6 +461,7 @@ missing module named 'snowflake.snowpark' - imported by streamlit.connections.sn
 missing module named 'snowflake.connector' - imported by streamlit.connections.snowflake_connection (delayed, conditional)
 missing module named 'authlib.jose' - imported by streamlit.auth_util (delayed, optional)
 missing module named authlib - imported by streamlit.auth_util (delayed, optional)
+missing module named scenario_resolution - imported by src.orchestrator (delayed, optional)
 missing module named email_validator - imported by pydantic.networks (delayed, conditional, optional), pydantic.v1.networks (delayed, conditional, optional), pydantic.v1._hypothesis_plugin (optional)
 missing module named 'mypy.version' - imported by pydantic.mypy (top-level), pydantic.v1.mypy (top-level)
 missing module named 'mypy.util' - imported by pydantic.mypy (top-level), pydantic.v1.mypy (top-level)
