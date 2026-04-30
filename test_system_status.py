@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from worldstate import WorldState
 from actionparser import ActionParser
+from agent import FrontierAgent
 from orchestrator import Orchestrator
 from socialmatrix import SocialMatrix
 
@@ -38,6 +39,30 @@ class StubAgent:
     def set_emotional_state(self, emotional_state: str) -> None:
         self.emotional_state = emotional_state
 
+
+class PromptProbeAgent(FrontierAgent):
+    def __init__(self):
+        self.agent_id = "prompt_probe"
+        self.name = "Prompt Probe"
+        self.role = "systems analyst"
+        self.persona = "A precise systems analyst."
+        self.secret_goal = "Find a system to sabotage."
+        self.condition = {"health": 100, "stress": 0, "fatigue": 0, "morale": 50}
+        self.emotional_state = "Neutral"
+        self.long_term_memory = "No long-term memory."
+        self.goal_momentum = "stalled"
+        self.pending_drop = None
+        self.pending_drop_name = None
+
+    def _system_requirement_text(self, system_data):
+        repair_tool = system_data.get("required_tool_repair") or system_data.get("required_tool")
+        sabotage_tool = system_data.get("required_tool_sabotage")
+        details = []
+        if repair_tool:
+            details.append(f"repair_tool={repair_tool}")
+        if sabotage_tool:
+            details.append(f"sabotage_tool={sabotage_tool}")
+        return f", {', '.join(details)}" if details else ""
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -337,9 +362,37 @@ print()
 
 
 # ---------------------------------------------------------------------------
-# TEST 7 — stable item ids match display names
+# TEST 7 — prompt distinguishes sabotage from repair on ONLINE systems
 # ---------------------------------------------------------------------------
-print("\n=== TEST 7: stable item ids match display names ===")
+print("\n=== TEST 7: prompt allows sabotage of ONLINE systems ===")
+
+prompt = PromptProbeAgent()._build_system_prompt({
+    "agent_inventory": [],
+    "visible_agents": [],
+    "visible_systems": {
+        "reactor_control": {
+            "name": "Reactor Control Array",
+            "status": "ONLINE",
+            "description": "Monitors and adjusts power core output.",
+        }
+    },
+    "abnormal_systems": [],
+    "relationship_impressions": {},
+})
+check(
+    "Prompt says ONLINE systems can be sabotaged",
+    "ONLINE or DEGRADED system can be sabotaged" in prompt,
+    "sabotage rule present",
+    expect_success=True
+)
+
+print()
+
+
+# ---------------------------------------------------------------------------
+# TEST 8 — stable item ids match display names
+# ---------------------------------------------------------------------------
+print("\n=== TEST 8: stable item ids match display names ===")
 
 world._data["agents"]["unit7"]["location"] = "command_deck"
 world._data["items"]["station_data_pad"]["owner"] = None

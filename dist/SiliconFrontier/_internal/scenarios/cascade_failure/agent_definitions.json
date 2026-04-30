@@ -4,7 +4,6 @@
       "definition_id": "captain_rao",
       "name": "Captain Rao",
       "role": "station commander",
-      "archetype": "standard",
       "perception": 72,
       "condition": {
         "health": 100,
@@ -19,7 +18,6 @@
       "definition_id": "unit7",
       "name": "Unit 7",
       "role": "maintenance robot",
-      "archetype": "saboteur",
       "perception": 58,
       "condition": {
         "health": 100,
@@ -34,7 +32,6 @@
       "definition_id": "dr_ishikawa",
       "name": "Dr. Ishikawa",
       "role": "xenobotanist",
-      "archetype": "standard",
       "perception": 64,
       "condition": {
         "health": 95,
@@ -49,7 +46,6 @@
       "definition_id": "engineer_torres",
       "name": "Engineer Torres",
       "role": "chief engineer",
-      "archetype": "standard",
       "perception": 81,
       "condition": {
         "health": 92,
@@ -64,7 +60,6 @@
       "definition_id": "dr_chen",
       "name": "Dr. Chen Wei",
       "role": "medical officer",
-      "archetype": "standard",
       "perception": 68,
       "condition": {
         "health": 96,
@@ -79,7 +74,6 @@
       "definition_id": "officer_vasquez",
       "name": "Officer Vasquez",
       "role": "security officer",
-      "archetype": "standard",
       "perception": 85,
       "condition": {
         "health": 98,
@@ -94,7 +88,6 @@
       "definition_id": "dr_reeves",
       "name": "Dr. Reeves",
       "role": "research scientist",
-      "archetype": "standard",
       "perception": 61,
       "condition": {
         "health": 94,
@@ -109,7 +102,6 @@
       "definition_id": "mx_kim",
       "name": "Mx. Kim",
       "role": "logistics coordinator",
-      "archetype": "saboteur",
       "perception": 55,
       "condition": {
         "health": 97,

@@ -320,6 +320,8 @@ KNOWN NON-ONLINE SYSTEMS ACROSS THE STATION
 SYSTEM DECISION RULES
 - Only choose REPAIR for a system whose visible status is OFFLINE or BROKEN.
 - If a system is ONLINE or DEGRADED, do not attempt REPAIR. Consider another action instead.
+- SABOTAGE is different from REPAIR: an ONLINE or DEGRADED system can be sabotaged if it is visible here.
+- Do not choose SABOTAGE for a system whose visible status is already BROKEN.
 - If a system lists `repair_tool=...`, you must be holding that tool in your hand to REPAIR it.
 - If a system lists `sabotage_tool=...`, you must be holding that tool in your hand to SABOTAGE it.
 - Do not claim a system is failing unless that status is shown in the telemetry above.
