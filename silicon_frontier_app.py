@@ -40,6 +40,8 @@ def _launch_streamlit(script_name: str) -> int:
         "run",
         str(script_path),
         "--global.developmentMode=false",
+        "--server.fileWatcherType",
+        "none",
         "--server.port",
         str(port),
         "--server.address",
