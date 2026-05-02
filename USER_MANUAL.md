@@ -366,6 +366,7 @@ For location systems, the dashboard now provides structured fields instead of a 
 - **Sabotage Tool** dropdown
 
 The tool dropdowns are built from item IDs found in the current world state and the shared item library.
+Selecting **None** means no tool is required for that action. The agent still has to choose the correct action against a valid local system.
 
 ### God Console
 
@@ -688,6 +689,8 @@ Systems can also declare tool requirements:
 - `required_tool_sabotage` — tool that must be held in hand to `SABOTAGE` the system
 - `required_tool` — legacy repair-only alias; new content should prefer `required_tool_repair`
 
+If a repair or sabotage tool is omitted, empty, or set to JSON `null`, no tool is required for that action. `None` does not mean the action is disabled; it means an agent can perform it without holding a tool, subject to the usual target/status/witness rules.
+
 If the same tool is required for both repair and sabotage, set both `required_tool_repair` and `required_tool_sabotage` to the same item ID or tool-name fragment.
 
 Example with tool-gated repair and sabotage:
@@ -708,6 +711,7 @@ Tool requirements are enforced in two places:
 
 - the agent prompt shows `repair_tool=...` and `sabotage_tool=...` for visible systems
 - action validation blocks `REPAIR` or `SABOTAGE` unless the required tool is currently in the agent's hand slot
+- when no tool is configured for an action, validation does not require a held item
 
 Systems can also declare consequences that fire when a status is reached through simulation actions. The preferred form is a `consequences` object keyed by status:
 

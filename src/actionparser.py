@@ -151,7 +151,7 @@ class ActionParser:
         return [i for i in self.world.find_items_by_owner(agent_id) if i.get("hidden")]
 
     def _resolve_system_tool_requirement(self, system_data: dict[str, Any], action: str) -> str | None:
-        """Return the configured required tool for a system action."""
+        """Return the configured required tool, or None when the action only needs an agent."""
         action_upper = action.upper()
         if action_upper == "REPAIR":
             return system_data.get("required_tool_repair") or system_data.get("required_tool")

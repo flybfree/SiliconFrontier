@@ -324,6 +324,7 @@ SYSTEM DECISION RULES
 - Do not choose SABOTAGE for a system whose visible status is already BROKEN.
 - If a system lists `repair_tool=...`, you must be holding that tool in your hand to REPAIR it.
 - If a system lists `sabotage_tool=...`, you must be holding that tool in your hand to SABOTAGE it.
+- If the tool for the chosen system action is not listed, no tool is required; the action still requires a valid local target.
 - Do not claim a system is failing unless that status is shown in the telemetry above.
 
 ITEM TRANSFER RULES
@@ -565,7 +566,7 @@ Output strict JSON:
 
     @staticmethod
     def _required_tool_for_action(system_data: dict[str, Any], action: str) -> str | None:
-        """Return the required tool for a system action, if configured."""
+        """Return the required tool for a system action; None means no tool required."""
         action_upper = action.upper()
         if action_upper == "REPAIR":
             return system_data.get("required_tool_repair") or system_data.get("required_tool")

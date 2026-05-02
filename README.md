@@ -118,7 +118,7 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **System telemetry** — prompts include local system status plus any non-`ONLINE` systems known elsewhere on the station.
 
-**Tool-gated systems** — systems can optionally require one tool for `REPAIR`, one tool for `SABOTAGE`, or the same tool for both via `required_tool_repair` and `required_tool_sabotage`.
+**Tool-gated systems** — systems can optionally require one tool for `REPAIR`, one tool for `SABOTAGE`, or the same tool for both via `required_tool_repair` and `required_tool_sabotage`. A missing, empty, or `null` tool value means no tool is required for that action.
 
 **System consequences** — systems can declare status-triggered consequences that add/remove location effects, broadcast memories, and apply runtime agent effects when `SABOTAGE` or `REPAIR` changes system status.
 

@@ -94,7 +94,9 @@ world_data = {
                     "name": "Life Support Console",
                     "status": "ONLINE",
                     "description": "Controls oxygen routing.",
-                    # no required_tool
+                    # Explicit None means no held tool is required.
+                    "required_tool_repair": None,
+                    "required_tool_sabotage": None,
                     "consequences": {
                         "BROKEN": {
                             "add_location_effects": ["low_oxygen"],
@@ -216,9 +218,9 @@ parser._hand_items = _hand_items
 # ---------------------------------------------------------------------------
 print("\n=== TEST 1: life_support_console (no tool required) ===")
 
-# 1a. SABOTAGE while alone — should succeed
+# 1a. SABOTAGE while alone — should succeed because sabotage_tool=None means no tool required
 ok, msg = parser._handle_sabotage(unit7, "life_support_console", {})
-check("SABOTAGE life_support_console (alone)", ok, msg, expect_success=True)
+check("SABOTAGE life_support_console (sabotage tool None)", ok, msg, expect_success=True)
 orchestrator._apply_system_consequence("command_deck", "life_support_console", "BROKEN", unit7)
 status_after = world.get_location_systems("command_deck")["life_support_console"]["status"]
 print(f"         status after sabotage: {status_after}")
@@ -231,10 +233,10 @@ check("BROKEN consequence changes local perception", unit7.perception == 45, str
 ok, msg = parser._handle_sabotage(unit7, "life_support_console", {})
 check("SABOTAGE again (already broken)", ok, msg, expect_success=False)
 
-# 1c. REPAIR without tool (none required) — should succeed
+# 1c. REPAIR without tool (repair_tool=None) — should succeed
 #     any agent can repair; use unit7 still in command_deck
 ok, msg = parser._handle_repair(unit7, "life_support_console", {})
-check("REPAIR life_support_console (no tool needed, any agent)", ok, msg, expect_success=True)
+check("REPAIR life_support_console (repair tool None, any agent)", ok, msg, expect_success=True)
 orchestrator._apply_system_consequence("command_deck", "life_support_console", "ONLINE", unit7)
 status_after = world.get_location_systems("command_deck")["life_support_console"]["status"]
 print(f"         status after repair: {status_after}")
@@ -383,6 +385,12 @@ check(
     "Prompt says ONLINE systems can be sabotaged",
     "ONLINE or DEGRADED system can be sabotaged" in prompt,
     "sabotage rule present",
+    expect_success=True
+)
+check(
+    "Prompt explains missing tool means no tool required",
+    "no tool is required" in prompt,
+    "no-tool rule present",
     expect_success=True
 )
 
