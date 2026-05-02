@@ -171,7 +171,7 @@ def _tool_options() -> list[str]:
 def _tool_label(item_id: str) -> str:
     """Return a friendly label for a tool dropdown option."""
     if not item_id:
-        return "None"
+        return "None (no tool required)"
     return f"{_item_display_name(item_id)} ({item_id})"
 
 def _preset_names() -> list[str]:
@@ -1022,6 +1022,7 @@ def render_tab_locations() -> None:
 
             # Systems
             st.markdown("**Systems**")
+            st.caption("Repair Tool or Sabotage Tool set to None means an agent can perform that action without holding a tool.")
             systems: dict = loc.get("systems", {})
             tool_options = _tool_options()
             sys_to_del = None
@@ -1045,6 +1046,7 @@ def render_tab_locations() -> None:
                         options=tool_options,
                         index=tool_options.index(current_repair_tool) if current_repair_tool in tool_options else 0,
                         format_func=_tool_label,
+                        help="None means REPAIR only needs a valid local system target; no held tool is required.",
                         key=f"sys_repair_tool_{loc_id}_{sys_id}"
                     )
                 with sc5:
@@ -1054,6 +1056,7 @@ def render_tab_locations() -> None:
                         options=tool_options,
                         index=tool_options.index(current_sabotage_tool) if current_sabotage_tool in tool_options else 0,
                         format_func=_tool_label,
+                        help="None means SABOTAGE only needs a valid local system target and no witnesses; no held tool is required.",
                         key=f"sys_sabotage_tool_{loc_id}_{sys_id}"
                     )
                 with sc6:
@@ -1077,9 +1080,19 @@ def render_tab_locations() -> None:
                 with sa4:
                     fs_status = st.selectbox("Status", options=SYSTEM_STATUSES)
                 with sa5:
-                    fs_repair_tool = st.selectbox("Repair Tool", options=tool_options, format_func=_tool_label)
+                    fs_repair_tool = st.selectbox(
+                        "Repair Tool",
+                        options=tool_options,
+                        format_func=_tool_label,
+                        help="None means REPAIR does not require a held tool."
+                    )
                 with sa6:
-                    fs_sabotage_tool = st.selectbox("Sabotage Tool", options=tool_options, format_func=_tool_label)
+                    fs_sabotage_tool = st.selectbox(
+                        "Sabotage Tool",
+                        options=tool_options,
+                        format_func=_tool_label,
+                        help="None means SABOTAGE does not require a held tool."
+                    )
                 if st.form_submit_button("Add System"):
                     if fs_id.strip() and fs_name.strip():
                         new_system = {

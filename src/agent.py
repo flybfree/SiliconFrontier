@@ -569,10 +569,22 @@ Output strict JSON:
         """Return the required tool for a system action; None means no tool required."""
         action_upper = action.upper()
         if action_upper == "REPAIR":
-            return system_data.get("required_tool_repair") or system_data.get("required_tool")
+            return FrontierAgent._normalize_tool_requirement(
+                system_data.get("required_tool_repair") or system_data.get("required_tool")
+            )
         if action_upper == "SABOTAGE":
-            return system_data.get("required_tool_sabotage")
+            return FrontierAgent._normalize_tool_requirement(system_data.get("required_tool_sabotage"))
         return None
+
+    @staticmethod
+    def _normalize_tool_requirement(value: Any) -> str | None:
+        """Normalize optional tool fields; None/empty/'none'/'null' means no tool required."""
+        if value is None:
+            return None
+        tool = str(value).strip()
+        if not tool or tool.lower() in {"none", "null"}:
+            return None
+        return tool
 
     @staticmethod
     def _hand_items_from_snapshot(world_snapshot: dict[str, Any]) -> list[dict[str, Any]]:
@@ -609,12 +621,9 @@ Output strict JSON:
         """Format system tool requirements for prompt text."""
         repair_tool = self._required_tool_for_action(system_data, "REPAIR")
         sabotage_tool = self._required_tool_for_action(system_data, "SABOTAGE")
-        details = []
-        if repair_tool:
-            details.append(f"repair_tool={repair_tool}")
-        if sabotage_tool:
-            details.append(f"sabotage_tool={sabotage_tool}")
-        return f", {', '.join(details)}" if details else ""
+        repair_text = repair_tool or "None (no tool required)"
+        sabotage_text = sabotage_tool or "None (no tool required)"
+        return f", repair_tool={repair_text}, sabotage_tool={sabotage_text}"
 
     def _match_visible_system(self, target: str, world_snapshot: dict[str, Any]) -> dict[str, Any] | None:
         """Find a local visible system matching a system action target."""

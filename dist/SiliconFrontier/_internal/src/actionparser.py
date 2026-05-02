@@ -151,13 +151,25 @@ class ActionParser:
         return [i for i in self.world.find_items_by_owner(agent_id) if i.get("hidden")]
 
     def _resolve_system_tool_requirement(self, system_data: dict[str, Any], action: str) -> str | None:
-        """Return the configured required tool for a system action."""
+        """Return the configured required tool, or None when the action only needs an agent."""
         action_upper = action.upper()
         if action_upper == "REPAIR":
-            return system_data.get("required_tool_repair") or system_data.get("required_tool")
+            return self._normalize_tool_requirement(
+                system_data.get("required_tool_repair") or system_data.get("required_tool")
+            )
         if action_upper == "SABOTAGE":
-            return system_data.get("required_tool_sabotage")
+            return self._normalize_tool_requirement(system_data.get("required_tool_sabotage"))
         return None
+
+    @staticmethod
+    def _normalize_tool_requirement(value: Any) -> str | None:
+        """Normalize optional tool fields; None/empty/'none'/'null' means no tool required."""
+        if value is None:
+            return None
+        tool = str(value).strip()
+        if not tool or tool.lower() in {"none", "null"}:
+            return None
+        return tool
 
     def _has_required_hand_tool(self, agent_id: str, required_tool: str) -> tuple[bool, list[str]]:
         """Check whether the agent is visibly holding the required tool."""

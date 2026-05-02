@@ -134,7 +134,7 @@ Examples of enforced constraints:
 - `WHISPER` requires a valid `message -> agent_id` target and a present recipient
 - `SABOTAGE` requires no witnesses in the room and may require a configured sabotage tool
 - `REPAIR` requires a valid local broken/offline target and may require a specific tool
-- a missing, empty, or `null` repair/sabotage tool means no tool is required for that action
+- a missing, empty, `null`, `"None"`, or `"null"` repair/sabotage tool means no tool is required for that action
 
 The parser remains authoritative even when the agent layer has already prevalidated part of the decision.
 

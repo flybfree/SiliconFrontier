@@ -118,9 +118,11 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **System telemetry** — prompts include local system status plus any non-`ONLINE` systems known elsewhere on the station.
 
-**Tool-gated systems** — systems can optionally require one tool for `REPAIR`, one tool for `SABOTAGE`, or the same tool for both via `required_tool_repair` and `required_tool_sabotage`. A missing, empty, or `null` tool value means no tool is required for that action.
+**Tool-gated systems** — systems can optionally require one tool for `REPAIR`, one tool for `SABOTAGE`, or the same tool for both via `required_tool_repair` and `required_tool_sabotage`. A missing, empty, `null`, `"None"`, or `"null"` tool value means no tool is required for that action.
 
 **System consequences** — systems can declare status-triggered consequences that add/remove location effects, broadcast memories, and apply runtime agent effects when `SABOTAGE` or `REPAIR` changes system status.
+
+**Speech as knowledge** — agents retain heard `SAY`/`LIE` content and direct `WHISPER` content as durable known facts. Whisper bystanders only know that a private exchange occurred.
 
 **Relationship labels** — numeric trust/affinity/suspicion scores are displayed to agents as human-readable labels (`colleagues`, `rivals`, `hostile`, etc.) using nearest-neighbor matching against the preset table in `library/relationship_presets.json`.
 

@@ -126,7 +126,7 @@ Current system-action rules in the parser:
 - `SABOTAGE` fails if another visible agent is present
 - `SABOTAGE` fails if the local target system is already `BROKEN`
 - `REPAIR` only succeeds on a local target system whose status is `OFFLINE` or `BROKEN`
-- `REPAIR` and `SABOTAGE` can require named tools in the actor's visible hand slot; missing, empty, or `null` tool values mean no tool is required for that action
+- `REPAIR` and `SABOTAGE` can require named tools in the actor's visible hand slot; missing, empty, `null`, `"None"`, or `"null"` tool values mean no tool is required for that action
 
 ## 4. Orchestrator
 

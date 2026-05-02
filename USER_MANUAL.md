@@ -273,6 +273,7 @@ Telemetry is used in two different ways:
 
 - **Action grounding**: `REPAIR` and `SABOTAGE` are constrained by visible local status before the parser executes them
 - **Speech interpretation**: `SAY`, `LIE`, and direct `WHISPER` content are allowed to be wrong, deceptive, or confused, but listeners can compare those claims against their own telemetry view and remember the mismatch
+- **Speech knowledge**: content heard through `SAY`/`LIE` or direct `WHISPER` is recorded as durable known information for the listener. Whisper bystanders remember that a whisper happened, but not the private content.
 
 This keeps system mutations grounded while preserving social deception.
 
@@ -689,7 +690,7 @@ Systems can also declare tool requirements:
 - `required_tool_sabotage` — tool that must be held in hand to `SABOTAGE` the system
 - `required_tool` — legacy repair-only alias; new content should prefer `required_tool_repair`
 
-If a repair or sabotage tool is omitted, empty, or set to JSON `null`, no tool is required for that action. `None` does not mean the action is disabled; it means an agent can perform it without holding a tool, subject to the usual target/status/witness rules.
+If a repair or sabotage tool is omitted, empty, set to JSON `null`, or written as the string `"None"`/`"null"`, no tool is required for that action. `None` does not mean the action is disabled; it means an agent can perform it without holding a tool, subject to the usual target/status/witness rules.
 
 If the same tool is required for both repair and sabotage, set both `required_tool_repair` and `required_tool_sabotage` to the same item ID or tool-name fragment.
 
@@ -711,7 +712,7 @@ Tool requirements are enforced in two places:
 
 - the agent prompt shows `repair_tool=...` and `sabotage_tool=...` for visible systems
 - action validation blocks `REPAIR` or `SABOTAGE` unless the required tool is currently in the agent's hand slot
-- when no tool is configured for an action, validation does not require a held item
+- when no tool is configured for an action, the agent prompt shows `None (no tool required)` and validation does not require a held item
 
 Systems can also declare consequences that fire when a status is reached through simulation actions. The preferred form is a `consequences` object keyed by status:
 

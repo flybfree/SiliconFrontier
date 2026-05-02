@@ -1427,7 +1427,7 @@ def main():
 
                 def _tool_label(item_id: str) -> str:
                     if not item_id:
-                        return "None"
+                        return "None (no tool required)"
                     world_item = sim.world_state.items.get(item_id, {})
                     lib_item = load_item_library().get("items", {}).get(item_id, {})
                     item_name = world_item.get("name") or lib_item.get("name") or item_id
@@ -1436,6 +1436,7 @@ def main():
                 updated_systems = {}
                 sys_to_delete = None
                 if systems:
+                    st.caption("Repair Tool or Sabotage Tool set to None means an agent can perform that action without holding a tool.")
                     for system_id, system_data in systems.items():
                         st.markdown(f"`{system_id}`")
                         sc1, sc2, sc3 = st.columns([2, 2, 1])
@@ -1472,6 +1473,7 @@ def main():
                                 options=tool_options,
                                 index=tool_options.index(current_repair_tool) if current_repair_tool in tool_options else 0,
                                 format_func=_tool_label,
+                                help="None means REPAIR only needs a valid local system target; no held tool is required.",
                                 key=f"loc_sys_repair_tool_{loc_id}_{system_id}"
                             )
                         with tc2:
@@ -1480,6 +1482,7 @@ def main():
                                 options=tool_options,
                                 index=tool_options.index(current_sabotage_tool) if current_sabotage_tool in tool_options else 0,
                                 format_func=_tool_label,
+                                help="None means SABOTAGE only needs a valid local system target and no witnesses; no held tool is required.",
                                 key=f"loc_sys_sabotage_tool_{loc_id}_{system_id}"
                             )
                         next_system = {
@@ -1513,6 +1516,7 @@ def main():
                             "New Repair Tool",
                             options=tool_options,
                             format_func=_tool_label,
+                            help="None means REPAIR does not require a held tool.",
                             key=f"loc_add_sys_repair_tool_{loc_id}"
                         )
                     with at2:
@@ -1520,6 +1524,7 @@ def main():
                             "New Sabotage Tool",
                             options=tool_options,
                             format_func=_tool_label,
+                            help="None means SABOTAGE does not require a held tool.",
                             key=f"loc_add_sys_sabotage_tool_{loc_id}"
                         )
                     add_system_submitted = st.form_submit_button(

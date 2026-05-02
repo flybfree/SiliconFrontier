@@ -54,16 +54,6 @@ class PromptProbeAgent(FrontierAgent):
         self.pending_drop = None
         self.pending_drop_name = None
 
-    def _system_requirement_text(self, system_data):
-        repair_tool = system_data.get("required_tool_repair") or system_data.get("required_tool")
-        sabotage_tool = system_data.get("required_tool_sabotage")
-        details = []
-        if repair_tool:
-            details.append(f"repair_tool={repair_tool}")
-        if sabotage_tool:
-            details.append(f"sabotage_tool={sabotage_tool}")
-        return f", {', '.join(details)}" if details else ""
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -94,9 +84,9 @@ world_data = {
                     "name": "Life Support Console",
                     "status": "ONLINE",
                     "description": "Controls oxygen routing.",
-                    # Explicit None means no held tool is required.
-                    "required_tool_repair": None,
-                    "required_tool_sabotage": None,
+                    # Literal "None" also means no held tool is required.
+                    "required_tool_repair": "None",
+                    "required_tool_sabotage": "None",
                     "consequences": {
                         "BROKEN": {
                             "add_location_effects": ["low_oxygen"],
@@ -318,6 +308,53 @@ print(f"  [{status}] engineer_torres received item:hidden_log")
 
 
 # ---------------------------------------------------------------------------
+# TEST 4b — speech becomes recipient knowledge
+# ---------------------------------------------------------------------------
+print("\n=== TEST 4b: SAY/WHISPER become recipient knowledge ===")
+
+world._data["agents"]["unit7"]["location"] = "command_deck"
+world._data["agents"]["engineer_torres"]["location"] = "command_deck"
+world._data["agents"]["captain_rao"] = {"location": "command_deck"}
+
+orchestrator._record_speech_knowledge(
+    engineer,
+    unit7,
+    "The oxygen relay is unstable.",
+    "SAY"
+)
+engineer_facts = world.get_known_facts("engineer_torres")
+check(
+    "SAY records durable knowledge for listener",
+    any("The oxygen relay is unstable." in fact.get("text", "") for fact in engineer_facts.values()),
+    str(engineer_facts),
+    expect_success=True
+)
+
+orchestrator._record_speech_knowledge(
+    engineer,
+    unit7,
+    "Meet me near the backup console.",
+    "WHISPER",
+    private=True
+)
+engineer_facts = world.get_known_facts("engineer_torres")
+check(
+    "WHISPER records durable knowledge for direct recipient",
+    any("Meet me near the backup console." in fact.get("text", "") for fact in engineer_facts.values()),
+    str(engineer_facts),
+    expect_success=True
+)
+
+captain_facts = world.get_known_facts("captain_rao")
+check(
+    "WHISPER content is not knowledge for bystanders",
+    not any("Meet me near the backup console." in fact.get("text", "") for fact in captain_facts.values()),
+    str(captain_facts),
+    expect_success=True
+)
+
+
+# ---------------------------------------------------------------------------
 # TEST 5 — durable USE effects
 # ---------------------------------------------------------------------------
 print("\n=== TEST 5: durable USE effects ===")
@@ -389,7 +426,8 @@ check(
 )
 check(
     "Prompt explains missing tool means no tool required",
-    "no tool is required" in prompt,
+    "repair_tool=None (no tool required)" in prompt
+    and "sabotage_tool=None (no tool required)" in prompt,
     "no-tool rule present",
     expect_success=True
 )

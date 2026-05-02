@@ -5,6 +5,7 @@ Manages the simulation heartbeat, coordinates agent turns, handles social
 broadcasting, and maintains the global event log.
 """
 
+import hashlib
 import time
 from typing import Any
 
@@ -520,6 +521,32 @@ class Orchestrator:
         self._sync_relationships()
         print(f"  [Telemetry check] {listener.name} flagged {speaker.name}'s claim: {contradiction}")
 
+    def _record_speech_knowledge(
+        self,
+        listener: Any,
+        speaker: Any,
+        message: str,
+        action: str,
+        private: bool = False
+    ) -> None:
+        """Record speech heard by a listener as durable knowledge."""
+        clean_message = str(message).strip()
+        if not clean_message:
+            return
+
+        speech_kind = "whispered to you" if private else "said"
+        fact_text = f"{speaker.name} {speech_kind}: '{clean_message}'"
+        digest = hashlib.sha1(
+            f"{self.cycle_count}|{listener.agent_id}|{speaker.agent_id}|{action}|{clean_message}".encode("utf-8")
+        ).hexdigest()[:12]
+        fact_id = f"speech:{action.lower()}:{speaker.agent_id}:{digest}"
+        self.world.remember_fact(
+            listener.agent_id,
+            fact_id,
+            fact_text,
+            shared_by=speaker.agent_id
+        )
+
     @staticmethod
     def _extract_social_target(target: str) -> tuple[str, str] | None:
         """Parse an action target into (item_or_message, target_agent_id)."""
@@ -779,6 +806,7 @@ class Orchestrator:
                 for witness_id in self.world.get_visible_agents(agent.agent_id):
                     witness = self.get_agent_by_id(witness_id)
                     if witness:
+                        self._record_speech_knowledge(witness, agent, target, action)
                         self._apply_telemetry_speech_check(witness, agent, target)
 
             elif action == "READ" and success:
@@ -791,6 +819,7 @@ class Orchestrator:
                     target_agent = self.get_agent_by_id(target_agent_id)
                     if target_agent:
                         target_agent.add_to_memory(f"{agent.name} whispered to you: '{message}'")
+                        self._record_speech_knowledge(target_agent, agent, message, action, private=True)
                         self._apply_telemetry_speech_check(target_agent, agent, message)
                         self.social.update_scores(target_agent_id, agent.agent_id, trust_delta=4, affinity_delta=3, notes=f"{agent.name} chose to confide in you.")
                     for witness_id in self.world.get_visible_agents(agent.agent_id):
