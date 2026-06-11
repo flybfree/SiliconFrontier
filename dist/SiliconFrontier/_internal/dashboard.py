@@ -164,7 +164,7 @@ class SimulationState:
                 llm_model=self.llm_model
             )
             if materialize_world_state:
-                self.world_state.register_agent(agent.agent_id, agent_cfg["starting_location"])
+                self.world_state.register_agent(agent.agent_id, agent_cfg["starting_location"], name=agent_cfg.get("name"))
                 for item_id in agent_cfg.get("inventory", []):
                     if not self.world_state.add_item_to_agent_inventory(agent.agent_id, item_id):
                         import streamlit as st
@@ -623,7 +623,7 @@ def render_agent_card(agent):
 
         if st.button("Apply Changes", key=f"apply_{agent.agent_id}"):
             if not sim.world_state.set_agent_location(agent.agent_id, new_loc):
-                sim.world_state.register_agent(agent.agent_id, new_loc)
+                sim.world_state.register_agent(agent.agent_id, new_loc, name=agent.name)
             agent.persona = new_persona
             agent.secret_goal = new_goal
             agent.long_term_memory = new_memory

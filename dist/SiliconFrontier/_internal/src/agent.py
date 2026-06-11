@@ -120,6 +120,22 @@ class FrontierAgent:
         """Return condition as compact prompt text."""
         return ", ".join(f"{key}={value}" for key, value in self.condition.items())
 
+    def _condition_guidance(self) -> str:
+        """Return behavioral nudges for extreme condition values."""
+        parts = []
+        if self.condition.get("health", 100) < 30:
+            parts.append("critically low health — avoid risky confrontations")
+        if self.condition.get("stress", 0) > 70:
+            parts.append("high stress — prone to impulsive decisions")
+        if self.condition.get("fatigue", 0) > 80:
+            parts.append("severe fatigue — physical actions feel costly; prefer social or passive moves")
+        morale = self.condition.get("morale", 50)
+        if morale < 25:
+            parts.append("very low morale — you question whether your goal is achievable")
+        elif morale > 80:
+            parts.append("high morale — you feel capable and driven")
+        return "; ".join(parts)
+
     def adjust_condition(self, **deltas: int) -> dict[str, int]:
         """Apply clamped condition deltas and return changed fields."""
         changed = {}
@@ -219,7 +235,8 @@ class FrontierAgent:
             label = self._relationship_label(rel.get("trust", 50), rel.get("affinity", 50), rel.get("suspicion", 0))
             notes = rel.get("notes", "") or ""
             notes_part = f" — {notes}" if notes else ""
-            relationship_lines.append(f"{other_id}: {label}{notes_part}")
+            display_name = rel.get("name", other_id)
+            relationship_lines.append(f"{display_name}: {label}{notes_part}")
         relationship_str = "\n".join(relationship_lines) if relationship_lines else "No established impressions yet."
 
         recent_events = self.memory_buffer[-5:] if self.memory_buffer else ["No recent events"]
@@ -234,6 +251,32 @@ class FrontierAgent:
         if contested_visible:
             contested_lines += f"Contested resource(s) here: {', '.join(contested_visible)}. These are valuable and others may seek them.\n"
 
+        # Synthesize solitude + system state into explicit tactical conditions so the
+        # model doesn't have to connect separate lines mid-prompt.
+        visible_sys_map = world_snapshot.get("visible_systems", {})
+        alone = not world_snapshot["visible_agents"]
+        tactical_parts = []
+        if alone:
+            sabotageable = [
+                f"{sid} ({sd.get('status', 'ONLINE')})"
+                for sid, sd in visible_sys_map.items()
+                if sd.get("status", "ONLINE") != "BROKEN"
+            ]
+            if sabotageable:
+                tactical_parts.append(
+                    f"You are unobserved. Sabotageable systems here: {', '.join(sabotageable)}."
+                )
+            else:
+                tactical_parts.append("You are unobserved this turn.")
+        repairable = [
+            f"{sid} ({sd.get('status', 'unknown')})"
+            for sid, sd in visible_sys_map.items()
+            if sd.get("status", "ONLINE") in {"OFFLINE", "BROKEN"}
+        ]
+        if repairable:
+            tactical_parts.append(f"Systems here that need repair: {', '.join(repairable)}.")
+        tactical_block = ("\nTactical conditions:\n" + "\n".join(f"- {p}" for p in tactical_parts) + "\n") if tactical_parts else ""
+
         return (
             f"Location: {location_name}\n"
             f"{location_desc}\n\n"
@@ -245,6 +288,7 @@ class FrontierAgent:
             f"Known systems needing attention:\n{abnormal_systems_str}\n"
             f"Other agents present: {agents_str}\n"
             f"{contested_lines}"
+            f"{tactical_block}"
             f"\nYour current impressions of others:\n{relationship_str}\n\n"
             f"Known private facts:\n{known_facts_str}\n\n"
             f"Recent Events: {events_str}"
@@ -264,7 +308,8 @@ class FrontierAgent:
             label = self._relationship_label(rel.get("trust", 50), rel.get("affinity", 50), rel.get("suspicion", 0))
             notes = rel.get("notes", "") or ""
             notes_part = f" — {notes}" if notes else ""
-            relationship_block.append(f"- {other_id}: {label}{notes_part}")
+            display_name = rel.get("name", other_id)
+            relationship_block.append(f"- {display_name}: {label}{notes_part}")
         relationship_text = "\n".join(relationship_block) if relationship_block else "- No one nearby yet."
         systems_block = []
         for system_id, system_data in visible_systems.items():
@@ -283,12 +328,26 @@ class FrontierAgent:
                 f"{self._system_requirement_text(system_data)}"
             )
         abnormal_system_text = "\n".join(abnormal_system_block) if abnormal_system_block else "- No non-ONLINE systems known."
+        condition_guidance = self._condition_guidance()
+        condition_line = (
+            f"health={self.condition.get('health', 100)}, stress={self.condition.get('stress', 0)}, "
+            f"fatigue={self.condition.get('fatigue', 0)}, morale={self.condition.get('morale', 50)}"
+        )
+        if condition_guidance:
+            condition_line += f" [{condition_guidance}]"
+
+        momentum_guidance = {
+            "advancing": "You are making progress — maintain your approach and stay opportunistic.",
+            "stalled": "You are stalled — try something bolder or more direct rather than repeating the same cautious pattern.",
+            "setback": "You have suffered a setback — regroup, reassess who you can trust, and look for a new angle.",
+        }.get(self.goal_momentum, "")
+
         return f"""You are {self.name}, the {self.role} aboard the "Silicon Frontier" research station.
 
 YOUR IDENTITY
 Persona: {self.persona}
 Secret Motivation: {self.secret_goal}
-Condition: health={self.condition.get('health', 100)}, stress={self.condition.get('stress', 0)}, fatigue={self.condition.get('fatigue', 0)}, morale={self.condition.get('morale', 50)}
+Condition: {condition_line}
 Current Inventory: {inventory_str}
 Current Emotional State: {self.emotional_state} — let this genuinely color your reasoning, tone, and choices.
 
@@ -334,7 +393,7 @@ ITEM TRANSFER RULES
 
 YOUR KNOWLEDGE SO FAR
 Long-term memories: {self.long_term_memory}
-Your current sense of progress toward your secret goal: {self.goal_momentum}.
+Your current sense of progress toward your secret goal: {self.goal_momentum}. {momentum_guidance}
 
 {f"""URGENT — ITEM OBLIGATION
 You just read the contents of the {self.pending_drop_name}. It contains sensitive information.
@@ -747,7 +806,8 @@ Output strict JSON:
         target: str,
         success: bool,
         feedback: str,
-        nearby_agent_names: list[str]
+        nearby_agent_names: list[str],
+        cycle: int = 0
     ) -> str:
         """
         Build an experiential memory string from an action outcome.
@@ -755,10 +815,11 @@ Output strict JSON:
         Richer than a bare mechanical record — frames the outcome in terms
         the agent can reason about emotionally and goal-directionally.
         """
+        prefix = f"[C{cycle}] " if cycle else ""
         witnessed = f" ({', '.join(nearby_agent_names)} saw this.)" if nearby_agent_names else ""
 
         if not success:
-            return f"You tried to {action.lower()} ({target}) but it didn't work. {feedback}{witnessed}"
+            return f"{prefix}You tried to {action.lower()} ({target}) but it didn't work. {feedback}{witnessed}"
 
         templates = {
             "MOVE":     f"You moved to {target}.{witnessed}",
@@ -778,7 +839,8 @@ Output strict JSON:
             "PRODUCE":  f"You produced {target}, bringing it into plain view.{witnessed}",
             "WAIT":     f"You held back and watched.{witnessed}",
         }
-        return templates.get(action, f"You performed {action} on {target}. {feedback}{witnessed}")
+        result = templates.get(action, f"You performed {action} on {target}. {feedback}{witnessed}")
+        return f"{prefix}{result}"
 
     def _build_response_schema(self) -> dict[str, Any]:
         """Return the ideal structured-output schema for an agent turn."""
@@ -996,15 +1058,16 @@ Current Long-Term Memory: {self.long_term_memory}
 
 Your secret goal: {self.secret_goal}
 
-Reflect on your recent experiences. Focus on:
-1. New items found or acquired
-2. Who you can or cannot trust (note any betrayals, helpful acts)
-3. Whether you are making genuine progress toward your secret goal
-4. Any information about other agents' motivations
+Reflect on your recent experiences. Address all five points:
+1. New items found or acquired — and their strategic value.
+2. Who you can or cannot trust — note any betrayals, deceptions, or helpful acts.
+3. Whether you are making genuine progress toward your secret goal.
+4. For each person you have observed: what do you now believe their likely hidden motivation is? Are they a threat, a potential ally, or irrelevant to your goal?
+5. Given your current momentum, what specific approach will you try next?
 
 Output strict JSON:
 {{
-  "summary": "Your updated long-term memory as a concise paragraph.",
+  "summary": "Your updated long-term memory as a concise paragraph. Include your current theory of each other agent's motivation and whether they are a threat or ally.",
   "goal_momentum": "One of: advancing, stalled, or setback — honestly assess whether recent events moved you toward or away from your secret goal."
 }}"""
 
