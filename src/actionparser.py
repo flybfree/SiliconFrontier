@@ -366,6 +366,15 @@ class ActionParser:
         if not matching_item:
             return False, f"Failure: {target_agent_id} does not appear to be carrying '{item_name}'."
 
+        # Relationship-based resistance: low trust toward the demander allows refusal
+        target_view = self.world.get_relationship_view(target_agent_id, agent.agent_id)
+        target_trust = int(target_view.get("trust", 50))
+        if target_trust < 35:
+            return False, (
+                f"Failure: {target_agent_id} refuses to hand over {matching_item['name']}. "
+                f"They don't trust you enough to comply."
+            )
+
         # Check the demander has a free hand slot to receive
         my_hand = self._hand_items(agent.agent_id)
         if my_hand:

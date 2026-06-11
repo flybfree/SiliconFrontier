@@ -303,10 +303,11 @@ class WorldState:
             return False
         return self.add_item_to_agent_inventory(to_agent_id, item_id)
 
-    def register_agent(self, agent_id: str, location: str) -> None:
+    def register_agent(self, agent_id: str, location: str, name: str | None = None) -> None:
         """Register a new agent in the world state."""
         self._data["agents"][agent_id] = {
             "location": location,
+            "name": name or agent_id,
             "inventory": [],
             "status_effects": []
         }
@@ -384,6 +385,7 @@ class WorldState:
             },
             "relationship_impressions": {
                 other_id: {
+                    "name": self._data["agents"].get(other_id, {}).get("name", other_id),
                     **self.get_relationship_view(agent_id, other_id),
                     "suspicion": self.get_suspicion_view(agent_id, other_id)
                 }

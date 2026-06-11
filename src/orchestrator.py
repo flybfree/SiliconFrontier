@@ -6,6 +6,7 @@ broadcasting, and maintains the global event log.
 """
 
 import hashlib
+import random
 import time
 from typing import Any
 
@@ -686,7 +687,7 @@ class Orchestrator:
 
         critic_update = observer_agent.evaluate_social_exchange(
             speaker_name=speaker_agent.name,
-            speaker_goal_hint=speaker_agent.secret_goal,
+            speaker_goal_hint=None,
             action=action,
             message=message,
             current_trust=current_trust,
@@ -736,7 +737,10 @@ class Orchestrator:
         print(f"CYCLE {self.cycle_count}")
         print(f"{'='*50}")
 
-        for agent in self.agents:
+        turn_order = list(self.agents)
+        random.shuffle(turn_order)
+
+        for agent in turn_order:
             print(f"\n[Turn Start: {agent.name}]")
             self._print_system_status_snapshot()
 
@@ -778,7 +782,7 @@ class Orchestrator:
             success, feedback = self.parser.execute(agent, {"action": action, "action_target": target})
             nearby_ids = self.world.get_visible_agents(agent.agent_id)
             nearby_names = [a.name for a in self.agents if a.agent_id in nearby_ids]
-            agent.add_to_memory(agent.interpret_consequence(action, target, success, feedback, nearby_names))
+            agent.add_to_memory(agent.interpret_consequence(action, target, success, feedback, nearby_names, self.cycle_count))
 
             print(f"  Result: {feedback}")
 
@@ -808,6 +812,11 @@ class Orchestrator:
                     if witness:
                         self._record_speech_knowledge(witness, agent, target, action)
                         self._apply_telemetry_speech_check(witness, agent, target)
+                if action == "LIE":
+                    for witness_id in self.world.get_visible_agents(agent.agent_id):
+                        self.social.update_suspicion(witness_id, agent.agent_id, 4)
+                    self._sync_relationships()
+                    print(f"  [LIE] {agent.name}'s choice to lie raised suspicion among witnesses (+4).")
 
             elif action == "READ" and success:
                 self._apply_read_side_effects(agent, target)
@@ -897,6 +906,14 @@ class Orchestrator:
                     item_name, target_agent_id = parsed
                     event_msg = f"You saw {agent.name} give {item_name} to {target_agent_id}"
                     self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
+
+            elif action == "DEMAND" and not success and "refuses" in feedback.lower():
+                parsed = self._extract_social_target(target)
+                if parsed:
+                    _, target_agent_id = parsed
+                    self.social.update_suspicion(target_agent_id, agent.agent_id, 8)
+                    self._sync_relationships()
+                    print(f"  [DEMAND refused] {target_agent_id} refused {agent.name}; suspicion escalated (+8).")
 
             elif action == "DEMAND" and success:
                 parsed = self._extract_social_target(target)

@@ -119,7 +119,7 @@ def load_config(
         )
 
         # Set starting location and inventory
-        world_state.register_agent(agent.agent_id, agent_cfg["starting_location"])
+        world_state.register_agent(agent.agent_id, agent_cfg["starting_location"], name=agent_cfg.get("name"))
         for item_id in agent_cfg.get("inventory", []):
             world_state.add_item_to_agent_inventory(agent.agent_id, item_id)
 
