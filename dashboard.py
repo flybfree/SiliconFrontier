@@ -72,6 +72,7 @@ from agent import FrontierAgent
 from actionparser import ActionParser
 from socialmatrix import SocialMatrix
 from orchestrator import Orchestrator
+from settings import get_llm_base_url, get_llm_model, get_config_dir
 from configloader import (
     load_agent_configuration,
     build_agent_instances,
@@ -131,10 +132,10 @@ class SimulationState:
         self.planned_cycles = 0
         self.current_cycle = 0
         self.results_history = []
-        # Settings
-        self.config_dir = "scenarios/default"
-        self.llm_base_url = "http://192.168.3.181:1234/v1"
-        self.llm_model = "local-model"
+        # Settings (resolved from settings.json / env vars at initialization time)
+        self.config_dir = get_config_dir()
+        self.llm_base_url = get_llm_base_url()
+        self.llm_model = get_llm_model()
         self.available_models: list[str] = []
         self.available_models_url: str | None = None
         self.model_fetch_error: str | None = None
@@ -185,25 +186,28 @@ class SimulationState:
             resolution_config=self.scenario_manifest.get("resolution_rules")
         )
 
-    def initialize(self, config_dir: str = "data", llm_url: str | None = None, llm_model: str | None = None):
+    def initialize(self, config_dir: str | None = None, llm_url: str | None = None, llm_model: str | None = None):
         """Initialize the simulation from JSON configs."""
-        if not Path(config_dir).exists():
-            st.error(f"Config directory '{config_dir}' not found!")
-            return False
-        self.config_dir = config_dir
+        # Resolve with layered priority: explicit arg > settings.json/env vars > defaults
+        resolved_config_dir = config_dir if config_dir is not None else get_config_dir()
+        resolved_llm_url = llm_url if llm_url else get_llm_base_url(llm_url)
+        resolved_llm_model = llm_model if llm_model else get_llm_model(llm_model)
 
-        # Update settings if provided
-        if llm_url:
-            self.llm_base_url = llm_url
-        if llm_model:
-            self.llm_model = llm_model
-        self.scenario_manifest = load_scenario_manifest(config_dir)
+        if not Path(resolved_config_dir).exists():
+            st.error(f"Config directory '{resolved_config_dir}' not found!")
+            return False
+        self.config_dir = resolved_config_dir
+
+        # Update settings if provided (or resolve from layered config)
+        self.llm_base_url = resolved_llm_url
+        self.llm_model = resolved_llm_model
+        self.scenario_manifest = load_scenario_manifest(resolved_config_dir)
 
         # Load and resolve world state
-        with open(Path(config_dir) / "world_state.json", "r", encoding="utf-8") as f:
+        with open(Path(resolved_config_dir) / "world_state.json", "r", encoding="utf-8") as f:
             world_data = json.load(f)
         resolve_item_placements(world_data, load_item_library())
-        self.agent_definitions, self.simulation_slots = load_agent_configuration(config_dir)
+        self.agent_definitions, self.simulation_slots = load_agent_configuration(resolved_config_dir)
         resolve_relationship_presets(self.simulation_slots, world_data, load_relationship_presets())
         self.world_state = WorldState(world_data)
 

@@ -10,6 +10,9 @@ import re
 from typing import Any
 from openai import OpenAI
 
+# Import settings lazily to avoid circular imports at module load time.
+# The defaults are resolved inside the function bodies, not at class definition time.
+
 
 class FrontierAgent:
     """
@@ -57,10 +60,10 @@ class FrontierAgent:
         role: str | None = None,
         perception: int = 50,
         condition: dict[str, Any] | None = None,
-        llm_base_url: str = "http://192.168.3.181:1234/v1",
-        llm_model: str = "unsloth/qwen3.5-35b-a3b",
+        llm_base_url: str | None = None,
+        llm_model: str | None = None,
         enable_structured_output: bool = False,
-        api_key: str = "not-needed"
+        api_key: str | None = None
     ):
         """
         Initialize an agent with its cognitive profile.
@@ -74,6 +77,13 @@ class FrontierAgent:
             llm_model: Model name to use for inference
             api_key: API key (usually not needed for local models)
         """
+        # Resolve settings with layered priority: explicit arg > env var > settings.json > defaults
+        from .settings import get_llm_base_url, get_llm_model, get_api_key
+
+        resolved_llm_base_url = get_llm_base_url(llm_base_url)
+        resolved_llm_model = get_llm_model(llm_model)
+        resolved_api_key = get_api_key(api_key)
+
         self.agent_id = agent_id
         self.name = name
         self.persona = persona
@@ -89,10 +99,10 @@ class FrontierAgent:
 
         # LLM client configuration
         self.client = OpenAI(
-            base_url=llm_base_url,
-            api_key=api_key
+            base_url=resolved_llm_base_url,
+            api_key=resolved_api_key
         )
-        self.llm_model = llm_model
+        self.llm_model = resolved_llm_model
 
         # Emotional state tracking (for observation)
         self.emotional_state: str = "Neutral"
