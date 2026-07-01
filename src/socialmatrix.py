@@ -9,7 +9,10 @@ import json
 import copy
 from typing import Any
 
-from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+# `settings` is imported lazily inside the functions that need it — this module
+# is loaded both as a bare top-level module and as part of the `src` package
+# (via src/__init__.py, in the frozen launcher), and a module-level bare import
+# only resolves in the former context.
 
 
 class SocialMatrix:
@@ -97,6 +100,8 @@ class SocialMatrix:
         Returns:
             Tuple of (agent_a_key, agent_b_key) for the pair
         """
+        from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+
         # Create bidirectional entries if they don't exist
         if agent_a not in self._relationships:
             self._relationships[agent_a] = {}
@@ -130,6 +135,8 @@ class SocialMatrix:
         Returns:
             Tuple of (trust_score, affinity_score) or (None, None) if unknown
         """
+        from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+
         self.get_or_create_relationship(agent_a, agent_b)
 
         rel = self._relationships.get(agent_a, {}).get(agent_b, {})

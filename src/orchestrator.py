@@ -10,7 +10,10 @@ import random
 import time
 from typing import Any
 
-from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+# `settings` is imported lazily inside the functions that need it (this module
+# is loaded both as a bare top-level module and as part of the `src` package
+# via src/__init__.py in the frozen launcher — a module-level bare import only
+# resolves in the former context).
 
 
 class Orchestrator:
@@ -687,6 +690,8 @@ class Orchestrator:
         message: str
     ) -> None:
         """Ask an observer-specific hidden critic to update vibe scores."""
+        from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+
         current_rel = self.social.relationships.get(observer_agent.agent_id, {}).get(speaker_agent.agent_id, {})
         current_trust = int(current_rel.get("trust", DEFAULT_RELATIONSHIP_TRUST))
         current_affinity = int(current_rel.get("affinity", DEFAULT_RELATIONSHIP_AFFINITY))

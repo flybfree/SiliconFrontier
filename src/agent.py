@@ -10,7 +10,10 @@ import re
 from typing import Any
 from openai import OpenAI
 
-from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+# `settings` is imported lazily inside the functions that need it (this module
+# is loaded both as a bare top-level module and as part of the `src` package
+# via src/__init__.py in the frozen launcher — a module-level bare import only
+# resolves in the former context).
 
 # Import settings lazily to avoid circular imports at module load time.
 # The defaults are resolved inside the function bodies, not at class definition time.
@@ -207,6 +210,8 @@ class FrontierAgent:
         Returns:
             Formatted string describing current situation for LLM prompt
         """
+        from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+
         loc = world_snapshot["current_location"]
         location_name = loc.get("name", "Unknown") if loc else "Unknown"
         location_desc = loc.get("description", "") if loc else ""
@@ -317,6 +322,8 @@ class FrontierAgent:
 
     def _build_system_prompt(self, world_snapshot: dict[str, Any]) -> str:
         """Construct the master system prompt for this agent."""
+        from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+
         hand_items = [item["name"] for item in world_snapshot["agent_inventory"] if not item.get("hidden")]
         person_items = [item["name"] for item in world_snapshot["agent_inventory"] if item.get("hidden")]
         inventory_str = f"In hand: {hand_items[0] if hand_items else 'empty'} | Concealed on person: {person_items[0] if person_items else 'empty'}"

@@ -10,7 +10,10 @@ from __future__ import annotations
 import re
 from typing import Any, TYPE_CHECKING
 
-from settings import DEFAULT_RELATIONSHIP_TRUST
+# `settings` is imported lazily inside the functions that need it (this module
+# is loaded both as a bare top-level module and as part of the `src` package
+# via src/__init__.py in the frozen launcher — a module-level bare import only
+# resolves in the former context).
 
 if TYPE_CHECKING:
     from .worldstate import WorldState
@@ -369,6 +372,7 @@ class ActionParser:
             return False, f"Failure: {target_agent_id} does not appear to be carrying '{item_name}'."
 
         # Relationship-based resistance: low trust toward the demander allows refusal
+        from settings import DEFAULT_RELATIONSHIP_TRUST
         target_view = self.world.get_relationship_view(target_agent_id, agent.agent_id)
         target_trust = int(target_view.get("trust", DEFAULT_RELATIONSHIP_TRUST))
         if target_trust < 35:

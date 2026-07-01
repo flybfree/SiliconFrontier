@@ -10,8 +10,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from app_paths import atomic_write_json
-from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+# Sibling src/ modules are imported lazily inside the functions that need them.
+# This file is loaded two different ways: as a bare top-level module (dashboard.py
+# and friends add src/ to sys.path directly) and as part of the `src` package (the
+# frozen launcher's `from src.app_paths import ...` triggers src/__init__.py, which
+# imports this module as `src.worldstate`). A module-level bare import only
+# resolves in the first context, so it must be deferred to call time.
 
 
 class WorldState:
@@ -48,6 +52,7 @@ class WorldState:
 
     def to_json(self, filepath: str | Path) -> None:
         """Save current state to a JSON file."""
+        from app_paths import atomic_write_json
         atomic_write_json(filepath, self._data)
 
     @property
@@ -103,6 +108,7 @@ class WorldState:
 
     def get_relationship_view(self, agent_id: str, other_agent_id: str) -> dict[str, Any]:
         """Return one agent's current relationship view of another."""
+        from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
         return self._data["relationships"].get(agent_id, {}).get(other_agent_id, {
             "trust": DEFAULT_RELATIONSHIP_TRUST,
             "affinity": DEFAULT_RELATIONSHIP_AFFINITY,
