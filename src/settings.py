@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 # ---------------------------------------------------------------------------
@@ -27,6 +27,10 @@ from typing import Any
 # ---------------------------------------------------------------------------
 DEFAULT_LLM_BASE_URL = "http://localhost:1234/v1"
 DEFAULT_LLM_MODEL = "local-model"
+
+# Neutral starting point for a relationship that hasn't been established yet.
+DEFAULT_RELATIONSHIP_TRUST = 50
+DEFAULT_RELATIONSHIP_AFFINITY = 50
 
 # Where to look for the settings file — project root (one level above src/)
 _SETTINGS_FILE_NAME = "settings.json"
@@ -67,27 +71,81 @@ def load_settings() -> dict[str, Any]:
     return {}
 
 
+def _resolve_str(
+    explicit_value: str | None,
+    env_var: str,
+    settings_key: str,
+    default: str | None
+) -> str | None:
+    """Shared layered resolution for string-valued settings.
+
+    Priority: explicit (verbatim) > env var (verbatim) > settings.json (stripped) > default.
+    """
+    if explicit_value:
+        return explicit_value
+
+    env_val = os.environ.get(env_var)
+    if env_val:
+        return env_val
+
+    settings = load_settings()
+    val = settings.get(settings_key)
+    if isinstance(val, str) and val.strip():
+        return val.strip()
+
+    return default
+
+
+def _resolve_typed(
+    explicit_value: Any,
+    env_var: str,
+    settings_key: str,
+    default: Any,
+    coerce: Any,
+    validate: Any = None
+) -> Any:
+    """Shared layered resolution for numeric-valued settings.
+
+    Priority: explicit (verbatim, unvalidated) > env var (coerced + validated)
+    > settings.json (coerced + validated) > default. `validate` may return
+    None to reject a value and fall through to the next priority level
+    (e.g. an out-of-range port), or return a transformed value (e.g. a
+    clamped minimum).
+    """
+    if explicit_value is not None:
+        return coerce(explicit_value)
+
+    env_val = os.environ.get(env_var)
+    if env_val:
+        try:
+            value = coerce(env_val)
+        except ValueError:
+            pass
+        else:
+            if validate is not None:
+                value = validate(value)
+            if value is not None:
+                return value
+
+    settings = load_settings()
+    val = settings.get(settings_key)
+    if isinstance(val, (int, float)):
+        value = coerce(val)
+        if validate is not None:
+            value = validate(value)
+        if value is not None:
+            return value
+
+    return default
+
+
 def get_llm_base_url(explicit_value: str | None = None) -> str:
     """Resolve the LLM base URL with layered priority.
 
     Args:
         explicit_value: If provided and non-empty, used verbatim (highest priority).
     """
-    if explicit_value:
-        return explicit_value
-
-    # Environment variable
-    env_val = os.environ.get("SILICON_FRONTIER_LLM_BASE_URL")
-    if env_val:
-        return env_val
-
-    # Settings file
-    settings = load_settings()
-    file_url = settings.get("llm_base_url")
-    if isinstance(file_url, str) and file_url.strip():
-        return file_url.strip()
-
-    return DEFAULT_LLM_BASE_URL
+    return cast(str, _resolve_str(explicit_value, "SILICON_FRONTIER_LLM_BASE_URL", "llm_base_url", DEFAULT_LLM_BASE_URL))
 
 
 def get_llm_model(explicit_value: str | None = None) -> str:
@@ -96,21 +154,7 @@ def get_llm_model(explicit_value: str | None = None) -> str:
     Args:
         explicit_value: If provided and non-empty, used verbatim (highest priority).
     """
-    if explicit_value:
-        return explicit_value
-
-    # Environment variable
-    env_val = os.environ.get("SILICON_FRONTIER_LLM_MODEL")
-    if env_val:
-        return env_val
-
-    # Settings file
-    settings = load_settings()
-    file_model = settings.get("llm_model")
-    if isinstance(file_model, str) and file_model.strip():
-        return file_model.strip()
-
-    return DEFAULT_LLM_MODEL
+    return cast(str, _resolve_str(explicit_value, "SILICON_FRONTIER_LLM_MODEL", "llm_model", DEFAULT_LLM_MODEL))
 
 
 def get_api_key(explicit_value: str | None = None) -> str:
@@ -119,21 +163,7 @@ def get_api_key(explicit_value: str | None = None) -> str:
     Args:
         explicit_value: If provided and non-empty, used verbatim (highest priority).
     """
-    if explicit_value:
-        return explicit_value
-
-    # Environment variable
-    env_val = os.environ.get("SILICON_FRONTIER_API_KEY")
-    if env_val:
-        return env_val
-
-    # Settings file
-    settings = load_settings()
-    file_key = settings.get("api_key")
-    if isinstance(file_key, str) and file_key.strip():
-        return file_key.strip()
-
-    return "not-needed"
+    return cast(str, _resolve_str(explicit_value, "SILICON_FRONTIER_API_KEY", "api_key", "not-needed"))
 
 
 def get_enable_structured_output(explicit_value: bool | None = None) -> bool:
@@ -167,24 +197,10 @@ def get_reflection_interval(explicit_value: int | None = None) -> int:
     Args:
         explicit_value: If provided, used verbatim (highest priority).
     """
-    if explicit_value is not None:
-        return int(explicit_value)
-
-    # Environment variable
-    env_val = os.environ.get("SILICON_FRONTIER_REFLECTION_INTERVAL")
-    if env_val:
-        try:
-            return max(1, int(env_val))
-        except ValueError:
-            pass
-
-    # Settings file
-    settings = load_settings()
-    val = settings.get("reflection_interval")
-    if isinstance(val, (int, float)):
-        return max(1, int(val))
-
-    return 5
+    return _resolve_typed(
+        explicit_value, "SILICON_FRONTIER_REFLECTION_INTERVAL", "reflection_interval", 5,
+        coerce=int, validate=lambda v: max(1, v)
+    )
 
 
 def get_delay_seconds(explicit_value: float | None = None) -> float:
@@ -193,24 +209,22 @@ def get_delay_seconds(explicit_value: float | None = None) -> float:
     Args:
         explicit_value: If provided, used verbatim (highest priority).
     """
-    if explicit_value is not None:
-        return float(explicit_value)
+    return _resolve_typed(
+        explicit_value, "SILICON_FRONTIER_DELAY_SECONDS", "delay_seconds", 0.3,
+        coerce=float, validate=lambda v: max(0.0, v)
+    )
 
-    # Environment variable
-    env_val = os.environ.get("SILICON_FRONTIER_DELAY_SECONDS")
-    if env_val:
-        try:
-            return max(0.0, float(env_val))
-        except ValueError:
-            pass
 
-    # Settings file
-    settings = load_settings()
-    val = settings.get("delay_seconds")
-    if isinstance(val, (int, float)):
-        return max(0.0, float(val))
+def get_llm_timeout_seconds(explicit_value: float | None = None) -> float:
+    """Resolve the per-request LLM call timeout with layered priority.
 
-    return 0.3
+    Args:
+        explicit_value: If provided, used verbatim (highest priority).
+    """
+    return _resolve_typed(
+        explicit_value, "SILICON_FRONTIER_LLM_TIMEOUT_SECONDS", "llm_timeout_seconds", 60.0,
+        coerce=float, validate=lambda v: max(0.0, v)
+    )
 
 
 def get_rounds(explicit_value: int | None = None) -> int:
@@ -219,24 +233,24 @@ def get_rounds(explicit_value: int | None = None) -> int:
     Args:
         explicit_value: If provided, used verbatim (highest priority).
     """
-    if explicit_value is not None:
-        return int(explicit_value)
+    return _resolve_typed(
+        explicit_value, "SILICON_FRONTIER_ROUNDS", "rounds", 10,
+        coerce=int, validate=lambda v: max(1, v)
+    )
 
-    # Environment variable
-    env_val = os.environ.get("SILICON_FRONTIER_ROUNDS")
-    if env_val:
-        try:
-            return max(1, int(env_val))
-        except ValueError:
-            pass
 
-    # Settings file
-    settings = load_settings()
-    val = settings.get("rounds")
-    if isinstance(val, (int, float)):
-        return max(1, int(val))
+def get_random_seed(explicit_value: int | None = None) -> int | None:
+    """Resolve the RNG seed for reproducible turn order, with layered priority.
 
-    return 10
+    Returns None (unseeded) unless a seed is explicitly configured.
+
+    Args:
+        explicit_value: If provided, used verbatim (highest priority).
+    """
+    return _resolve_typed(
+        explicit_value, "SILICON_FRONTIER_RANDOM_SEED", "random_seed", None,
+        coerce=int
+    )
 
 
 def get_config_dir(explicit_value: str | None = None) -> str:
@@ -245,21 +259,7 @@ def get_config_dir(explicit_value: str | None = None) -> str:
     Args:
         explicit_value: If provided and non-empty, used verbatim (highest priority).
     """
-    if explicit_value:
-        return explicit_value
-
-    # Environment variable
-    env_val = os.environ.get("SILICON_FRONTIER_CONFIG_DIR")
-    if env_val:
-        return env_val
-
-    # Settings file
-    settings = load_settings()
-    val = settings.get("config_dir")
-    if isinstance(val, str) and val.strip():
-        return val.strip()
-
-    return "scenarios/default"
+    return cast(str, _resolve_str(explicit_value, "SILICON_FRONTIER_CONFIG_DIR", "config_dir", "scenarios/default"))
 
 
 def get_log_file(explicit_value: str | None = None) -> str | None:
@@ -268,21 +268,7 @@ def get_log_file(explicit_value: str | None = None) -> str | None:
     Args:
         explicit_value: If provided and non-empty, used verbatim (highest priority).
     """
-    if explicit_value:
-        return explicit_value
-
-    # Environment variable
-    env_val = os.environ.get("SILICON_FRONTIER_LOG_FILE")
-    if env_val:
-        return env_val
-
-    # Settings file
-    settings = load_settings()
-    val = settings.get("log_file")
-    if isinstance(val, str) and val.strip():
-        return val.strip()
-
-    return None
+    return _resolve_str(explicit_value, "SILICON_FRONTIER_LOG_FILE", "log_file", None)
 
 
 def get_dashboard_port(explicit_value: int | None = None) -> int:
@@ -291,28 +277,10 @@ def get_dashboard_port(explicit_value: int | None = None) -> int:
     Args:
         explicit_value: If provided, used verbatim (highest priority).
     """
-    if explicit_value is not None:
-        return int(explicit_value)
-
-    # Environment variable
-    env_val = os.environ.get("SILICON_FRONTIER_DASHBOARD_PORT")
-    if env_val:
-        try:
-            port = int(env_val)
-            if 1 <= port <= 65535:
-                return port
-        except ValueError:
-            pass
-
-    # Settings file
-    settings = load_settings()
-    val = settings.get("dashboard_port")
-    if isinstance(val, (int, float)):
-        port = int(val)
-        if 1 <= port <= 65535:
-            return port
-
-    return 8501
+    return _resolve_typed(
+        explicit_value, "SILICON_FRONTIER_DASHBOARD_PORT", "dashboard_port", 8501,
+        coerce=int, validate=lambda v: v if 1 <= v <= 65535 else None
+    )
 
 
 def get_dashboard_host(explicit_value: str | None = None) -> str:
@@ -321,21 +289,7 @@ def get_dashboard_host(explicit_value: str | None = None) -> str:
     Args:
         explicit_value: If provided and non-empty, used verbatim (highest priority).
     """
-    if explicit_value:
-        return explicit_value
-
-    # Environment variable
-    env_val = os.environ.get("SILICON_FRONTIER_DASHBOARD_HOST")
-    if env_val:
-        return env_val
-
-    # Settings file
-    settings = load_settings()
-    val = settings.get("dashboard_host")
-    if isinstance(val, str) and val.strip():
-        return val.strip()
-
-    return "localhost"
+    return cast(str, _resolve_str(explicit_value, "SILICON_FRONTIER_DASHBOARD_HOST", "dashboard_host", "localhost"))
 
 
 def get_log_level(explicit_value: str | None = None) -> str:
@@ -344,21 +298,7 @@ def get_log_level(explicit_value: str | None = None) -> str:
     Args:
         explicit_value: If provided and non-empty, used verbatim (highest priority).
     """
-    if explicit_value:
-        return explicit_value.upper()
-
-    # Environment variable
-    env_val = os.environ.get("SILICON_FRONTIER_LOG_LEVEL")
-    if env_val:
-        return env_val.upper()
-
-    # Settings file
-    settings = load_settings()
-    val = settings.get("log_level")
-    if isinstance(val, str) and val.strip():
-        return val.strip().upper()
-
-    return "INFO"
+    return cast(str, _resolve_str(explicit_value, "SILICON_FRONTIER_LOG_LEVEL", "log_level", "INFO")).upper()
 
 
 def get_all_settings() -> dict[str, Any]:

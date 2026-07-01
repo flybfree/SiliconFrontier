@@ -10,6 +10,8 @@ import re
 from typing import Any
 from openai import OpenAI
 
+from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+
 # Import settings lazily to avoid circular imports at module load time.
 # The defaults are resolved inside the function bodies, not at class definition time.
 
@@ -63,7 +65,8 @@ class FrontierAgent:
         llm_base_url: str | None = None,
         llm_model: str | None = None,
         enable_structured_output: bool = False,
-        api_key: str | None = None
+        api_key: str | None = None,
+        llm_timeout_seconds: float | None = None
     ):
         """
         Initialize an agent with its cognitive profile.
@@ -76,20 +79,22 @@ class FrontierAgent:
             llm_base_url: URL of local OpenAI-compatible inference engine
             llm_model: Model name to use for inference
             api_key: API key (usually not needed for local models)
+            llm_timeout_seconds: Per-request timeout for LLM calls (seconds)
         """
         # Resolve settings with layered priority: explicit arg > env var > settings.json > defaults
-        from settings import get_llm_base_url, get_llm_model, get_api_key
+        from settings import get_llm_base_url, get_llm_model, get_api_key, get_llm_timeout_seconds
 
         resolved_llm_base_url = get_llm_base_url(llm_base_url)
         resolved_llm_model = get_llm_model(llm_model)
         resolved_api_key = get_api_key(api_key)
+        resolved_timeout = get_llm_timeout_seconds(llm_timeout_seconds)
 
         self.agent_id = agent_id
         self.name = name
         self.persona = persona
         self.secret_goal = secret_goal
         self.role = role or "crew member"
-        self.perception = max(0, min(100, int(perception)))
+        self.perception = self._clamp_0_100(perception)
         self.condition = self._normalize_condition(condition)
         self.enable_structured_output = enable_structured_output
 
@@ -100,7 +105,8 @@ class FrontierAgent:
         # LLM client configuration
         self.client = OpenAI(
             base_url=resolved_llm_base_url,
-            api_key=resolved_api_key
+            api_key=resolved_api_key,
+            timeout=resolved_timeout
         )
         self.llm_model = resolved_llm_model
 
@@ -116,6 +122,11 @@ class FrontierAgent:
         self.pending_drop: str | None = None        # item id
         self.pending_drop_name: str | None = None   # item name (for prompts)
 
+    @staticmethod
+    def _clamp_0_100(value: Any) -> int:
+        """Clamp a numeric value to the valid 0-100 range used by condition/perception fields."""
+        return max(0, min(100, int(value)))
+
     @classmethod
     def _normalize_condition(cls, condition: dict[str, Any] | None) -> dict[str, int]:
         """Return a complete, clamped condition block for an agent."""
@@ -123,7 +134,7 @@ class FrontierAgent:
         if isinstance(condition, dict):
             for key in normalized:
                 if key in condition:
-                    normalized[key] = max(0, min(100, int(condition[key])))
+                    normalized[key] = cls._clamp_0_100(condition[key])
         return normalized
 
     def condition_text(self) -> str:
@@ -154,7 +165,7 @@ class FrontierAgent:
             if not delta:
                 continue
             before = self.condition.get(key, self.DEFAULT_CONDITION[key])
-            after = max(0, min(100, before + delta))
+            after = self._clamp_0_100(before + delta)
             self.condition[key] = after
             if after != before:
                 changed[key] = after - before
@@ -242,7 +253,7 @@ class FrontierAgent:
         agents_str = ", ".join(nearby_agent_parts) if nearby_agent_parts else "no one"
         relationship_lines = []
         for other_id, rel in world_snapshot.get("relationship_impressions", {}).items():
-            label = self._relationship_label(rel.get("trust", 50), rel.get("affinity", 50), rel.get("suspicion", 0))
+            label = self._relationship_label(rel.get("trust", DEFAULT_RELATIONSHIP_TRUST), rel.get("affinity", DEFAULT_RELATIONSHIP_AFFINITY), rel.get("suspicion", 0))
             notes = rel.get("notes", "") or ""
             notes_part = f" — {notes}" if notes else ""
             display_name = rel.get("name", other_id)
@@ -315,7 +326,7 @@ class FrontierAgent:
         relationship_impressions = world_snapshot.get("relationship_impressions", {})
         relationship_block = []
         for other_id, rel in relationship_impressions.items():
-            label = self._relationship_label(rel.get("trust", 50), rel.get("affinity", 50), rel.get("suspicion", 0))
+            label = self._relationship_label(rel.get("trust", DEFAULT_RELATIONSHIP_TRUST), rel.get("affinity", DEFAULT_RELATIONSHIP_AFFINITY), rel.get("suspicion", 0))
             notes = rel.get("notes", "") or ""
             notes_part = f" — {notes}" if notes else ""
             display_name = rel.get("name", other_id)
@@ -486,7 +497,8 @@ Output strict JSON:
                 messages=[{"role": "user", "content": critic_prompt}],
                 temperature=0.2
             )
-        except Exception:
+        except Exception as exc:
+            print(f"  [Warning] Social critic evaluation failed for {self.name}: {exc}")
             return None
 
         parsed = self._parse_decision_from_response(response)
@@ -605,14 +617,23 @@ Output strict JSON:
             status = str(system.get("status", "unknown")).upper()
             aliases = self._system_aliases(system_id, system)
 
-            for segment in segments:
-                if not any(alias in segment for alias in aliases):
+            # Check a 2-segment window (current + next) so a claim split across
+            # sentences ("Reactor is online. It's working perfectly.") is still
+            # caught. This is a pragmatic widening of an approximate heuristic,
+            # not full coreference resolution — it trades a small increase in
+            # false positives (unrelated adjacent claims co-matching) for
+            # catching the common cross-sentence contradiction pattern.
+            for idx, segment in enumerate(segments):
+                window = segment
+                if idx + 1 < len(segments):
+                    window = f"{segment} {segments[idx + 1]}"
+                if not any(alias in window for alias in aliases):
                     continue
                 if status == "ONLINE":
-                    if any(term in segment for term in self._ONLINE_NEGATIVE_TERMS):
+                    if any(term in window for term in self._ONLINE_NEGATIVE_TERMS):
                         contradictions.append(f"{system_name} is ONLINE, but text implies failure")
                         break
-                elif any(term in segment for term in self._NON_ONLINE_POSITIVE_TERMS):
+                elif any(term in window for term in self._NON_ONLINE_POSITIVE_TERMS):
                     contradictions.append(f"{system_name} is {status}, but text implies normal operation")
                     break
 
@@ -974,15 +995,17 @@ Output strict JSON:
         except json.JSONDecodeError:
             pass
 
-        import re
-        match = re.search(r'\{.*\}', content, re.DOTALL)
-        if match:
+        # Fall back to a balanced-brace scan (json.JSONDecoder.raw_decode at each
+        # candidate '{') rather than a greedy regex, since a naive r'\{.*\}' match
+        # mismatches braces when a JSON string value itself contains '{' or '}'.
+        decoder = json.JSONDecoder()
+        for start in (i for i, ch in enumerate(content) if ch == "{"):
             try:
-                parsed = json.loads(match.group())
-                if isinstance(parsed, dict):
-                    return parsed
+                parsed, _ = decoder.raw_decode(content, start)
             except json.JSONDecodeError:
-                pass
+                continue
+            if isinstance(parsed, dict):
+                return parsed
 
         return None
 

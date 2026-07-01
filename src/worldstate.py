@@ -10,6 +10,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from app_paths import atomic_write_json
+from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+
 
 class WorldState:
     """
@@ -45,8 +48,7 @@ class WorldState:
 
     def to_json(self, filepath: str | Path) -> None:
         """Save current state to a JSON file."""
-        with open(filepath, "w") as f:
-            json.dump(self._data, f, indent=2)
+        atomic_write_json(filepath, self._data)
 
     @property
     def locations(self) -> dict[str, Any]:
@@ -102,8 +104,8 @@ class WorldState:
     def get_relationship_view(self, agent_id: str, other_agent_id: str) -> dict[str, Any]:
         """Return one agent's current relationship view of another."""
         return self._data["relationships"].get(agent_id, {}).get(other_agent_id, {
-            "trust": 50,
-            "affinity": 50,
+            "trust": DEFAULT_RELATIONSHIP_TRUST,
+            "affinity": DEFAULT_RELATIONSHIP_AFFINITY,
             "notes": ""
         })
 

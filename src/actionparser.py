@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from typing import Any, TYPE_CHECKING
 
+from settings import DEFAULT_RELATIONSHIP_TRUST
+
 if TYPE_CHECKING:
     from .worldstate import WorldState
 
@@ -368,7 +370,7 @@ class ActionParser:
 
         # Relationship-based resistance: low trust toward the demander allows refusal
         target_view = self.world.get_relationship_view(target_agent_id, agent.agent_id)
-        target_trust = int(target_view.get("trust", 50))
+        target_trust = int(target_view.get("trust", DEFAULT_RELATIONSHIP_TRUST))
         if target_trust < 35:
             return False, (
                 f"Failure: {target_agent_id} refuses to hand over {matching_item['name']}. "

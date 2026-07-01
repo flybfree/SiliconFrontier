@@ -9,6 +9,8 @@ import json
 import copy
 from typing import Any
 
+from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+
 
 class SocialMatrix:
     """
@@ -103,15 +105,15 @@ class SocialMatrix:
 
         if agent_b not in self._relationships[agent_a]:
             self._relationships[agent_a][agent_b] = {
-                "trust": 50,      # Neutral starting trust
-                "affinity": 50,   # Neutral starting affinity
+                "trust": DEFAULT_RELATIONSHIP_TRUST,      # Neutral starting trust
+                "affinity": DEFAULT_RELATIONSHIP_AFFINITY,   # Neutral starting affinity
                 "notes": ""       # Human-readable relationship notes
             }
 
         if agent_a not in self._relationships[agent_b]:
             self._relationships[agent_b][agent_a] = {
-                "trust": 50,
-                "affinity": 50,
+                "trust": DEFAULT_RELATIONSHIP_TRUST,
+                "affinity": DEFAULT_RELATIONSHIP_AFFINITY,
                 "notes": ""
             }
 
@@ -131,7 +133,7 @@ class SocialMatrix:
         self.get_or_create_relationship(agent_a, agent_b)
 
         rel = self._relationships.get(agent_a, {}).get(agent_b, {})
-        return rel.get("trust", 50), rel.get("affinity", 50)
+        return rel.get("trust", DEFAULT_RELATIONSHIP_TRUST), rel.get("affinity", DEFAULT_RELATIONSHIP_AFFINITY)
 
     def update_scores(
         self,

@@ -7,7 +7,6 @@ Run a complete simulation with the configured agents and world state.
 
 import json
 import sys
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -59,17 +58,16 @@ def _stop_logging(tee: _Tee | None) -> None:
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
-from app_paths import data_path, ensure_runtime_dirs
+from app_paths import bootstrap_runtime, data_path
 
-ensure_runtime_dirs()
-os.chdir(data_path())
+bootstrap_runtime()
 
 from worldstate import WorldState
 from agent import FrontierAgent
 from actionparser import ActionParser
 from socialmatrix import SocialMatrix
 from orchestrator import Orchestrator
-from settings import get_llm_base_url, get_llm_model, get_config_dir, get_rounds, get_delay_seconds, get_log_file
+from settings import get_llm_base_url, get_llm_model, get_config_dir, get_rounds, get_delay_seconds, get_log_file, get_random_seed
 from configloader import (
     load_agent_configuration,
     build_agent_instances,
@@ -92,8 +90,11 @@ def load_config(
 
     # Load and resolve world state
     import json as _json
-    with open(config_path / "world_state.json", "r") as f:
-        world_data = _json.load(f)
+    try:
+        with open(config_path / "world_state.json", "r") as f:
+            world_data = _json.load(f)
+    except (OSError, _json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Failed to load world_state.json from '{config_path}': {exc}") from exc
     item_library = load_item_library()
     resolve_item_placements(world_data, item_library)
 
@@ -137,7 +138,8 @@ def run_demo_simulation(
     delay_seconds: float | None = None,
     config_dir: str | None = None,
     llm_base_url: str | None = None,
-    llm_model: str | None = None
+    llm_model: str | None = None,
+    random_seed: int | None = None
 ) -> tuple[list[list[dict]], dict]:
     """
     Run a complete demo simulation.
@@ -147,6 +149,7 @@ def run_demo_simulation(
         delay_seconds: Sleep between cycles (set to 0 for fast execution)
         llm_base_url: URL of local LLM inference engine
         llm_model: Model name to use
+        random_seed: Optional seed for reproducible turn order
 
     Returns:
         Tuple of (all_cycle_results, final_relationships)
@@ -173,7 +176,8 @@ def run_demo_simulation(
         social_matrix=social_matrix,
         reflection_interval=5,  # Reflect every 5 cycles
         progression_config=scenario_manifest.get("progression"),
-        resolution_config=scenario_manifest.get("resolution_rules")
+        resolution_config=scenario_manifest.get("resolution_rules"),
+        random_seed=random_seed
     )
 
     # Run simulation
@@ -262,6 +266,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable log file output (print to terminal only)"
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible turn order (default: unseeded)"
+    )
 
     args = parser.parse_args()
 
@@ -271,6 +281,7 @@ if __name__ == "__main__":
     resolved_llm_model = get_llm_model(args.model)
     resolved_rounds = get_rounds(args.rounds)
     resolved_delay = get_delay_seconds(args.delay)
+    resolved_seed = get_random_seed(args.seed)
 
     log_file = get_log_file(None)  # CLI --log-file not yet supported; use settings/env only
     if args.no_log:
@@ -283,7 +294,8 @@ if __name__ == "__main__":
             delay_seconds=resolved_delay,
             config_dir=resolved_config_dir,
             llm_base_url=resolved_llm_base_url,
-            llm_model=resolved_llm_model
+            llm_model=resolved_llm_model,
+            random_seed=resolved_seed
         )
     except Exception as e:
         print(f"\n❌ Simulation error: {e}")

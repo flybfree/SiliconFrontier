@@ -9,7 +9,7 @@ import runpy
 import socket
 import sys
 
-from src.app_paths import data_path, ensure_runtime_dirs, resource_path
+from src.app_paths import bootstrap_runtime, resource_path
 
 DEFAULT_STREAMLIT_PORT = 8501
 MAX_STREAMLIT_PORT = 8510
@@ -61,8 +61,7 @@ def _launch_cli(args: list[str]) -> None:
 
 
 def main() -> int:
-    ensure_runtime_dirs()
-    os.chdir(data_path())
+    bootstrap_runtime()
 
     args = sys.argv[1:]
     if args and args[0] in {"editor", "--editor"}:

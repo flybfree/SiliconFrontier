@@ -9,16 +9,14 @@ Run with: streamlit run scenario_editor.py
 import copy
 import json
 import sys
-import os
 from pathlib import Path
 
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
-from app_paths import data_path, ensure_runtime_dirs
+from app_paths import bootstrap_runtime, data_path
 
-ensure_runtime_dirs()
-os.chdir(data_path())
+bootstrap_runtime()
 
 from configloader import (
     load_scenario_manifest,

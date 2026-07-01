@@ -10,6 +10,8 @@ import random
 import time
 from typing import Any
 
+from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+
 
 class Orchestrator:
     """
@@ -30,7 +32,8 @@ class Orchestrator:
         social_matrix,
         reflection_interval: int = 5,
         progression_config: dict[str, Any] | None = None,
-        resolution_config: dict[str, Any] | None = None
+        resolution_config: dict[str, Any] | None = None,
+        random_seed: int | None = None
     ):
         """
         Initialize the orchestrator.
@@ -43,6 +46,9 @@ class Orchestrator:
             reflection_interval: Number of cycles before agent reflects/summarizes memory
             progression_config: Optional scenario pressure/progression rules
             resolution_config: Optional scenario resolution rules
+            random_seed: Optional seed for reproducible turn order. When None
+                (the default), turn order uses the shared `random` module and
+                is not reproducible across runs.
         """
         self.agents = agents
         self.world = world_state
@@ -51,6 +57,7 @@ class Orchestrator:
         self.reflection_interval = reflection_interval
         self.progression_config = progression_config if isinstance(progression_config, dict) else {}
         self.resolution_config = resolution_config if isinstance(resolution_config, dict) else {}
+        self._rng = random.Random(random_seed) if random_seed is not None else random
         self.progression_state = {
             "stall_score": 0,
             "fired_thresholds": [],
@@ -93,7 +100,8 @@ class Orchestrator:
 
         try:
             from scenario_resolution import evaluate_prisoners_dilemma
-        except Exception:
+        except Exception as exc:
+            print(f"  [Warning] Terminal resolution unavailable: {exc}")
             return None
 
         result = evaluate_prisoners_dilemma(self.event_log, self.resolution_config)
@@ -680,8 +688,8 @@ class Orchestrator:
     ) -> None:
         """Ask an observer-specific hidden critic to update vibe scores."""
         current_rel = self.social.relationships.get(observer_agent.agent_id, {}).get(speaker_agent.agent_id, {})
-        current_trust = int(current_rel.get("trust", 50))
-        current_affinity = int(current_rel.get("affinity", 50))
+        current_trust = int(current_rel.get("trust", DEFAULT_RELATIONSHIP_TRUST))
+        current_affinity = int(current_rel.get("affinity", DEFAULT_RELATIONSHIP_AFFINITY))
         current_notes = current_rel.get("notes", "")
         current_suspicion = self.social.get_suspicion(observer_agent.agent_id, speaker_agent.agent_id)
 
@@ -738,7 +746,7 @@ class Orchestrator:
         print(f"{'='*50}")
 
         turn_order = list(self.agents)
-        random.shuffle(turn_order)
+        self._rng.shuffle(turn_order)
 
         for agent in turn_order:
             print(f"\n[Turn Start: {agent.name}]")

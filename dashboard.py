@@ -9,7 +9,6 @@ Provides a "God Console" for experimental intervention.
 import sys
 import json
 import time
-import os
 from pathlib import Path
 from datetime import datetime
 
@@ -18,11 +17,11 @@ from openai import OpenAI
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
-from app_paths import data_path, ensure_runtime_dirs
+from app_paths import atomic_write_json, bootstrap_runtime, data_path
+from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
 import scenario_editor
 
-ensure_runtime_dirs()
-os.chdir(data_path())
+bootstrap_runtime()
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +71,7 @@ from agent import FrontierAgent
 from actionparser import ActionParser
 from socialmatrix import SocialMatrix
 from orchestrator import Orchestrator
-from settings import get_llm_base_url, get_llm_model, get_config_dir
+from settings import get_llm_base_url, get_llm_model, get_config_dir, get_llm_timeout_seconds
 from configloader import (
     load_agent_configuration,
     build_agent_instances,
@@ -204,8 +203,12 @@ class SimulationState:
         self.scenario_manifest = load_scenario_manifest(resolved_config_dir)
 
         # Load and resolve world state
-        with open(Path(resolved_config_dir) / "world_state.json", "r", encoding="utf-8") as f:
-            world_data = json.load(f)
+        try:
+            with open(Path(resolved_config_dir) / "world_state.json", "r", encoding="utf-8") as f:
+                world_data = json.load(f)
+        except (OSError, json.JSONDecodeError) as exc:
+            st.error(f"Failed to load world_state.json from '{resolved_config_dir}': {exc}")
+            return False
         resolve_item_placements(world_data, load_item_library())
         self.agent_definitions, self.simulation_slots = load_agent_configuration(resolved_config_dir)
         resolve_relationship_presets(self.simulation_slots, world_data, load_relationship_presets())
@@ -365,7 +368,7 @@ class SimulationState:
             self.llm_base_url = llm_url
 
         self.model_fetch_error = None
-        client = OpenAI(base_url=self.llm_base_url, api_key="not-needed")
+        client = OpenAI(base_url=self.llm_base_url, api_key="not-needed", timeout=get_llm_timeout_seconds())
 
         try:
             response = client.models.list()
@@ -488,8 +491,7 @@ class SimulationState:
         }
 
         filepath = save_path / f"{name}.json"
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        atomic_write_json(filepath, data)
         return filepath
 
     def load(self, filepath: str | Path) -> None:
@@ -660,8 +662,8 @@ def render_relationship_matrix():
 
     def _get_label(row_id: str, col_id: str) -> str:
         rel = relationships.get(row_id, {}).get(col_id, {})
-        trust = int(rel.get("trust", 50))
-        affinity = int(rel.get("affinity", 50))
+        trust = int(rel.get("trust", DEFAULT_RELATIONSHIP_TRUST))
+        affinity = int(rel.get("affinity", DEFAULT_RELATIONSHIP_AFFINITY))
         suspicion = sim.orchestrator.social.get_suspicion(row_id, col_id)
         return FrontierAgent._relationship_label(trust, affinity, suspicion)
 
