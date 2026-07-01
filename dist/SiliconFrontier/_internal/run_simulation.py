@@ -69,6 +69,7 @@ from agent import FrontierAgent
 from actionparser import ActionParser
 from socialmatrix import SocialMatrix
 from orchestrator import Orchestrator
+from settings import get_llm_base_url, get_llm_model, get_config_dir, get_rounds, get_delay_seconds, get_log_file
 from configloader import (
     load_agent_configuration,
     build_agent_instances,
@@ -81,12 +82,13 @@ from configloader import (
 
 
 def load_config(
-    config_dir: str = "scenarios/default",
-    llm_base_url: str = "http://192.168.3.181:1234/v1",
-    llm_model: str = "unsloth/qwen3.5-35b-a3b"
+    config_dir: str | None = None,
+    llm_base_url: str | None = None,
+    llm_model: str | None = None
 ) -> tuple[WorldState, list[FrontierAgent]]:
     """Load world state and agent configurations from JSON files."""
-    config_path = Path(config_dir)
+    resolved_config_dir = config_dir if config_dir is not None else get_config_dir()
+    config_path = Path(resolved_config_dir)
 
     # Load and resolve world state
     import json as _json
@@ -131,11 +133,11 @@ def load_config(
 
 
 def run_demo_simulation(
-    rounds: int = 10,
-    delay_seconds: float = 0.3,
-    config_dir: str = "scenarios/default",
-    llm_base_url: str = "http://localhost:1234/v1",
-    llm_model: str = "local-model"
+    rounds: int | None = None,
+    delay_seconds: float | None = None,
+    config_dir: str | None = None,
+    llm_base_url: str | None = None,
+    llm_model: str | None = None
 ) -> tuple[list[list[dict]], dict]:
     """
     Run a complete demo simulation.
@@ -206,10 +208,10 @@ def run_demo_simulation(
 
 
 def run_quick_test(
-    rounds: int = 5,
-    config_dir: str = "scenarios/default",
-    llm_base_url: str = "http://192.168.3.181:1234/v1",
-    llm_model: str = "unsloth/qwen3.5-35b-a3b"
+    rounds: int | None = None,
+    config_dir: str | None = None,
+    llm_base_url: str | None = None,
+    llm_model: str | None = None
 ) -> None:
     """Run a quick test without delays (for automated testing)."""
     run_demo_simulation(
@@ -240,20 +242,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config-dir", "-c",
         type=str,
-        default="scenarios/default",
-        help="Configuration directory containing world_state.json and agent config files (default: scenarios/default)"
+        default=None,
+        help="Configuration directory containing world_state.json and agent config files"
     )
     parser.add_argument(
         "--url", "-u",
         type=str,
-        default="http://192.168.3.181:1234/v1",
-        help="LLM inference engine URL (default: http://192.168.3.181:1234/v1)"
+        default=None,
+        help="LLM inference engine URL (overrides settings file and env var)"
     )
     parser.add_argument(
         "--model", "-m",
         type=str,
-        default="unsloth/qwen3.5-35b-a3b",
-        help="Model name to use (default: unsloth/qwen3.5-35b-a3b)"
+        default=None,
+        help="Model name to use (overrides settings file and env var)"
     )
     parser.add_argument(
         "--no-log",
@@ -263,14 +265,25 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    tee = None if args.no_log else _start_logging(args.config_dir)
+    # Resolve settings with layered priority: CLI > env var > settings.json > defaults
+    resolved_config_dir = get_config_dir(args.config_dir)
+    resolved_llm_base_url = get_llm_base_url(args.url)
+    resolved_llm_model = get_llm_model(args.model)
+    resolved_rounds = get_rounds(args.rounds)
+    resolved_delay = get_delay_seconds(args.delay)
+
+    log_file = get_log_file(None)  # CLI --log-file not yet supported; use settings/env only
+    if args.no_log:
+        log_file = None
+
+    tee = None if log_file is None else _start_logging(resolved_config_dir)
     try:
         run_demo_simulation(
-            rounds=args.rounds,
-            delay_seconds=args.delay,
-            config_dir=args.config_dir,
-            llm_base_url=args.url,
-            llm_model=args.model
+            rounds=resolved_rounds,
+            delay_seconds=resolved_delay,
+            config_dir=resolved_config_dir,
+            llm_base_url=resolved_llm_base_url,
+            llm_model=resolved_llm_model
         )
     except Exception as e:
         print(f"\n❌ Simulation error: {e}")

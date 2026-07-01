@@ -78,7 +78,7 @@ class FrontierAgent:
             api_key: API key (usually not needed for local models)
         """
         # Resolve settings with layered priority: explicit arg > env var > settings.json > defaults
-        from .settings import get_llm_base_url, get_llm_model, get_api_key
+        from settings import get_llm_base_url, get_llm_model, get_api_key
 
         resolved_llm_base_url = get_llm_base_url(llm_base_url)
         resolved_llm_model = get_llm_model(llm_model)
