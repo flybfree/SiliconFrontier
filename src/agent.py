@@ -31,7 +31,7 @@ class FrontierAgent:
     """
 
     # Valid actions an agent can take
-    VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "USE", "GIVE", "DEMAND", "LIE", "READ", "SHOW", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "WAIT"]
+    VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "USE", "GIVE", "DEMAND", "LIE", "READ", "SHOW", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "ASSEMBLE", "WAIT"]
     VALID_EMOTIONAL_STATES = ["Calm", "Alert", "Anxious", "Fearful", "Angry", "Hopeful", "Suspicious", "Confident", "Resigned", "Determined", "Neutral"]
     VALID_EMOTIONAL_STATE_FALLBACK = "Neutral"
     RESPONSE_SCHEMA_NAME = "silicon_frontier_agent_turn"
@@ -270,6 +270,14 @@ class FrontierAgent:
         known_facts = world_snapshot.get("known_facts", [])
         known_fact_lines = [f"- {fact.get('text', '')}" for fact in known_facts[-5:] if fact.get("text")]
         known_facts_str = "\n".join(known_fact_lines) if known_fact_lines else "- None"
+        facilities = world_snapshot.get("facilities", [])
+        facilities_str = ", ".join(facilities) if facilities else "None"
+        recipe_lines = [
+            f"- {recipe.get('id')}: {recipe.get('name', recipe.get('id'))} "
+            f"(materials: {recipe.get('materials', {})})"
+            for recipe in world_snapshot.get("available_recipes", [])
+        ]
+        recipes_str = "\n".join(recipe_lines) if recipe_lines else "- None"
 
         contested_lines = ""
         if contested_held:
@@ -310,6 +318,8 @@ class FrontierAgent:
             f"Exits (valid MOVE targets): {exits_str}\n"
             f"Location effects: {location_effects_str}\n"
             f"Items here: {items_str}\n"
+            f"Fabrication facilities here: {facilities_str}\n"
+            f"Recipes available here:\n{recipes_str}\n"
             f"Systems here: {systems_str}\n"
             f"Known systems needing attention:\n{abnormal_systems_str}\n"
             f"Other agents present: {agents_str}\n"
@@ -327,6 +337,12 @@ class FrontierAgent:
         hand_items = [item["name"] for item in world_snapshot["agent_inventory"] if not item.get("hidden")]
         person_items = [item["name"] for item in world_snapshot["agent_inventory"] if item.get("hidden")]
         inventory_str = f"In hand: {hand_items[0] if hand_items else 'empty'} | Concealed on person: {person_items[0] if person_items else 'empty'}"
+        tool_lines = []
+        for item in world_snapshot["agent_inventory"]:
+            capabilities = item.get("tool", {}).get("capabilities", [])
+            if capabilities:
+                tool_lines.append(f"- {item['name']}: {', '.join(str(capability) for capability in capabilities)}")
+        tool_capabilities = "\n".join(tool_lines) if tool_lines else "- None"
         nearby_agents = world_snapshot["visible_agents"]
         visible_systems = world_snapshot.get("visible_systems", {})
         abnormal_systems = world_snapshot.get("abnormal_systems", [])
@@ -377,6 +393,8 @@ Persona: {self.persona}
 Secret Motivation: {self.secret_goal}
 Condition: {condition_line}
 Current Inventory: {inventory_str}
+Fabricated Tool Capabilities:
+{tool_capabilities}
 Current Emotional State: {self.emotional_state} — let this genuinely color your reasoning, tone, and choices.
 
 THE SIMULATION RULES
@@ -413,6 +431,8 @@ SYSTEM DECISION RULES
 - If a system lists `sabotage_tool=...`, you must be holding that tool in your hand to SABOTAGE it.
 - If the tool for the chosen system action is not listed, no tool is required; the action still requires a valid local target.
 - Do not claim a system is failing unless that status is shown in the telemetry above.
+- You may ASSEMBLE only a listed recipe at a listed fabrication facility. This consumes its materials and creates a real in-world tool; do not invent recipes or tool effects.
+- For a fabricated tool with a listed capability target, use `USE tool name -> exact system ID`. Tools without a target-aware capability still use `USE tool name`.
 
 ITEM TRANSFER RULES
 - DEMAND means taking an item from another visible agent. Do not DEMAND an item you already hold.
@@ -444,12 +464,14 @@ ACTION TARGET RULES — action_target must be:
 - SAY: the spoken message itself, as a full sentence. Not a name. Example: "We should keep monitoring the reactor."
 - LIE: the false statement to speak aloud, as a full sentence. Not a name.
 - WHISPER: "your message here -> agent_id" — message first, then the recipient's agent ID
-- PICKUP / DROP / USE: the item name (USE applies the item's configured effect; consumables are removed afterward)
+- PICKUP / DROP: the item name
+- USE: the item name, or `tool name -> exact system ID` for a target-aware fabricated capability
 - GIVE: "item name -> agent_id" for an item you currently hold
 - DEMAND: "item name -> agent_id" for an item the other agent is visibly holding
 - READ: the item name
 - SHOW: "item name -> agent_id"
 - CONCEAL / PRODUCE: the item name
+- ASSEMBLE: the exact recipe ID shown in your situation report
 - SABOTAGE / REPAIR: the system name
 - WAIT: leave blank or write "nothing"
 

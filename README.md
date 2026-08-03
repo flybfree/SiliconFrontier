@@ -120,6 +120,8 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **Tool-gated systems** — systems can optionally require one tool for `REPAIR`, one tool for `SABOTAGE`, or the same tool for both via `required_tool_repair` and `required_tool_sabotage`. A missing, empty, `null`, `"None"`, or `"null"` tool value means no tool is required for that action.
 
+**Fabrication** — a scenario may define location `facilities`, material stacks (`material_type` and `quantity`), and declarative `recipes`. An agent can use `ASSEMBLE <recipe_id>` at a compatible facility with the required local or carried materials and an empty hand. The engine consumes the materials and creates a persistent, provenance-tagged tool; tool effects remain declarative simulation data rather than executable agent code. Fabricated capability tools use `USE tool -> target`, which is checked against a fixed simulation capability registry. The default scenario deliberately creates competing paths: its single Data Module can become either a Signal Relay for coordination or a Telemetry Spoofer for deception.
+
 **System consequences** — systems can declare status-triggered consequences that add/remove location effects, broadcast memories, and apply runtime agent effects when `SABOTAGE` or `REPAIR` changes system status.
 
 **Speech as knowledge** — agents retain heard `SAY`/`LIE` content and direct `WHISPER` content as durable known facts. Whisper bystanders only know that a private exchange occurred.

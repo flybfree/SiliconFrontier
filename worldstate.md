@@ -17,6 +17,7 @@ JSON
     "hydroponics_bay": {
       "name": "Hydroponics Bay",
       "description": "Densely packed with oxygen-producing ferns and nutrient vats. It's humid and smells of wet earth.",
+      "facilities": ["bio_lab"],
       "connected_to": ["mess_hall"],
       "status_effects": ["high_humidity"]
     }
@@ -47,7 +48,29 @@ JSON
   }
 }
 
-3. Agents Node (The Initial State)
+3. Fabrication Node
+
+Facilities, finite material stacks, and recipes create in-world tool-making without allowing the model to execute arbitrary code. A recipe consumes its declared materials only at a compatible facility and produces an item with declarative capabilities.
+
+```json
+{
+  "recipes": {
+    "atmosphere_sampler": {
+      "facility": "bio_lab",
+      "materials": {"sensor_array": 1, "power_cell": 1, "wire_spool": 1},
+      "output": {
+        "name": "Atmosphere Sampler",
+        "tool": {"capabilities": ["inspect_oxygen_generator"], "durability": 2},
+        "use_effect": {"inspect_system": "oxygen_generator"}
+      }
+    }
+  }
+}
+```
+
+Materials are normal item entries with `material_type` and `quantity`, so they can be moved, traded, concealed, or contested before assembly.
+
+4. Agents Node (The Initial State)
 
 This tracks the dynamic state of the agents, including their current location and what they believe they are doing.
 Key	Purpose
@@ -59,6 +82,6 @@ Implementation Philosophy: "The Truth Table"
 
 When the simulation runs, we will pass a subset of this JSON to the LLM.
 
-    The Agent does not see the whole file. * It only sees the description of its current location, the items present there, and its own inventory.
+    The Agent does not see the whole file. * It only sees the description of its current location, the items present there, its own inventory, local facilities, and recipes usable at those facilities.
 
     Researcher Note: By keeping the state in a clean JSON format, you can easily export "snapshots" of the simulation. This is invaluable for students to analyze why a specific behavior emerged at a specific timestamp.

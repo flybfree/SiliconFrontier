@@ -52,6 +52,8 @@ Core top-level maps:
 - `agents`
 - `relationships`
 - `suspicions`
+- `recipes`
+- `fabrication_counts`
 
 Location structure:
 
@@ -60,6 +62,7 @@ Location structure:
 - `connected_to`
 - `status_effects`
 - `systems`
+- `facilities`: optional list (or map) of fabrication facilities available at the location
 
 System entries live inside each location's `systems` map. A system entry may include:
 
@@ -77,6 +80,15 @@ Item state includes:
 - `knowledge`
 - `consumable`
 - `effect`
+- `material_type` and `quantity`: optional finite fabrication material stack
+- `created_by` and `recipe_id`: provenance added to a fabricated tool
+- `tool`: declarative metadata such as capabilities, durability, and reliability
+
+Recipe structure:
+
+- `facility` or `facilities`: required location capability
+- `materials`: material type to quantity map
+- `output`: the generated item definition, including declarative `tool` metadata and optional `use_effect`
 
 Agent runtime state tracked by the world:
 
@@ -96,6 +108,8 @@ Snapshot behavior:
 - `visible_agent_hands`
 - `relationship_impressions`
 - `agent_inventory`
+- `facilities`: fabrication capabilities in the current location
+- `available_recipes`: recipes usable at one of those facilities
 
 This snapshot is what the agent prompt is built from. The model never receives the full raw world state.
 
@@ -113,6 +127,7 @@ It validates and executes all world mutations, including:
 - repair status and required-tool requirements
 - conceal/produce slot management
 - item consumption
+- recipe assembly: facility, material, and inventory validation followed by atomic material consumption and tool creation
 
 Important implementation detail:
 
@@ -127,6 +142,8 @@ Current system-action rules in the parser:
 - `SABOTAGE` fails if the local target system is already `BROKEN`
 - `REPAIR` only succeeds on a local target system whose status is `OFFLINE` or `BROKEN`
 - `REPAIR` and `SABOTAGE` can require named tools in the actor's visible hand slot; missing, empty, `null`, `"None"`, or `"null"` tool values mean no tool is required for that action
+- `ASSEMBLE` requires an exact recipe ID, a free hand, a compatible local facility, and sufficient accessible material quantities. The created tool is placed in the actor's inventory and records its creator and recipe.
+- Fabricated tools with a declared target-aware capability use `USE tool -> target`. `tool_registry.py` accepts only registered simulation capabilities and their allowed target system IDs; normal items continue to use `USE tool` without a target.
 
 ## 4. Orchestrator
 
@@ -214,7 +231,7 @@ Per agent turn:
 4. `FrontierAgent._build_system_prompt()` assembles prompt rules and identity state
 5. `FrontierAgent.think_and_act()` calls the LLM and normalizes the decision
 6. `FrontierAgent._validate_decision_against_telemetry()` may downgrade invalid `REPAIR` or `SABOTAGE` to `WAIT`
-7. `ActionParser.execute()` performs authoritative state mutation or returns failure
+7. `ActionParser.execute()` performs authoritative state mutation or returns failure; `ASSEMBLE` delegates material consumption and output creation to `WorldState`
 8. `Orchestrator` writes actor memory, broadcasts the event, updates social state, and logs the result
 9. Every `reflection_interval` cycles, `FrontierAgent.reflect()` condenses memory and updates `goal_momentum`
 

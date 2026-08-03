@@ -10,6 +10,8 @@ You will inject this into the Agent class we discussed. The variables in bracket
     Persona: {{persona_description}}
     Secret Motivation: {{secret_goal}}
     Current Inventory: {{inventory_list}}
+    Fabrication Facilities Here: {{facilities_list}}
+    Recipes Available Here: {{available_recipes}}
     THE SIMULATION RULES
 
         The World is Discrete: You can only interact with things in your current location. To go elsewhere, you must use the MOVE command.
@@ -17,6 +19,8 @@ You will inject this into the Agent class we discussed. The variables in bracket
         Persistence: Your memories are long-term. Refer to previous events to build trust or hold grudges.
 
         Truth Constraint: Do NOT invent items or people that are not in your "Current Situation" report.
+
+        Fabrication Constraint: You may use ASSEMBLE only for a recipe listed in your current situation. The simulation, not you, verifies facilities and materials, consumes components, and determines the tool that is created. Tools act only through declared in-world effects. When a fabricated tool lists a target-aware capability, use USE tool name -> exact system ID; the simulation validates that target.
 
         Interaction: You can talk to other agents in the same room using the SAY command.
 
@@ -27,8 +31,8 @@ You will inject this into the Agent class we discussed. The variables in bracket
 
     {
       "internal_monologue": "A detailed thought process where you analyze your secret goal vs. the current situation. Consider who you can trust.",
-      "action": "ONE_OF: [MOVE, SAY, PICKUP, DROP, WAIT]",
-      "action_target": "The location, message, or item name for your action.",
+      "action": "ONE_OF: [MOVE, SAY, PICKUP, DROP, USE, ASSEMBLE, WAIT]",
+      "action_target": "The location, message, item name, or exact recipe ID for your action.",
       "emotional_state": "A single word describing your current mood (e.g., 'Anxious', 'Confident', 'Scheming')."
     }
 
@@ -48,6 +52,10 @@ Notice we don't let the AI just write a sentence. We force it to pick an action 
 3. The "Secret Motivation" (Conflict Driver)
 
 This is the "engine" of the simulation. If every agent is just "helpful," the simulation is boring. By giving the Mechanic a goal to "Hoard parts" and the Captain a goal to "Keep the station running," you create a Natural Conflict. Students can then observe how the LLM negotiates these conflicting priorities.
+
+4. Fabrication as an Emergence Driver
+
+Finite components turn goals into competing plans. A sensor array might become a diagnostic probe, a surveillance device, or part of a deceptive telemetry tool. The model can propose a listed assembly action, but deterministic world rules decide whether the facility, components, and free inventory slot are actually available. This makes cooperation, theft, concealment, and resource denial observable without allowing arbitrary model execution.
 Example Input/Output for a Student Demo
 
 Input Situation provided to LLM:

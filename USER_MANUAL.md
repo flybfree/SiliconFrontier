@@ -826,6 +826,10 @@ Each item supports:
 - `use_effect` — optional object; allows a durable item to do something when used without being deleted
 - `consumable` — optional boolean; allows the `USE` action to apply the item's `effect` and then delete it
 - `effect` — optional object; defines what `USE` does (see [USE Action](#use-action))
+- `material_type` — optional stable material identifier used by fabrication recipes
+- `quantity` — optional positive integer for a material stack
+- `created_by` / `recipe_id` — runtime provenance fields added to fabricated tools
+- `tool` — optional declarative tool metadata such as `capabilities`, `durability`, and `reliability`
 
 For baseline content, keep `owner` as `null` unless you intend the item to start in an agent inventory.
 
@@ -866,6 +870,78 @@ Setting `contested: true` on an item causes agents to be reminded of its value w
 
 This primes competitive reasoning without adding hard game rules.
 
+## Fabrication
+
+Fabrication lets agents create tools entirely inside the simulation. It does not grant access to the host computer, external services, or arbitrary code execution. Agents can only assemble recipes defined by the scenario, and the engine deterministically validates and applies every result.
+
+### Configure facilities, materials, and recipes
+
+Locations may expose one or more `facilities`:
+
+```json
+"engineering": {
+  "name": "Engineering",
+  "facilities": ["engineering_fabricator"]
+}
+```
+
+Materials are ordinary, movable items with a `material_type` and `quantity`:
+
+```json
+"alloy_plates": {
+  "name": "Alloy Plates",
+  "location": "engineering",
+  "portable": true,
+  "contested": true,
+  "material_type": "alloy_plate",
+  "quantity": 4
+}
+```
+
+Recipes live in the top-level `recipes` object. They name a compatible facility, consume material quantities, and produce a declarative tool:
+
+```json
+"improvised_reactor_probe": {
+  "name": "Improvised Reactor Probe",
+  "facility": "engineering_fabricator",
+  "materials": {"alloy_plate": 2, "sensor_array": 1},
+  "output": {
+    "name": "Improvised Reactor Probe",
+    "tool": {"capabilities": ["inspect_reactor_control"], "durability": 3, "reliability": 0.65},
+    "use_effect": {"inspect_system": "reactor_control"}
+  }
+}
+```
+
+### ASSEMBLE action
+
+Use `ASSEMBLE <recipe_id>`, for example `ASSEMBLE improvised_reactor_probe`.
+
+The action succeeds only when the agent:
+
+- is at a location with the recipe's required facility;
+- can access all required material quantities in their inventory or current location; and
+- has an empty hand for the resulting tool.
+
+On success, materials are consumed atomically and the tool is added to the agent's inventory with its `created_by` and `recipe_id` recorded. The normal `USE` rules apply to the result.
+
+If the tool declares a target-aware capability, use `USE tool name -> exact_system_id`. For example: `USE Improvised Reactor Probe -> reactor_control`. The engine only accepts capability and target combinations registered for the simulation; it does not execute arbitrary behavior supplied by an agent or recipe.
+
+### Default scenario resource economy
+
+The default scenario distributes six contested resources across Engineering, Storage Locker, Hydroponics Bay, and Command Deck:
+
+| Resource | Main strategic uses |
+|---|---|
+| Alloy Plates | Reactor Probe, Maintenance Bypass |
+| Sensor Arrays | Reactor Probe, Atmosphere Sampler, Telemetry Spoofer |
+| Power Cells | Atmosphere Sampler, Field Stabilizer, Maintenance Bypass, Signal Relay |
+| Wire Spools | Atmosphere Sampler, Maintenance Bypass, Signal Relay, Telemetry Spoofer |
+| Chemical Reagents | Field Stabilizer |
+| Data Module | Signal Relay or Telemetry Spoofer |
+
+There are six default recipes: Improvised Reactor Probe, Atmosphere Sampler, Field Stabilizer, Maintenance Bypass, Signal Relay, and Telemetry Spoofer. Their overlapping requirements create trade-offs: agents can coordinate to build a useful tool, compete for scarce inputs, conceal a completed tool, or deny another agent a recipe path.
+
 ## WHISPER Action
 
 `WHISPER` sends a private message to one named agent in the same room.
@@ -880,11 +956,12 @@ This is useful for private coordination, covert deals, or saboteur signaling wit
 
 ## USE Action
 
-`USE` applies a held item's configured effect. Consumables use `effect` and are deleted afterward; durable tools use `use_effect` and remain in inventory.
+`USE` applies a held item's configured effect. Consumables use `effect` and are deleted afterward; durable tools use `use_effect` and remain in inventory. Fabricated capability tools may require the target form `USE tool -> target`.
 
 - An item can be used if it has `consumable: true` or a `use_effect` object.
 - The item must be in the agent's hand slot (not concealed on person).
 - On success, the item's effect fields are applied. Consumable items are then deleted from the world.
+- A fabricated target-aware tool must use its exact registered target. For example, the Improvised Reactor Probe accepts `reactor_control`, not an arbitrary location or agent.
 
 Shared effect fields (all optional):
 

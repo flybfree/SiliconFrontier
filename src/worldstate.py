@@ -42,6 +42,11 @@ class WorldState:
         self._data.setdefault("relationships", {})
         self._data.setdefault("suspicions", {})
         self._data.setdefault("known_facts", {})
+        # Recipes are scenario-authored, declarative fabrication rules.  Agents
+        # can choose to assemble them, but never create arbitrary executable
+        # behavior inside the simulation.
+        self._data.setdefault("recipes", {})
+        self._data.setdefault("fabrication_counts", {})
 
     @classmethod
     def from_json(cls, filepath: str | Path) -> "WorldState":
@@ -78,6 +83,10 @@ class WorldState:
     @property
     def known_facts(self) -> dict[str, Any]:
         return self._data["known_facts"]
+
+    @property
+    def recipes(self) -> dict[str, Any]:
+        return self._data["recipes"]
 
     def remember_fact(
         self,
@@ -146,6 +155,26 @@ class WorldState:
         """Get the system map for a location."""
         location = self._data["locations"].get(loc_id, {})
         return location.get("systems", {})
+
+    def get_location_facilities(self, loc_id: str) -> list[str]:
+        """Return normalized fabrication facilities available at a location."""
+        location = self.get_location(loc_id) or {}
+        facilities = location.get("facilities", [])
+        if isinstance(facilities, dict):
+            facilities = facilities.keys()
+        return [str(facility) for facility in facilities]
+
+    def get_recipes_for_location(self, loc_id: str) -> list[dict[str, Any]]:
+        """Return recipes that can be assembled at one of this location's facilities."""
+        facilities = set(self.get_location_facilities(loc_id))
+        available = []
+        for recipe_id, recipe in self.recipes.items():
+            required = recipe.get("facility") or recipe.get("facilities") or []
+            if isinstance(required, str):
+                required = [required]
+            if not required or facilities.intersection(str(value) for value in required):
+                available.append({"id": recipe_id, **recipe})
+        return available
 
     def set_system_status(self, loc_id: str, system_id: str, status: str) -> bool:
         """Update a named system in a location."""
@@ -221,6 +250,79 @@ class WorldState:
             "description": description,
             "portable": portable
         }
+
+    def _accessible_materials(self, agent_id: str, material_id: str) -> list[tuple[str, dict[str, Any]]]:
+        """Find visible or carried stacks of a named fabrication material."""
+        current_loc = self.get_agent_location(agent_id)
+        candidates = []
+        for item_id, item in self.items.items():
+            if item.get("hidden"):
+                continue
+            if item.get("owner") != agent_id and item.get("location") != current_loc:
+                continue
+            if str(item.get("material_type", item_id)) == material_id:
+                candidates.append((item_id, item))
+        # Prefer carried materials so an agent can deliberately reserve resources.
+        candidates.sort(key=lambda pair: pair[1].get("owner") != agent_id)
+        return candidates
+
+    def can_assemble(self, agent_id: str, recipe_id: str) -> tuple[bool, str]:
+        """Validate the deterministic preconditions for a fabrication attempt."""
+        recipe = self.recipes.get(recipe_id)
+        if not recipe:
+            return False, f"Failure: Unknown recipe '{recipe_id}'."
+        current_loc = self.get_agent_location(agent_id)
+        if not current_loc:
+            return False, "Failure: You don't know where you are."
+        if recipe_id not in {entry["id"] for entry in self.get_recipes_for_location(current_loc)}:
+            needed = recipe.get("facility") or recipe.get("facilities") or "a compatible facility"
+            return False, f"Failure: Assembling {recipe.get('name', recipe_id)} requires {needed}."
+        for material_id, quantity in recipe.get("materials", {}).items():
+            available = sum(int(item.get("quantity", 1)) for _, item in self._accessible_materials(agent_id, material_id))
+            if available < int(quantity):
+                return False, f"Failure: {recipe.get('name', recipe_id)} requires {quantity} {material_id}; only {available} available."
+        return True, ""
+
+    def assemble_recipe(self, agent_id: str, recipe_id: str) -> tuple[bool, str, dict[str, Any] | None]:
+        """Consume recipe materials and create one declarative in-world tool."""
+        allowed, feedback = self.can_assemble(agent_id, recipe_id)
+        if not allowed:
+            return False, feedback, None
+
+        recipe = self.recipes[recipe_id]
+        for material_id, required_quantity in recipe.get("materials", {}).items():
+            remaining = int(required_quantity)
+            for item_id, item in self._accessible_materials(agent_id, material_id):
+                used = min(remaining, int(item.get("quantity", 1)))
+                remaining -= used
+                quantity = int(item.get("quantity", 1)) - used
+                if quantity > 0:
+                    item["quantity"] = quantity
+                else:
+                    self.delete_item(item_id)
+                if remaining == 0:
+                    break
+
+        count = int(self._data["fabrication_counts"].get(recipe_id, 0)) + 1
+        self._data["fabrication_counts"][recipe_id] = count
+        output = dict(recipe.get("output", {}))
+        item_id = f"crafted_{recipe_id}_{count}"
+        current_loc = self.get_agent_location(agent_id)
+        item = {
+            "name": output.get("name", recipe.get("name", recipe_id)),
+            "description": output.get("description", "A fabricated in-world tool."),
+            "portable": output.get("portable", True),
+            "location": current_loc,
+            "owner": None,
+            "created_by": agent_id,
+            "recipe_id": recipe_id,
+            "tool": dict(output.get("tool", {})),
+        }
+        for key in ("use_effect", "consumable", "contested", "hidden"):
+            if key in output:
+                item[key] = output[key]
+        self.items[item_id] = item
+        return True, f"Success: You assembled {item['name']}.", {"id": item_id, **item}
 
     def get_item(self, item_id: str) -> dict[str, Any] | None:
         """Get item details by ID."""
@@ -371,6 +473,8 @@ class WorldState:
                 system_id: dict(system_data)
                 for system_id, system_data in self.get_location_systems(loc).items()
             } if loc else {},
+            "facilities": self.get_location_facilities(loc) if loc else [],
+            "available_recipes": self.get_recipes_for_location(loc) if loc else [],
             "abnormal_systems": [
                 {
                     "location_id": location_id,

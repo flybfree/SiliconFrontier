@@ -26,9 +26,10 @@ The station world is defined by JSON-backed nested dictionaries.
 
 Implemented entities:
 
-- **Locations**: IDs mapped to `name`, `description`, `connected_to`, `status_effects`, and `systems`
+- **Locations**: IDs mapped to `name`, `description`, `connected_to`, `status_effects`, `systems`, and optional fabrication `facilities`
 - **Systems**: per-location maps containing status-bearing station infrastructure such as consoles, generators, and reactor controls
-- **Items**: movable or static objects with flags such as `portable`, `hidden`, `contested`, `consumable`, and optional `effect`
+- **Items**: movable or static objects with flags such as `portable`, `hidden`, `contested`, `consumable`, optional `effect`, and optional material fields (`material_type`, `quantity`)
+- **Recipes**: scenario-authored, declarative rules that consume materials at a compatible facility and produce a persistent in-world tool
 - **Agents**: runtime entities with a location, inventory, and status effects
 - **Relationships / Suspicions**: directional social state visible or hidden depending on use
 
@@ -48,6 +49,7 @@ Each agent follows a `Sense -> Think -> Act -> Reflect` cycle.
 - visible nearby agents and their visible hand items
 - directional relationship impressions
 - the agent's own inventory
+- local fabrication facilities and recipes available there
 - `abnormal_systems`: station-wide systems whose status is not `ONLINE`
 
 `FrontierAgent.sense()` turns that snapshot into human-readable prompt text.
@@ -123,6 +125,7 @@ Implemented action families include:
 - inventory transfer: `PICKUP`, `DROP`, `GIVE`, `DEMAND`
 - slot management: `CONCEAL`, `PRODUCE`
 - item effects: `USE`
+- fabrication: `ASSEMBLE <recipe_id>`
 - system actions: `REPAIR`, `SABOTAGE`
 - no-op: `WAIT`
 
@@ -135,6 +138,11 @@ Examples of enforced constraints:
 - `SABOTAGE` requires no witnesses in the room and may require a configured sabotage tool
 - `REPAIR` requires a valid local broken/offline target and may require a specific tool
 - a missing, empty, `null`, `"None"`, or `"null"` repair/sabotage tool means no tool is required for that action
+- assembly requires a listed recipe, a compatible local facility, sufficient visible or carried materials, and a free hand for the created tool
+
+Fabrication does not permit agents to execute arbitrary code or invent effects. The model chooses a listed recipe; `WorldState` consumes the declared materials and creates a provenance-tagged item whose capabilities and `use_effect` are scenario data.
+
+Target-aware fabricated tools use `USE tool -> target`. A fixed capability registry validates the declared capability and target before the existing deterministic item-effect pipeline applies the recipe's configured result. Existing `USE tool` behavior for ordinary items remains unchanged.
 
 The parser remains authoritative even when the agent layer has already prevalidated part of the decision.
 
@@ -238,7 +246,13 @@ Available controls include:
 
 This makes the framework useful both as a sandbox and as a reproducible experiment environment.
 
-## 9. What Changed Relative to the Original Design
+## 9. Fabrication and Emergent Behavior
+
+Fabrication makes tools part of the social and strategic world rather than fixed prerequisites. The default scenario includes finite alloy plates, sensor arrays, power cells, wire spools, chemical reagents, and a single data module. These resources feed overlapping recipes for diagnostics, recovery, self-stabilization, station-wide coordination, and deception.
+
+This creates deliberate trade-offs: for example, the single data module can be spent on a Signal Relay or a Telemetry Spoofer, but not both. Agents may cooperate to gather materials, compete for contested components, conceal a completed tool, or use a fabricated capability to change the information available to others. Every outcome remains deterministic and inspectable.
+
+## 10. What Changed Relative to the Original Design
 
 The current implementation differs from the older conceptual docs in several important ways:
 
@@ -249,8 +263,9 @@ The current implementation differs from the older conceptual docs in several imp
 - speech can be socially checked against telemetry by listeners
 - the orchestrator prints system snapshots and tracks sabotage incidents / proximity logs
 - social consequences are partly LLM-critic-driven and partly rule-driven
+- agents can now create scenario-defined tools from scarce materials, rather than only using pre-authored items
 
-## 10. Replication Notes
+## 11. Replication Notes
 
 To reproduce current behavior:
 

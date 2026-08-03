@@ -11,10 +11,14 @@ world_state = {
     "locations": {
         "mess_hall": {"name": "Mess Hall", "description": "The social hub.", "connected_to": ["command_deck", "hydroponics"]},
         "command_deck": {"name": "Command Deck", "description": "The bridge.", "connected_to": ["mess_hall"]},
-        "hydroponics": {"name": "Hydroponics", "description": "The farm.", "connected_to": ["mess_hall"]}
+        "hydroponics": {"name": "Hydroponics", "description": "The farm.", "connected_to": ["mess_hall"], "facilities": ["bio_lab"]}
     },
     "items": {
-        "wrench_01": {"name": "Plasma Wrench", "location": "mess_hall", "portable": True, "description": "A heavy tool."}
+        "wrench_01": {"name": "Plasma Wrench", "location": "mess_hall", "portable": True, "description": "A heavy tool."},
+        "sensor_01": {"name": "Sensor Array", "location": "hydroponics", "portable": True, "material_type": "sensor_array", "quantity": 1}
+    },
+    "recipes": {
+        "atmosphere_sampler": {"facility": "bio_lab", "materials": {"sensor_array": 1}, "output": {"name": "Atmosphere Sampler", "tool": {"capabilities": ["inspect_oxygen_generator"]}}}
     }
 }
 
@@ -61,8 +65,8 @@ def run_simulation(rounds=5):
                 event_msg = f"{agent.name} said: '{decision['action_target']}'"
                 broadcast_event(event_msg, agent.location, exclude_agent_id=agent.agent_id)
             
-            # 6. OBSERVATIONAL UPDATE: If they moved or picked up an item
-            elif decision['action'] in ["MOVE", "PICKUP"]:
+            # 6. OBSERVATIONAL UPDATE: If they moved, picked up an item, or assembled a tool
+            elif decision['action'] in ["MOVE", "PICKUP", "ASSEMBLE"]:
                 event_msg = f"You saw {agent.name} perform: {decision['action']} {decision['action_target']}"
                 broadcast_event(event_msg, agent.location, exclude_agent_id=agent.agent_id)
 
@@ -71,3 +75,5 @@ def run_simulation(rounds=5):
 
 if __name__ == "__main__":
     run_simulation()
+
+Production note: the current implementation routes `ASSEMBLE` through `ActionParser` and `WorldState`, which validate facilities and materials, consume resources atomically, create a provenance-tagged tool, and broadcast the observed fabrication event. The sketch above remains a teaching illustration rather than the production runtime.

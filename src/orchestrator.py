@@ -882,6 +882,10 @@ class Orchestrator:
             elif action == "PICKUP" and success:
                 event_msg = f"You saw {agent.name} pick up the {target}"
                 self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
+
+            elif action == "ASSEMBLE" and success:
+                event_msg = f"You saw {agent.name} assemble a tool using recipe {target}"
+                self._broadcast_with_reactions(event_msg, agent.agent_id, action, current_loc)
                 # Witnessed pickup reduces trust in the actor
                 witnesses = self.world.get_visible_agents(agent.agent_id)
                 for witness_id in witnesses:
@@ -902,15 +906,16 @@ class Orchestrator:
 
             elif action == "USE" and success:
                 # Find the item in the agent's hand and apply its effect
+                item_target = target.split("->", 1)[0].strip()
                 hand_items = self.world.find_items_by_owner(agent.agent_id)
                 used_item = next(
                     (item for item in hand_items
-                     if not item.get("hidden") and (target.lower() in item["name"].lower() or item["id"] == target)),
+                     if not item.get("hidden") and (item_target.lower() in item["name"].lower() or item["id"] == item_target)),
                     None
                 )
                 if used_item:
                     self._apply_item_effect(agent, used_item)
-                    event_msg = f"You saw {agent.name} use {used_item['name']}"
+                    event_msg = f"You saw {agent.name} use {used_item['name']}{' on ' + target.split('->', 1)[1].strip() if '->' in target else ''}"
                     self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
 
             elif action == "GIVE" and success:
