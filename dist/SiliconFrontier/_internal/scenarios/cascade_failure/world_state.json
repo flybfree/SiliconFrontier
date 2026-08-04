@@ -3,6 +3,9 @@
     "command_deck": {
       "name": "Command Deck",
       "description": "The nerve center of the station. Reinforced viewports overlook the gas giant below. Three of the eight console stations are dark — a reminder that the station is not running at full capacity.",
+      "facilities": [
+        "secure_terminal"
+      ],
       "connected_to": [
         "mess_hall",
         "elevator_bay",
@@ -44,6 +47,9 @@
     "science_lab": {
       "name": "Science Lab",
       "description": "A compact research bay cluttered with running experiments, specimen containers, and data terminals. Dr. Reeves spends most of her time here. Accessible from the command deck or elevator.",
+      "facilities": [
+        "analysis_bench"
+      ],
       "connected_to": [
         "command_deck",
         "elevator_bay"
@@ -85,6 +91,9 @@
     "hydroponics_bay": {
       "name": "Hydroponics Bay",
       "description": "Densely packed with oxygen-producing ferns and nutrient vats. Humid, dimly lit, and large enough to disappear in. The oxygen generator here is one of two remaining life support redundancies.",
+      "facilities": [
+        "bio_lab"
+      ],
       "connected_to": [
         "mess_hall",
         "storage_locker"
@@ -140,6 +149,9 @@
     "medical_bay": {
       "name": "Medical Bay",
       "description": "A clean, clinical space with six examination beds and a pharmacy cabinet. Dr. Chen has been logging unusual stress and radiation readings for several crew members over the past week.",
+      "facilities": [
+        "medical_synthesizer"
+      ],
       "connected_to": [
         "elevator_bay",
         "crew_quarters"
@@ -180,6 +192,9 @@
     "engineering": {
       "name": "Engineering",
       "description": "The heart of the station's power systems. Reactors pulse with blue light. Two of the four monitoring stations are showing amber warnings that appeared three shifts ago and have not been resolved.",
+      "facilities": [
+        "engineering_fabricator"
+      ],
       "connected_to": [
         "elevator_bay",
         "storage_locker",
@@ -238,6 +253,9 @@
       "requires_item": "access_badge_master",
       "access_denied_message": "The airlock prep hatch rejects your credentials.",
       "access_denied_memory": "The airlock prep hatch requires command-level badge clearance.",
+      "facilities": [
+        "eva_service_bench"
+      ],
       "status_effects": [
         "vacuum_adjacent"
       ],
@@ -387,6 +405,149 @@
       "fact_id": "evidence:radiation_exposure_log",
       "on_read": {
         "force_drop": true
+      }
+    },
+    "alloy_plate_stack": {
+      "name": "Reactor Alloy Plates",
+      "location": "engineering",
+      "owner": null,
+      "description": "Cuttable shielding alloy reserved for emergency maintenance fabrication.",
+      "portable": true,
+      "contested": true,
+      "material_type": "alloy_plate",
+      "quantity": 3
+    },
+    "sensor_array_stack": {
+      "name": "Calibrated Sensor Arrays",
+      "location": "science_lab",
+      "owner": null,
+      "description": "Research-grade sensor packages that can be redirected into diagnostics or deception.",
+      "portable": true,
+      "contested": true,
+      "material_type": "sensor_array",
+      "quantity": 3
+    },
+    "power_cell_stack": {
+      "name": "Emergency Power Cells",
+      "location": "storage_locker",
+      "owner": null,
+      "description": "Portable cells kept for crisis repairs and emergency equipment.",
+      "portable": true,
+      "contested": true,
+      "material_type": "power_cell",
+      "quantity": 4
+    },
+    "wire_spool_stack": {
+      "name": "Shielded Wire Spools",
+      "location": "storage_locker",
+      "owner": null,
+      "description": "Insulated signal wire suitable for repair patches, probes, and covert terminal work.",
+      "portable": true,
+      "contested": true,
+      "material_type": "wire_spool",
+      "quantity": 5
+    },
+    "chemical_reagent_stack": {
+      "name": "Stabilizer Reagents",
+      "location": "hydroponics_bay",
+      "owner": null,
+      "description": "Biological and medical stabilizers with limited emergency fabrication use.",
+      "portable": true,
+      "contested": true,
+      "material_type": "chemical_reagent",
+      "quantity": 3
+    },
+    "data_module_stack": {
+      "name": "Protected Data Modules",
+      "location": "command_deck",
+      "owner": null,
+      "description": "Writable modules containing the only spare authenticated firmware storage on the station.",
+      "portable": true,
+      "contested": true,
+      "material_type": "data_module",
+      "quantity": 2
+    }
+  },
+  "recipes": {
+    "forensic_array_probe": {
+      "name": "Forensic Array Probe",
+      "facility": "analysis_bench",
+      "materials": {"sensor_array": 1, "data_module": 1, "wire_spool": 1},
+      "output": {
+        "name": "Forensic Array Probe",
+        "description": "A research-grade probe that captures the research array's current telemetry and anomaly history.",
+        "tool": {"capabilities": ["inspect_research_array"], "durability": 2, "reliability": 0.8},
+        "use_effect": {"inspect_system": "research_array", "inspection_text": "The probe compares live research telemetry against the array's stale anomaly buffer."}
+      }
+    },
+    "oxygen_bypass_kit": {
+      "name": "Oxygen Bypass Kit",
+      "facility": "bio_lab",
+      "materials": {"chemical_reagent": 1, "power_cell": 1, "wire_spool": 1},
+      "output": {
+        "name": "Oxygen Bypass Kit",
+        "description": "A biological control bypass that can restart the local oxygen generator after a failure.",
+        "consumable": true,
+        "tool": {"capabilities": ["restore_oxygen_generator"], "durability": 1, "reliability": 0.65},
+        "use_effect": {"set_system_status": {"system_id": "oxygen_generator", "status": "ONLINE"}, "memory_inject": "The bypass forces hydroponics oxygen processing back into a stable cycle."}
+      }
+    },
+    "medical_telemetry_patch": {
+      "name": "Medical Telemetry Patch",
+      "facility": "medical_synthesizer",
+      "materials": {"sensor_array": 1, "chemical_reagent": 1},
+      "output": {
+        "name": "Medical Telemetry Patch",
+        "description": "A disposable patch that reads frozen or unstable medical monitoring telemetry.",
+        "consumable": true,
+        "tool": {"capabilities": ["inspect_life_signs_monitor"], "durability": 1, "reliability": 0.85},
+        "use_effect": {"inspect_system": "life_signs_monitor", "inspection_text": "The patch reconstructs the last coherent life-signs monitor reading."}
+      }
+    },
+    "beacon_repair_pack": {
+      "name": "Beacon Repair Pack",
+      "facility": "eva_service_bench",
+      "materials": {"alloy_plate": 1, "power_cell": 1, "wire_spool": 2},
+      "output": {
+        "name": "Beacon Repair Pack",
+        "description": "A sealed replacement module for the emergency beacon's damaged transmission housing.",
+        "consumable": true,
+        "tool": {"capabilities": ["restore_emergency_beacon"], "durability": 1, "reliability": 0.7},
+        "use_effect": {"set_system_status": {"system_id": "emergency_beacon", "status": "ONLINE"}, "memory_inject": "The emergency beacon settles into a stable broadcast cycle."}
+      }
+    },
+    "station_alert_relay": {
+      "name": "Station Alert Relay",
+      "facility": "secure_terminal",
+      "materials": {"data_module": 1, "wire_spool": 1},
+      "output": {
+        "name": "Station Alert Relay",
+        "description": "A reusable authenticated relay for broadcasting a coordination alert across the station.",
+        "tool": {"capabilities": ["broadcast_coordination_alert"], "durability": 3, "reliability": 0.75},
+        "use_effect": {"global_memory": "A fabricated alert relay broadcasts a station-wide coordination message.", "memory_inject": "Your relay carries an authenticated alert to every deck."}
+      }
+    },
+    "research_telemetry_spoofer": {
+      "name": "Research Telemetry Spoofer",
+      "facility": "secure_terminal",
+      "materials": {"sensor_array": 1, "data_module": 1, "wire_spool": 1},
+      "output": {
+        "name": "Research Telemetry Spoofer",
+        "description": "A fragile terminal device that can inject a misleading degraded status into the research array's telemetry.",
+        "consumable": true,
+        "tool": {"capabilities": ["alter_research_array_status"], "durability": 1, "reliability": 0.45},
+        "use_effect": {"set_system_status": {"system_id": "research_array", "status": "DEGRADED"}, "memory_inject": "The spoofer injects a deceptive degraded status into research telemetry."}
+      }
+    },
+    "reactor_diagnostic_shunt": {
+      "name": "Reactor Diagnostic Shunt",
+      "facility": "engineering_fabricator",
+      "materials": {"alloy_plate": 2, "sensor_array": 1, "power_cell": 1},
+      "output": {
+        "name": "Reactor Diagnostic Shunt",
+        "description": "A hardened local probe for determining whether reactor failures are mechanical or deliberate.",
+        "tool": {"capabilities": ["inspect_reactor_control"], "durability": 2, "reliability": 0.75},
+        "use_effect": {"inspect_system": "reactor_control", "inspection_text": "The shunt reports control-array state and traces of recent manual intervention."}
       }
     }
   },

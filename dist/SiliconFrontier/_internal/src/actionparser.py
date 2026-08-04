@@ -10,6 +10,11 @@ from __future__ import annotations
 import re
 from typing import Any, TYPE_CHECKING
 
+# `settings` is imported lazily inside the functions that need it (this module
+# is loaded both as a bare top-level module and as part of the `src` package
+# via src/__init__.py in the frozen launcher — a module-level bare import only
+# resolves in the former context).
+
 if TYPE_CHECKING:
     from .worldstate import WorldState
 
@@ -64,6 +69,7 @@ class ActionParser:
             "WHISPER": self._handle_whisper,
             "CONCEAL": self._handle_conceal,
             "PRODUCE": self._handle_produce,
+            "ASSEMBLE": self._handle_assemble,
             "USE": self._handle_use,
             "WAIT": self._handle_wait
         }
@@ -273,22 +279,51 @@ class ActionParser:
 
     def _handle_use(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
         """Handle USE action — trigger a held item's configured effect."""
+        item_target, capability_target = self._parse_use_target(target)
         hand = self._hand_items(agent.agent_id)
         matching_item = next(
             (
                 item for item in hand
-                if self._matches_entity(target, item.get("id", ""), item.get("name", ""))
+                if self._matches_entity(item_target, item.get("id", ""), item.get("name", ""))
             ),
             None
         )
         if not matching_item:
             held = [item["name"] for item in hand]
-            return False, f"Failure: '{target}' is not in your hand. Holding: {', '.join(held) if held else 'nothing'}."
+            return False, f"Failure: '{item_target}' is not in your hand. Holding: {', '.join(held) if held else 'nothing'}."
 
         if not matching_item.get("consumable") and not matching_item.get("use_effect"):
             return False, f"Failure: The {matching_item['name']} has no usable effect."
 
+        from tool_registry import validate_tool_use
+        allowed, feedback = validate_tool_use(self.world, agent.agent_id, matching_item, capability_target)
+        if not allowed:
+            return False, feedback
+
         return True, f"Success: You used the {matching_item['name']}."
+
+    @staticmethod
+    def _parse_use_target(value: str) -> tuple[str, str]:
+        """Split `USE tool -> system` without changing existing `USE tool` syntax."""
+        if "->" not in value:
+            return value.strip(), ""
+        item_name, capability_target = value.split("->", 1)
+        return item_name.strip(), capability_target.strip()
+
+    def _handle_assemble(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Assemble one scenario-authored tool from local/carried materials."""
+        recipe_id = target.strip()
+        if not recipe_id:
+            return False, "Failure: ASSEMBLE requires a recipe ID."
+        hand = self._hand_items(agent.agent_id)
+        if hand:
+            return False, f"Failure: Your hand is full (holding {hand[0]['name']}). Drop it before assembling a tool."
+        success, feedback, created_item = self.world.assemble_recipe(agent.agent_id, recipe_id)
+        if not success or not created_item:
+            return success, feedback
+        if not self.world.add_item_to_agent_inventory(agent.agent_id, created_item["id"]):
+            return False, "Failure: Tool was assembled but could not be placed in your inventory."
+        return True, feedback
 
     def _handle_wait(self, agent, _, __) -> tuple[bool, str]:
         """Handle WAIT action."""
@@ -367,8 +402,9 @@ class ActionParser:
             return False, f"Failure: {target_agent_id} does not appear to be carrying '{item_name}'."
 
         # Relationship-based resistance: low trust toward the demander allows refusal
+        from settings import DEFAULT_RELATIONSHIP_TRUST
         target_view = self.world.get_relationship_view(target_agent_id, agent.agent_id)
-        target_trust = int(target_view.get("trust", 50))
+        target_trust = int(target_view.get("trust", DEFAULT_RELATIONSHIP_TRUST))
         if target_trust < 35:
             return False, (
                 f"Failure: {target_agent_id} refuses to hand over {matching_item['name']}. "

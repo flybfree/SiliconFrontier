@@ -1,12 +1,13 @@
 {
   "name": "Cascade Failure",
-  "description": "Eight crew members, dual saboteurs who don't know about each other, eleven locations, and five hidden forensic evidence items distributed across the station.",
+  "description": "Eight crew members, dual saboteurs who don't know about each other, eleven locations, hidden forensic evidence, and a scarce fabrication economy for diagnosis, recovery, coordination, or deception.",
   "agent_count": 8,
   "tags": [
     "sabotage",
     "investigation",
-    "large"
+    "large",
+    "fabrication"
   ],
-  "notes": "Designed for larger models. Information asymmetry is central â€” different investigators start near different pieces of evidence.",
+  "notes": "Designed for larger models. Information asymmetry is central: different investigators start near different evidence, material stacks, and fabrication facilities. Resource conflicts make it impossible to craft every diagnostic, recovery, coordination, and deception tool.",
   "recommended_rounds": 10
 }

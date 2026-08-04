@@ -67,6 +67,10 @@ class FrontierAgent:
         condition: dict[str, Any] | None = None,
         llm_base_url: str | None = None,
         llm_model: str | None = None,
+        social_critic_base_url: str | None = None,
+        social_critic_model: str | None = None,
+        strategic_reasoning_base_url: str | None = None,
+        strategic_reasoning_model: str | None = None,
         enable_structured_output: bool = False,
         api_key: str | None = None,
         llm_timeout_seconds: float | None = None
@@ -81,16 +85,31 @@ class FrontierAgent:
             secret_goal: Hidden motivation that drives conflict/behavior
             llm_base_url: URL of local OpenAI-compatible inference engine
             llm_model: Model name to use for inference
+            social_critic_base_url: Optional OpenAI-compatible endpoint for witness critics
+            social_critic_model: Optional fast model for witness critics
             api_key: API key (usually not needed for local models)
             llm_timeout_seconds: Per-request timeout for LLM calls (seconds)
         """
         # Resolve settings with layered priority: explicit arg > env var > settings.json > defaults
-        from settings import get_llm_base_url, get_llm_model, get_api_key, get_llm_timeout_seconds
+        from settings import (
+            get_api_key,
+            get_llm_base_url,
+            get_llm_model,
+            get_llm_timeout_seconds,
+            get_social_critic_base_url,
+            get_social_critic_model,
+            get_strategic_reasoning_base_url,
+            get_strategic_reasoning_model,
+        )
 
         resolved_llm_base_url = get_llm_base_url(llm_base_url)
         resolved_llm_model = get_llm_model(llm_model)
         resolved_api_key = get_api_key(api_key)
         resolved_timeout = get_llm_timeout_seconds(llm_timeout_seconds)
+        resolved_social_critic_base_url = get_social_critic_base_url(social_critic_base_url)
+        resolved_social_critic_model = get_social_critic_model(social_critic_model)
+        resolved_strategic_base_url = get_strategic_reasoning_base_url(strategic_reasoning_base_url)
+        resolved_strategic_model = get_strategic_reasoning_model(strategic_reasoning_model)
 
         self.agent_id = agent_id
         self.name = name
@@ -112,6 +131,23 @@ class FrontierAgent:
             timeout=resolved_timeout
         )
         self.llm_model = resolved_llm_model
+        self.social_critic_client = OpenAI(
+            base_url=resolved_social_critic_base_url,
+            api_key=resolved_api_key,
+            timeout=resolved_timeout,
+        )
+        self.social_critic_base_url = resolved_social_critic_base_url
+        self.social_critic_model = resolved_social_critic_model
+        self.strategic_client = OpenAI(
+            base_url=resolved_strategic_base_url,
+            api_key=resolved_api_key,
+            timeout=resolved_timeout,
+        )
+        self.strategic_reasoning_base_url = resolved_strategic_base_url
+        self.strategic_reasoning_model = resolved_strategic_model
+        self.strategic_plan: dict[str, Any] = {}
+        self.last_strategic_review_cycle: int | None = None
+        self.last_strategic_trigger: str | None = None
 
         # Emotional state tracking (for observation)
         self.emotional_state: str = "Neutral"
@@ -385,12 +421,14 @@ class FrontierAgent:
             "stalled": "You are stalled — try something bolder or more direct rather than repeating the same cautious pattern.",
             "setback": "You have suffered a setback — regroup, reassess who you can trust, and look for a new angle.",
         }.get(self.goal_momentum, "")
+        strategic_plan_text = self._strategic_plan_text()
 
         return f"""You are {self.name}, the {self.role} aboard the "Silicon Frontier" research station.
 
 YOUR IDENTITY
 Persona: {self.persona}
 Secret Motivation: {self.secret_goal}
+Current Strategic Plan: {strategic_plan_text}
 Condition: {condition_line}
 Current Inventory: {inventory_str}
 Fabricated Tool Capabilities:
@@ -521,8 +559,8 @@ Output strict JSON:
 """
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.llm_model,
+            response = self.social_critic_client.chat.completions.create(
+                model=self.social_critic_model,
                 messages=[{"role": "user", "content": critic_prompt}],
                 temperature=0.2
             )
@@ -544,7 +582,10 @@ Output strict JSON:
             "trust_change": max(-10, min(10, trust_change)),
             "affinity_change": max(-10, min(10, affinity_change)),
             "suspicion_change": max(-10, min(10, suspicion_change)),
-            "notes": str(parsed.get("notes", "")).strip()
+            "notes": str(parsed.get("notes", "")).strip(),
+            "source": "model",
+            "model": self.social_critic_model,
+            "endpoint": self.social_critic_base_url,
         }
 
     def _normalize_decision(self, decision: dict[str, Any]) -> dict[str, Any]:
@@ -1133,8 +1174,8 @@ Output strict JSON:
   "goal_momentum": "One of: advancing, stalled, or setback — honestly assess whether recent events moved you toward or away from your secret goal."
 }}"""
 
-        response = self.client.chat.completions.create(
-            model=self.llm_model,
+        response = self.strategic_client.chat.completions.create(
+            model=self.strategic_reasoning_model,
             messages=[{"role": "user", "content": reflection_prompt}]
         )
 
@@ -1155,6 +1196,74 @@ Output strict JSON:
 
         self.memory_buffer = []  # Clear buffer after consolidation
         return self.long_term_memory
+
+    def _strategic_plan_text(self) -> str:
+        """Return a compact private-plan summary for the fast action model."""
+        plan = getattr(self, "strategic_plan", {})
+        if not isinstance(plan, dict) or not plan:
+            return "No strategic review yet. Pursue your secret motivation using the evidence available."
+        parts = [
+            f"Goal: {plan.get('goal', self.secret_goal)}",
+            f"Next steps: {', '.join(plan.get('subgoals', [])) or 'adapt to the situation'}",
+        ]
+        if plan.get("crafting_intent"):
+            parts.append(f"Crafting focus: {plan['crafting_intent']}")
+        if plan.get("social_intent"):
+            parts.append(f"Social approach: {plan['social_intent']}")
+        return " | ".join(parts)
+
+    @staticmethod
+    def _strategy_list(value: Any, limit: int = 4) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [str(item).strip()[:180] for item in value if str(item).strip()][:limit]
+
+    def propose_strategy(self, world_snapshot: dict[str, Any], trigger: str) -> dict[str, Any]:
+        """Ask the strategic model for intent only; it cannot execute an action."""
+        prompt = f"""You are the private strategic planner for {self.name}.
+
+Persona: {self.persona}
+Secret goal: {self.secret_goal}
+Long-term memory: {self.long_term_memory}
+Goal momentum: {self.goal_momentum}
+Review trigger: {trigger}
+
+Current subjective situation:
+{self.sense(world_snapshot)}
+
+Create a concise private plan. Do not issue an immediate action and do not invent tools, materials, locations, or system states. You may propose pursuing a listed recipe only when it appears in the situation.
+Return strict JSON:
+{{
+  "goal": "one concise objective",
+  "subgoals": ["up to four concrete next steps"],
+  "crafting_intent": "recipe id or empty string",
+  "social_intent": "how to approach others or empty string",
+  "review_when": ["up to three conditions that warrant a new review"]
+}}"""
+        try:
+            response = self.strategic_client.chat.completions.create(
+                model=self.strategic_reasoning_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.45,
+            )
+            parsed = self._parse_decision_from_response(response) or {}
+            plan = {
+                "goal": str(parsed.get("goal") or self.secret_goal).strip()[:300],
+                "subgoals": self._strategy_list(parsed.get("subgoals")),
+                "crafting_intent": str(parsed.get("crafting_intent") or "").strip()[:120],
+                "social_intent": str(parsed.get("social_intent") or "").strip()[:180],
+                "review_when": self._strategy_list(parsed.get("review_when"), limit=3),
+            }
+            return {"source": "model", "plan": plan}
+        except Exception as exc:
+            return {"source": "fallback", "plan": {}, "error": str(exc)[:240]}
+
+    def apply_strategic_plan(self, plan: dict[str, Any], cycle: int, trigger: str) -> None:
+        """Apply a validated planner result after the orchestrator orders reviews."""
+        if plan:
+            self.strategic_plan = plan
+        self.last_strategic_review_cycle = cycle
+        self.last_strategic_trigger = trigger
 
     def add_to_memory(self, event: str) -> None:
         """Add an event to the short-term memory buffer (max 10 events)."""

@@ -4,8 +4,9 @@ Silicon Frontier Settings — LLM configuration with layered resolution.
 Priority order (highest to lowest):
   1. Explicit arguments passed at call time
   2. Environment variables: SILICON_FRONTIER_LLM_BASE_URL, SILICON_FRONTIER_LLM_MODEL
-  3. settings.json in the project root directory
-  4. Hardcoded defaults
+  3. settings.json beside the packaged executable or in the project root
+  4. Persistent per-user settings.json in the Windows local application-data folder
+  5. Hardcoded defaults
 
 The settings file is a JSON object with optional keys:
     {
@@ -21,7 +22,6 @@ import os
 from pathlib import Path
 from typing import Any, cast
 
-
 # ---------------------------------------------------------------------------
 # Defaults (used when nothing else provides a value)
 # ---------------------------------------------------------------------------
@@ -34,13 +34,25 @@ DEFAULT_RELATIONSHIP_AFFINITY = 50
 
 # Where to look for the settings file — project root (one level above src/)
 _SETTINGS_FILE_NAME = "settings.json"
+_APP_SETTINGS_DIR_NAME = "SiliconFrontier"
 
 
-def _find_settings_file() -> Path | None:
-    """Return the path to settings.json if it exists, else None.
+def user_settings_file() -> Path:
+    """Return the persistent, per-user settings file location.
 
-    Walks upward from this module's location looking for the first match.
+    Packaged builds are routinely replaced during an update, so settings must
+    not live inside the ``dist`` directory.  ``LOCALAPPDATA`` is the normal
+    Windows location for application-owned local configuration.  The fallback
+    keeps source-tree use portable on platforms without that variable.
     """
+    base = os.environ.get("SILICON_FRONTIER_SETTINGS_DIR") or os.environ.get("LOCALAPPDATA")
+    if base:
+        return Path(base) / _APP_SETTINGS_DIR_NAME / _SETTINGS_FILE_NAME
+    return Path.home() / ".silicon_frontier" / _SETTINGS_FILE_NAME
+
+
+def _find_legacy_settings_file() -> Path | None:
+    """Find the former project/bundle-local settings file, if present."""
     current = Path(__file__).resolve().parent  # src/
     while True:
         candidate = current / _SETTINGS_FILE_NAME
@@ -53,8 +65,17 @@ def _find_settings_file() -> Path | None:
     return None
 
 
+def _find_settings_file() -> Path | None:
+    """Prefer settings beside the executable, then use the per-user fallback."""
+    local = _find_legacy_settings_file()
+    if local is not None:
+        return local
+    persistent = user_settings_file()
+    return persistent if persistent.is_file() else None
+
+
 def load_settings() -> dict[str, Any]:
-    """Load settings from the JSON file (if present).
+    """Load settings from the executable folder or per-user fallback.
 
     Returns an empty dict when no settings file is found or it cannot be parsed.
     """
@@ -155,6 +176,82 @@ def get_llm_model(explicit_value: str | None = None) -> str:
         explicit_value: If provided and non-empty, used verbatim (highest priority).
     """
     return cast(str, _resolve_str(explicit_value, "SILICON_FRONTIER_LLM_MODEL", "llm_model", DEFAULT_LLM_MODEL))
+
+
+def get_social_critic_base_url(explicit_value: str | None = None) -> str:
+    """Resolve the optional endpoint used for social-witness evaluations."""
+    return cast(str, _resolve_str(
+        explicit_value,
+        "SILICON_FRONTIER_SOCIAL_CRITIC_BASE_URL",
+        "social_critic_base_url",
+        get_llm_base_url(),
+    ))
+
+
+def get_social_critic_model(explicit_value: str | None = None) -> str:
+    """Resolve the optional model used for social-witness evaluations."""
+    return cast(str, _resolve_str(
+        explicit_value,
+        "SILICON_FRONTIER_SOCIAL_CRITIC_MODEL",
+        "social_critic_model",
+        get_llm_model(),
+    ))
+
+
+def get_social_critic_max_workers(explicit_value: int | None = None) -> int:
+    """Resolve the bounded concurrent witness-evaluation worker count."""
+    return _resolve_typed(
+        explicit_value,
+        "SILICON_FRONTIER_SOCIAL_CRITIC_MAX_WORKERS",
+        "social_critic_max_workers",
+        4,
+        coerce=int,
+        validate=lambda value: max(1, value),
+    )
+
+
+def get_strategic_reasoning_base_url(explicit_value: str | None = None) -> str:
+    """Resolve the optional slow-planning endpoint for agent strategy reviews."""
+    return cast(str, _resolve_str(
+        explicit_value,
+        "SILICON_FRONTIER_STRATEGIC_REASONING_BASE_URL",
+        "strategic_reasoning_base_url",
+        get_llm_base_url(),
+    ))
+
+
+def get_strategic_reasoning_model(explicit_value: str | None = None) -> str:
+    """Resolve the model used only for periodic strategic planning."""
+    return cast(str, _resolve_str(
+        explicit_value,
+        "SILICON_FRONTIER_STRATEGIC_REASONING_MODEL",
+        "strategic_reasoning_model",
+        get_llm_model(),
+    ))
+
+
+def get_strategic_review_interval(explicit_value: int | None = None) -> int:
+    """Resolve how often every agent receives a strategic review."""
+    return _resolve_typed(
+        explicit_value,
+        "SILICON_FRONTIER_STRATEGIC_REVIEW_INTERVAL",
+        "strategic_review_interval",
+        6,
+        coerce=int,
+        validate=lambda value: max(1, value),
+    )
+
+
+def get_strategic_max_workers(explicit_value: int | None = None) -> int:
+    """Resolve the bounded concurrency for independent strategic reviews."""
+    return _resolve_typed(
+        explicit_value,
+        "SILICON_FRONTIER_STRATEGIC_MAX_WORKERS",
+        "strategic_max_workers",
+        2,
+        coerce=int,
+        validate=lambda value: max(1, value),
+    )
 
 
 def get_api_key(explicit_value: str | None = None) -> str:

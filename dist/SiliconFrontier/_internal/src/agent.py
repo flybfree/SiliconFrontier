@@ -10,6 +10,11 @@ import re
 from typing import Any
 from openai import OpenAI
 
+# `settings` is imported lazily inside the functions that need it (this module
+# is loaded both as a bare top-level module and as part of the `src` package
+# via src/__init__.py in the frozen launcher — a module-level bare import only
+# resolves in the former context).
+
 # Import settings lazily to avoid circular imports at module load time.
 # The defaults are resolved inside the function bodies, not at class definition time.
 
@@ -26,7 +31,7 @@ class FrontierAgent:
     """
 
     # Valid actions an agent can take
-    VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "USE", "GIVE", "DEMAND", "LIE", "READ", "SHOW", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "WAIT"]
+    VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "USE", "GIVE", "DEMAND", "LIE", "READ", "SHOW", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "ASSEMBLE", "WAIT"]
     VALID_EMOTIONAL_STATES = ["Calm", "Alert", "Anxious", "Fearful", "Angry", "Hopeful", "Suspicious", "Confident", "Resigned", "Determined", "Neutral"]
     VALID_EMOTIONAL_STATE_FALLBACK = "Neutral"
     RESPONSE_SCHEMA_NAME = "silicon_frontier_agent_turn"
@@ -62,8 +67,13 @@ class FrontierAgent:
         condition: dict[str, Any] | None = None,
         llm_base_url: str | None = None,
         llm_model: str | None = None,
+        social_critic_base_url: str | None = None,
+        social_critic_model: str | None = None,
+        strategic_reasoning_base_url: str | None = None,
+        strategic_reasoning_model: str | None = None,
         enable_structured_output: bool = False,
-        api_key: str | None = None
+        api_key: str | None = None,
+        llm_timeout_seconds: float | None = None
     ):
         """
         Initialize an agent with its cognitive profile.
@@ -75,21 +85,38 @@ class FrontierAgent:
             secret_goal: Hidden motivation that drives conflict/behavior
             llm_base_url: URL of local OpenAI-compatible inference engine
             llm_model: Model name to use for inference
+            social_critic_base_url: Optional OpenAI-compatible endpoint for witness critics
+            social_critic_model: Optional fast model for witness critics
             api_key: API key (usually not needed for local models)
+            llm_timeout_seconds: Per-request timeout for LLM calls (seconds)
         """
         # Resolve settings with layered priority: explicit arg > env var > settings.json > defaults
-        from settings import get_llm_base_url, get_llm_model, get_api_key
+        from settings import (
+            get_api_key,
+            get_llm_base_url,
+            get_llm_model,
+            get_llm_timeout_seconds,
+            get_social_critic_base_url,
+            get_social_critic_model,
+            get_strategic_reasoning_base_url,
+            get_strategic_reasoning_model,
+        )
 
         resolved_llm_base_url = get_llm_base_url(llm_base_url)
         resolved_llm_model = get_llm_model(llm_model)
         resolved_api_key = get_api_key(api_key)
+        resolved_timeout = get_llm_timeout_seconds(llm_timeout_seconds)
+        resolved_social_critic_base_url = get_social_critic_base_url(social_critic_base_url)
+        resolved_social_critic_model = get_social_critic_model(social_critic_model)
+        resolved_strategic_base_url = get_strategic_reasoning_base_url(strategic_reasoning_base_url)
+        resolved_strategic_model = get_strategic_reasoning_model(strategic_reasoning_model)
 
         self.agent_id = agent_id
         self.name = name
         self.persona = persona
         self.secret_goal = secret_goal
         self.role = role or "crew member"
-        self.perception = max(0, min(100, int(perception)))
+        self.perception = self._clamp_0_100(perception)
         self.condition = self._normalize_condition(condition)
         self.enable_structured_output = enable_structured_output
 
@@ -100,9 +127,27 @@ class FrontierAgent:
         # LLM client configuration
         self.client = OpenAI(
             base_url=resolved_llm_base_url,
-            api_key=resolved_api_key
+            api_key=resolved_api_key,
+            timeout=resolved_timeout
         )
         self.llm_model = resolved_llm_model
+        self.social_critic_client = OpenAI(
+            base_url=resolved_social_critic_base_url,
+            api_key=resolved_api_key,
+            timeout=resolved_timeout,
+        )
+        self.social_critic_base_url = resolved_social_critic_base_url
+        self.social_critic_model = resolved_social_critic_model
+        self.strategic_client = OpenAI(
+            base_url=resolved_strategic_base_url,
+            api_key=resolved_api_key,
+            timeout=resolved_timeout,
+        )
+        self.strategic_reasoning_base_url = resolved_strategic_base_url
+        self.strategic_reasoning_model = resolved_strategic_model
+        self.strategic_plan: dict[str, Any] = {}
+        self.last_strategic_review_cycle: int | None = None
+        self.last_strategic_trigger: str | None = None
 
         # Emotional state tracking (for observation)
         self.emotional_state: str = "Neutral"
@@ -116,6 +161,11 @@ class FrontierAgent:
         self.pending_drop: str | None = None        # item id
         self.pending_drop_name: str | None = None   # item name (for prompts)
 
+    @staticmethod
+    def _clamp_0_100(value: Any) -> int:
+        """Clamp a numeric value to the valid 0-100 range used by condition/perception fields."""
+        return max(0, min(100, int(value)))
+
     @classmethod
     def _normalize_condition(cls, condition: dict[str, Any] | None) -> dict[str, int]:
         """Return a complete, clamped condition block for an agent."""
@@ -123,7 +173,7 @@ class FrontierAgent:
         if isinstance(condition, dict):
             for key in normalized:
                 if key in condition:
-                    normalized[key] = max(0, min(100, int(condition[key])))
+                    normalized[key] = cls._clamp_0_100(condition[key])
         return normalized
 
     def condition_text(self) -> str:
@@ -154,7 +204,7 @@ class FrontierAgent:
             if not delta:
                 continue
             before = self.condition.get(key, self.DEFAULT_CONDITION[key])
-            after = max(0, min(100, before + delta))
+            after = self._clamp_0_100(before + delta)
             self.condition[key] = after
             if after != before:
                 changed[key] = after - before
@@ -196,6 +246,8 @@ class FrontierAgent:
         Returns:
             Formatted string describing current situation for LLM prompt
         """
+        from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+
         loc = world_snapshot["current_location"]
         location_name = loc.get("name", "Unknown") if loc else "Unknown"
         location_desc = loc.get("description", "") if loc else ""
@@ -242,7 +294,7 @@ class FrontierAgent:
         agents_str = ", ".join(nearby_agent_parts) if nearby_agent_parts else "no one"
         relationship_lines = []
         for other_id, rel in world_snapshot.get("relationship_impressions", {}).items():
-            label = self._relationship_label(rel.get("trust", 50), rel.get("affinity", 50), rel.get("suspicion", 0))
+            label = self._relationship_label(rel.get("trust", DEFAULT_RELATIONSHIP_TRUST), rel.get("affinity", DEFAULT_RELATIONSHIP_AFFINITY), rel.get("suspicion", 0))
             notes = rel.get("notes", "") or ""
             notes_part = f" — {notes}" if notes else ""
             display_name = rel.get("name", other_id)
@@ -254,6 +306,14 @@ class FrontierAgent:
         known_facts = world_snapshot.get("known_facts", [])
         known_fact_lines = [f"- {fact.get('text', '')}" for fact in known_facts[-5:] if fact.get("text")]
         known_facts_str = "\n".join(known_fact_lines) if known_fact_lines else "- None"
+        facilities = world_snapshot.get("facilities", [])
+        facilities_str = ", ".join(facilities) if facilities else "None"
+        recipe_lines = [
+            f"- {recipe.get('id')}: {recipe.get('name', recipe.get('id'))} "
+            f"(materials: {recipe.get('materials', {})})"
+            for recipe in world_snapshot.get("available_recipes", [])
+        ]
+        recipes_str = "\n".join(recipe_lines) if recipe_lines else "- None"
 
         contested_lines = ""
         if contested_held:
@@ -294,6 +354,8 @@ class FrontierAgent:
             f"Exits (valid MOVE targets): {exits_str}\n"
             f"Location effects: {location_effects_str}\n"
             f"Items here: {items_str}\n"
+            f"Fabrication facilities here: {facilities_str}\n"
+            f"Recipes available here:\n{recipes_str}\n"
             f"Systems here: {systems_str}\n"
             f"Known systems needing attention:\n{abnormal_systems_str}\n"
             f"Other agents present: {agents_str}\n"
@@ -306,16 +368,24 @@ class FrontierAgent:
 
     def _build_system_prompt(self, world_snapshot: dict[str, Any]) -> str:
         """Construct the master system prompt for this agent."""
+        from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
+
         hand_items = [item["name"] for item in world_snapshot["agent_inventory"] if not item.get("hidden")]
         person_items = [item["name"] for item in world_snapshot["agent_inventory"] if item.get("hidden")]
         inventory_str = f"In hand: {hand_items[0] if hand_items else 'empty'} | Concealed on person: {person_items[0] if person_items else 'empty'}"
+        tool_lines = []
+        for item in world_snapshot["agent_inventory"]:
+            capabilities = item.get("tool", {}).get("capabilities", [])
+            if capabilities:
+                tool_lines.append(f"- {item['name']}: {', '.join(str(capability) for capability in capabilities)}")
+        tool_capabilities = "\n".join(tool_lines) if tool_lines else "- None"
         nearby_agents = world_snapshot["visible_agents"]
         visible_systems = world_snapshot.get("visible_systems", {})
         abnormal_systems = world_snapshot.get("abnormal_systems", [])
         relationship_impressions = world_snapshot.get("relationship_impressions", {})
         relationship_block = []
         for other_id, rel in relationship_impressions.items():
-            label = self._relationship_label(rel.get("trust", 50), rel.get("affinity", 50), rel.get("suspicion", 0))
+            label = self._relationship_label(rel.get("trust", DEFAULT_RELATIONSHIP_TRUST), rel.get("affinity", DEFAULT_RELATIONSHIP_AFFINITY), rel.get("suspicion", 0))
             notes = rel.get("notes", "") or ""
             notes_part = f" — {notes}" if notes else ""
             display_name = rel.get("name", other_id)
@@ -351,14 +421,18 @@ class FrontierAgent:
             "stalled": "You are stalled — try something bolder or more direct rather than repeating the same cautious pattern.",
             "setback": "You have suffered a setback — regroup, reassess who you can trust, and look for a new angle.",
         }.get(self.goal_momentum, "")
+        strategic_plan_text = self._strategic_plan_text()
 
         return f"""You are {self.name}, the {self.role} aboard the "Silicon Frontier" research station.
 
 YOUR IDENTITY
 Persona: {self.persona}
 Secret Motivation: {self.secret_goal}
+Current Strategic Plan: {strategic_plan_text}
 Condition: {condition_line}
 Current Inventory: {inventory_str}
+Fabricated Tool Capabilities:
+{tool_capabilities}
 Current Emotional State: {self.emotional_state} — let this genuinely color your reasoning, tone, and choices.
 
 THE SIMULATION RULES
@@ -395,6 +469,8 @@ SYSTEM DECISION RULES
 - If a system lists `sabotage_tool=...`, you must be holding that tool in your hand to SABOTAGE it.
 - If the tool for the chosen system action is not listed, no tool is required; the action still requires a valid local target.
 - Do not claim a system is failing unless that status is shown in the telemetry above.
+- You may ASSEMBLE only a listed recipe at a listed fabrication facility. This consumes its materials and creates a real in-world tool; do not invent recipes or tool effects.
+- For a fabricated tool with a listed capability target, use `USE tool name -> exact system ID`. Tools without a target-aware capability still use `USE tool name`.
 
 ITEM TRANSFER RULES
 - DEMAND means taking an item from another visible agent. Do not DEMAND an item you already hold.
@@ -426,12 +502,14 @@ ACTION TARGET RULES — action_target must be:
 - SAY: the spoken message itself, as a full sentence. Not a name. Example: "We should keep monitoring the reactor."
 - LIE: the false statement to speak aloud, as a full sentence. Not a name.
 - WHISPER: "your message here -> agent_id" — message first, then the recipient's agent ID
-- PICKUP / DROP / USE: the item name (USE applies the item's configured effect; consumables are removed afterward)
+- PICKUP / DROP: the item name
+- USE: the item name, or `tool name -> exact system ID` for a target-aware fabricated capability
 - GIVE: "item name -> agent_id" for an item you currently hold
 - DEMAND: "item name -> agent_id" for an item the other agent is visibly holding
 - READ: the item name
 - SHOW: "item name -> agent_id"
 - CONCEAL / PRODUCE: the item name
+- ASSEMBLE: the exact recipe ID shown in your situation report
 - SABOTAGE / REPAIR: the system name
 - WAIT: leave blank or write "nothing"
 
@@ -481,12 +559,13 @@ Output strict JSON:
 """
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.llm_model,
+            response = self.social_critic_client.chat.completions.create(
+                model=self.social_critic_model,
                 messages=[{"role": "user", "content": critic_prompt}],
                 temperature=0.2
             )
-        except Exception:
+        except Exception as exc:
+            print(f"  [Warning] Social critic evaluation failed for {self.name}: {exc}")
             return None
 
         parsed = self._parse_decision_from_response(response)
@@ -503,7 +582,10 @@ Output strict JSON:
             "trust_change": max(-10, min(10, trust_change)),
             "affinity_change": max(-10, min(10, affinity_change)),
             "suspicion_change": max(-10, min(10, suspicion_change)),
-            "notes": str(parsed.get("notes", "")).strip()
+            "notes": str(parsed.get("notes", "")).strip(),
+            "source": "model",
+            "model": self.social_critic_model,
+            "endpoint": self.social_critic_base_url,
         }
 
     def _normalize_decision(self, decision: dict[str, Any]) -> dict[str, Any]:
@@ -605,14 +687,23 @@ Output strict JSON:
             status = str(system.get("status", "unknown")).upper()
             aliases = self._system_aliases(system_id, system)
 
-            for segment in segments:
-                if not any(alias in segment for alias in aliases):
+            # Check a 2-segment window (current + next) so a claim split across
+            # sentences ("Reactor is online. It's working perfectly.") is still
+            # caught. This is a pragmatic widening of an approximate heuristic,
+            # not full coreference resolution — it trades a small increase in
+            # false positives (unrelated adjacent claims co-matching) for
+            # catching the common cross-sentence contradiction pattern.
+            for idx, segment in enumerate(segments):
+                window = segment
+                if idx + 1 < len(segments):
+                    window = f"{segment} {segments[idx + 1]}"
+                if not any(alias in window for alias in aliases):
                     continue
                 if status == "ONLINE":
-                    if any(term in segment for term in self._ONLINE_NEGATIVE_TERMS):
+                    if any(term in window for term in self._ONLINE_NEGATIVE_TERMS):
                         contradictions.append(f"{system_name} is ONLINE, but text implies failure")
                         break
-                elif any(term in segment for term in self._NON_ONLINE_POSITIVE_TERMS):
+                elif any(term in window for term in self._NON_ONLINE_POSITIVE_TERMS):
                     contradictions.append(f"{system_name} is {status}, but text implies normal operation")
                     break
 
@@ -974,15 +1065,17 @@ Output strict JSON:
         except json.JSONDecodeError:
             pass
 
-        import re
-        match = re.search(r'\{.*\}', content, re.DOTALL)
-        if match:
+        # Fall back to a balanced-brace scan (json.JSONDecoder.raw_decode at each
+        # candidate '{') rather than a greedy regex, since a naive r'\{.*\}' match
+        # mismatches braces when a JSON string value itself contains '{' or '}'.
+        decoder = json.JSONDecoder()
+        for start in (i for i, ch in enumerate(content) if ch == "{"):
             try:
-                parsed = json.loads(match.group())
-                if isinstance(parsed, dict):
-                    return parsed
+                parsed, _ = decoder.raw_decode(content, start)
             except json.JSONDecodeError:
-                pass
+                continue
+            if isinstance(parsed, dict):
+                return parsed
 
         return None
 
@@ -1081,8 +1174,8 @@ Output strict JSON:
   "goal_momentum": "One of: advancing, stalled, or setback — honestly assess whether recent events moved you toward or away from your secret goal."
 }}"""
 
-        response = self.client.chat.completions.create(
-            model=self.llm_model,
+        response = self.strategic_client.chat.completions.create(
+            model=self.strategic_reasoning_model,
             messages=[{"role": "user", "content": reflection_prompt}]
         )
 
@@ -1103,6 +1196,74 @@ Output strict JSON:
 
         self.memory_buffer = []  # Clear buffer after consolidation
         return self.long_term_memory
+
+    def _strategic_plan_text(self) -> str:
+        """Return a compact private-plan summary for the fast action model."""
+        plan = getattr(self, "strategic_plan", {})
+        if not isinstance(plan, dict) or not plan:
+            return "No strategic review yet. Pursue your secret motivation using the evidence available."
+        parts = [
+            f"Goal: {plan.get('goal', self.secret_goal)}",
+            f"Next steps: {', '.join(plan.get('subgoals', [])) or 'adapt to the situation'}",
+        ]
+        if plan.get("crafting_intent"):
+            parts.append(f"Crafting focus: {plan['crafting_intent']}")
+        if plan.get("social_intent"):
+            parts.append(f"Social approach: {plan['social_intent']}")
+        return " | ".join(parts)
+
+    @staticmethod
+    def _strategy_list(value: Any, limit: int = 4) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [str(item).strip()[:180] for item in value if str(item).strip()][:limit]
+
+    def propose_strategy(self, world_snapshot: dict[str, Any], trigger: str) -> dict[str, Any]:
+        """Ask the strategic model for intent only; it cannot execute an action."""
+        prompt = f"""You are the private strategic planner for {self.name}.
+
+Persona: {self.persona}
+Secret goal: {self.secret_goal}
+Long-term memory: {self.long_term_memory}
+Goal momentum: {self.goal_momentum}
+Review trigger: {trigger}
+
+Current subjective situation:
+{self.sense(world_snapshot)}
+
+Create a concise private plan. Do not issue an immediate action and do not invent tools, materials, locations, or system states. You may propose pursuing a listed recipe only when it appears in the situation.
+Return strict JSON:
+{{
+  "goal": "one concise objective",
+  "subgoals": ["up to four concrete next steps"],
+  "crafting_intent": "recipe id or empty string",
+  "social_intent": "how to approach others or empty string",
+  "review_when": ["up to three conditions that warrant a new review"]
+}}"""
+        try:
+            response = self.strategic_client.chat.completions.create(
+                model=self.strategic_reasoning_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.45,
+            )
+            parsed = self._parse_decision_from_response(response) or {}
+            plan = {
+                "goal": str(parsed.get("goal") or self.secret_goal).strip()[:300],
+                "subgoals": self._strategy_list(parsed.get("subgoals")),
+                "crafting_intent": str(parsed.get("crafting_intent") or "").strip()[:120],
+                "social_intent": str(parsed.get("social_intent") or "").strip()[:180],
+                "review_when": self._strategy_list(parsed.get("review_when"), limit=3),
+            }
+            return {"source": "model", "plan": plan}
+        except Exception as exc:
+            return {"source": "fallback", "plan": {}, "error": str(exc)[:240]}
+
+    def apply_strategic_plan(self, plan: dict[str, Any], cycle: int, trigger: str) -> None:
+        """Apply a validated planner result after the orchestrator orders reviews."""
+        if plan:
+            self.strategic_plan = plan
+        self.last_strategic_review_cycle = cycle
+        self.last_strategic_trigger = trigger
 
     def add_to_memory(self, event: str) -> None:
         """Add an event to the short-term memory buffer (max 10 events)."""

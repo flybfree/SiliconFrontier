@@ -161,11 +161,15 @@ These values are directional. One agent's view of another can differ from the re
 
 Relationship updates come from:
 
-- a hidden critic model call via `FrontierAgent.evaluate_social_exchange()`
+- a hidden critic model call via `FrontierAgent.evaluate_social_exchange()`; witness calls for one event run in parallel and are merged in stable observer order
 - heuristic fallback when that call fails
 - direct rule-based updates from witnessed actions
 - covert witness logic for sabotage
 - listener-side telemetry contradiction checks on speech
+
+### Strategic planning
+
+The simulation may use a dedicated strategic reasoning model in addition to the action model and social critic. It periodically produces a private plan for each agent, and is also triggered by blocked fabrication or meaningful station-system changes. The plan is advisory: it is injected into later agent prompts but cannot mutate world state, issue actions, or bypass deterministic simulation rules. Reviews may execute concurrently, while completed plans are applied in stable agent-ID order.
 
 ## 6. Speech, Deception, and Telemetry
 
@@ -262,7 +266,7 @@ The current implementation differs from the older conceptual docs in several imp
 - there is explicit telemetry-aware validation before parser execution
 - speech can be socially checked against telemetry by listeners
 - the orchestrator prints system snapshots and tracks sabotage incidents / proximity logs
-- social consequences are partly LLM-critic-driven and partly rule-driven
+- social consequences are partly LLM-critic-driven and partly rule-driven; the critic can use a separate, smaller model endpoint from the main agent model
 - agents can now create scenario-defined tools from scarce materials, rather than only using pre-authored items
 
 ## 11. Replication Notes

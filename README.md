@@ -52,7 +52,7 @@ By default, all terminal output is also mirrored to a timestamped file in `logs/
 streamlit run dashboard.py
 ```
 
-Set the API URL and config directory in the sidebar, click **Initialize Simulation**, then run cycles. Check **Log to file** to mirror all simulation output to a timestamped file in `logs/`.
+Set the API URL and config directory in the sidebar, click **Initialize Simulation**, then run cycles. The **Social critic** expander can point per-witness relationship evaluations at a faster endpoint/model and set a bounded number of parallel requests. The **Strategic reasoning (periodic private planning)** expander separately configures the strategic endpoint, model, review interval, and parallel review limit. Check **Log to file** to mirror all simulation output to a timestamped file in `logs/`.
 
 ### Scenario editor
 
@@ -61,6 +61,7 @@ streamlit run scenario_editor.py
 ```
 
 A form-based tool for creating and editing scenario assets — agents, locations, items, simulation slots, and starting relationships — without hand-editing JSON.
+The **Crafting Catalog** tab also edits fabrication facilities, finite material resources, recipes, and declarative tool outputs while flagging broken facility, material, capability, and system references.
 
 ### Windows executable
 
@@ -82,7 +83,23 @@ Run it directly to launch the app in your browser.
 Inside the app, use the sidebar `Workspace` switch to toggle between `Simulation` and `Scenario Editor`.
 Run `SiliconFrontier.exe --cli --rounds 10` to use the terminal simulation entry point.
 The launcher chooses the first available localhost port starting at `8501` and prints the exact URL in the console.
-Runtime `logs/` and `saves/` are created next to the packaged executable bundle.
+Runtime `logs/`, `saves/`, and the editable `settings.json` are created next to the packaged executable bundle. The build process preserves an existing `settings.json`; a first build receives defaults from `settings.example.json`.
+
+### Model roles
+
+The simulation can use three independent model roles. `llm_model` handles frequent, validated agent turns; `social_critic_model` performs short parallel witness evaluations; and `strategic_reasoning_model` performs occasional private planning reviews. Strategic reviews run every `strategic_review_interval` cycles, after blocked fabrication, or after a station-system change. They produce intent only—never direct world mutations. Sidebar changes apply when **Initialize Simulation** is clicked; `settings.json` beside the executable supplies the next launch's defaults.
+
+```json
+{
+  "llm_base_url": "http://192.168.3.181:1234/v1",
+  "llm_model": "fast-action-model",
+  "social_critic_model": "fast-social-critic",
+  "strategic_reasoning_base_url": "http://localhost:1234/v1",
+  "strategic_reasoning_model": "reasoning-model",
+  "strategic_review_interval": 6,
+  "strategic_max_workers": 2
+}
+```
 
 ---
 
@@ -92,7 +109,7 @@ Runtime `logs/` and `saves/` are created next to the packaged executable bundle.
 |---|---|---|
 | `scenarios/default` | 4 | Station crew with one saboteur and hidden evidence items |
 | `scenarios/prisoners_dilemma` | 2 | Two detainees with sealed plea deals, recorded statements, and no direct communication |
-| `scenarios/cascade_failure` | 8 | Dual saboteurs, 11 locations, 5 hidden forensic evidence items |
+| `scenarios/cascade_failure` | 8 | Dual saboteurs, hidden forensic evidence, and scarce diagnostic/recovery/deception fabrication paths |
 
 Scenarios can also be loaded as dashboard saves from `saves/`.
 
@@ -236,7 +253,7 @@ The base agent class. Each instance is one participant in the simulation.
 | `think_and_act(observation, world_snapshot)` | Assemble the full prompt and call the LLM; returns parsed action JSON |
 | `reflect(world_snapshot)` | Second LLM call — compress memory buffer into long-term memory and update goal momentum |
 | `interpret_consequence(action, target, success, feedback, nearby_names)` | Turn an action result into an experiential memory sentence |
-| `evaluate_social_exchange(...)` | Hidden critic call that returns trust/affinity/suspicion deltas after a social action |
+| `evaluate_social_exchange(...)` | Hidden critic call, optionally using a dedicated endpoint/model, that returns trust/affinity/suspicion deltas after a social action |
 | `add_to_memory(event)` | Append a string to the short-term memory buffer (capped at 10 entries) |
 
 All configured agents use `FrontierAgent`; hostile or deceptive behavior emerges from persona, secret goal, memory, and world constraints rather than a special subclass.

@@ -1,4 +1,11 @@
 {
-    "llm_base_url": "http://localhost:1234/v1",
-    "llm_model": "local-model"
+  "llm_base_url": "http://localhost:1234/v1",
+  "llm_model": "local-model",
+  "social_critic_base_url": "",
+  "social_critic_model": "local-model",
+  "social_critic_max_workers": 4,
+  "strategic_reasoning_base_url": "http://localhost:1234/v1",
+  "strategic_reasoning_model": "local-model",
+  "strategic_review_interval": 6,
+  "strategic_max_workers": 2
 }

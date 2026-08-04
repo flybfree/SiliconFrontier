@@ -8,6 +8,7 @@ broadcasting, and maintains the global event log.
 import hashlib
 import random
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 # `settings` is imported lazily inside the functions that need it (this module
@@ -36,7 +37,10 @@ class Orchestrator:
         reflection_interval: int = 5,
         progression_config: dict[str, Any] | None = None,
         resolution_config: dict[str, Any] | None = None,
-        random_seed: int | None = None
+        random_seed: int | None = None,
+        social_critic_max_workers: int | None = None,
+        strategic_review_interval: int | None = None,
+        strategic_max_workers: int | None = None,
     ):
         """
         Initialize the orchestrator.
@@ -61,6 +65,14 @@ class Orchestrator:
         self.progression_config = progression_config if isinstance(progression_config, dict) else {}
         self.resolution_config = resolution_config if isinstance(resolution_config, dict) else {}
         self._rng = random.Random(random_seed) if random_seed is not None else random
+        from settings import (
+            get_social_critic_max_workers,
+            get_strategic_max_workers,
+            get_strategic_review_interval,
+        )
+        self.social_critic_max_workers = get_social_critic_max_workers(social_critic_max_workers)
+        self.strategic_review_interval = get_strategic_review_interval(strategic_review_interval)
+        self.strategic_max_workers = get_strategic_max_workers(strategic_max_workers)
         self.progression_state = {
             "stall_score": 0,
             "fired_thresholds": [],
@@ -75,11 +87,55 @@ class Orchestrator:
 
         # Event log for observation
         self.event_log: list[dict[str, Any]] = []
+        self.social_critic_activity: list[dict[str, Any]] = []
+        self.strategic_activity: list[dict[str, Any]] = []
+        self._strategic_triggers: dict[str, str] = {}
         self.system_incidents: list[dict[str, Any]] = []
         self.proximity_log: list[dict[str, Any]] = []
 
         # Cycle counter
         self.cycle_count = 0
+
+    def _queue_strategic_trigger(self, agent: Any, trigger: str) -> None:
+        """Keep the first trigger for an agent until the review phase."""
+        self._strategic_triggers.setdefault(agent.agent_id, trigger)
+
+    def _run_strategic_reviews(self) -> None:
+        """Run independent planner calls concurrently and apply them deterministically."""
+        periodic = self.cycle_count % self.strategic_review_interval == 0
+        candidates = []
+        for agent in sorted(self.agents, key=lambda item: item.agent_id):
+            trigger = self._strategic_triggers.get(agent.agent_id)
+            if periodic and not trigger:
+                trigger = "periodic strategic review"
+            if trigger:
+                candidates.append((agent, trigger, self.world.get_snapshot_for_agent(agent.agent_id)))
+        self._strategic_triggers.clear()
+        if not candidates:
+            return
+
+        workers = min(self.strategic_max_workers, len(candidates))
+        print(f"\n--- STRATEGIC REVIEW PHASE (Cycle {self.cycle_count}; {len(candidates)} agent(s)) ---")
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="strategic-review") as executor:
+            futures = {
+                agent.agent_id: executor.submit(agent.propose_strategy, snapshot, trigger)
+                for agent, trigger, snapshot in candidates
+            }
+            for agent, trigger, _snapshot in candidates:
+                result = futures[agent.agent_id].result()
+                plan = result.get("plan") if isinstance(result, dict) else {}
+                agent.apply_strategic_plan(plan if isinstance(plan, dict) else {}, self.cycle_count, trigger)
+                self.strategic_activity.append({
+                    "cycle": self.cycle_count,
+                    "agent": agent.name,
+                    "trigger": trigger,
+                    "source": result.get("source", "fallback") if isinstance(result, dict) else "fallback",
+                    "model": agent.strategic_reasoning_model,
+                    "goal": agent.strategic_plan.get("goal", "") or "No plan update",
+                    "error": result.get("error", "") if isinstance(result, dict) else "",
+                })
+                print(f"[{agent.name}] strategic review via {self.strategic_activity[-1]['source']}: {self.strategic_activity[-1]['goal']}")
+        self.strategic_activity = self.strategic_activity[-100:]
 
     def _terminal_resolution_enabled(self) -> bool:
         terminal_config = self.resolution_config.get("terminal", {})
@@ -682,14 +738,14 @@ class Orchestrator:
             return 3
         return 0
 
-    def _apply_social_critic(
+    def _evaluate_social_critic(
         self,
         observer_agent: Any,
         speaker_agent: Any,
         action: str,
         message: str
-    ) -> None:
-        """Ask an observer-specific hidden critic to update vibe scores."""
+    ) -> dict[str, Any]:
+        """Get an observer-specific relationship update without mutating state."""
         from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
 
         current_rel = self.social.relationships.get(observer_agent.agent_id, {}).get(speaker_agent.agent_id, {})
@@ -710,15 +766,40 @@ class Orchestrator:
         )
 
         if critic_update:
-            trust_delta = critic_update["trust_change"]
-            affinity_delta = critic_update["affinity_change"]
-            suspicion_delta = critic_update.get("suspicion_change", 0)
-            notes = critic_update.get("notes", "")
-        else:
-            trust_delta, affinity_delta = self._heuristic_social_update(action, message)
-            suspicion_delta = self._heuristic_suspicion_update(action, message)
-            notes = f"Observed {action.lower()}: {message[:80]}"
+            return {
+                "trust_delta": critic_update["trust_change"],
+                "affinity_delta": critic_update["affinity_change"],
+                "suspicion_delta": critic_update.get("suspicion_change", 0),
+                "notes": critic_update.get("notes", ""),
+                "source": critic_update.get("source", "model"),
+                "model": critic_update.get("model", "configured critic"),
+                "endpoint": critic_update.get("endpoint", ""),
+            }
+        trust_delta, affinity_delta = self._heuristic_social_update(action, message)
+        return {
+            "trust_delta": trust_delta,
+            "affinity_delta": affinity_delta,
+            "suspicion_delta": self._heuristic_suspicion_update(action, message),
+            "notes": f"Observed {action.lower()}: {message[:80]}",
+            "source": "heuristic fallback",
+            "model": "",
+            "endpoint": "",
+        }
 
+    def _apply_social_critic_update(
+        self,
+        observer_agent: Any,
+        speaker_agent: Any,
+        update: dict[str, Any],
+    ) -> None:
+        """Apply one already-evaluated critic result on the orchestrator thread."""
+        trust_delta = int(update["trust_delta"])
+        affinity_delta = int(update["affinity_delta"])
+        suspicion_delta = int(update["suspicion_delta"])
+        notes = str(update["notes"])
+        source = str(update.get("source", "unknown"))
+        model = str(update.get("model", ""))
+        endpoint = str(update.get("endpoint", ""))
         if trust_delta != 0 or affinity_delta != 0 or notes:
             self.social.update_scores(
                 observer_agent.agent_id,
@@ -734,6 +815,33 @@ class Orchestrator:
                     suspicion_delta
                 )
             self._sync_relationships()
+        self.social_critic_activity.append({
+            "cycle": self.cycle_count,
+            "observer": observer_agent.name,
+            "target": speaker_agent.name,
+            "source": source,
+            "model": model,
+            "endpoint": endpoint,
+            "trust_change": trust_delta,
+            "affinity_change": affinity_delta,
+            "suspicion_change": suspicion_delta,
+            "notes": notes,
+        })
+        self.social_critic_activity = self.social_critic_activity[-100:]
+
+    def _apply_social_critic(
+        self,
+        observer_agent: Any,
+        speaker_agent: Any,
+        action: str,
+        message: str,
+    ) -> None:
+        """Synchronously evaluate and apply one critic update (test/helper path)."""
+        self._apply_social_critic_update(
+            observer_agent,
+            speaker_agent,
+            self._evaluate_social_critic(observer_agent, speaker_agent, action, message),
+        )
 
     def run_cycle(self) -> list[dict[str, Any]]:
         """
@@ -793,6 +901,11 @@ class Orchestrator:
 
             # 4. EXECUTE - Validate and apply action
             success, feedback = self.parser.execute(agent, {"action": action, "action_target": target})
+            if action == "ASSEMBLE" and not success:
+                self._queue_strategic_trigger(agent, "fabrication attempt blocked")
+            elif action in {"REPAIR", "SABOTAGE"} and success:
+                for affected_agent in self.agents:
+                    self._queue_strategic_trigger(affected_agent, "station system status changed")
             nearby_ids = self.world.get_visible_agents(agent.agent_id)
             nearby_names = [a.name for a in self.agents if a.agent_id in nearby_ids]
             agent.add_to_memory(agent.interpret_consequence(action, target, success, feedback, nearby_names, self.cycle_count))
@@ -987,6 +1100,8 @@ class Orchestrator:
                 print(f"  '{new_summary[:150]}...'")
                 print(f"  Goal momentum: {agent.goal_momentum}")
 
+        self._run_strategic_reviews()
+
         return cycle_results
 
     def _evaluate_social_impact(
@@ -1002,18 +1117,35 @@ class Orchestrator:
         heuristic fallback, and currently handles `SAY`, `LIE`, `GIVE`,
         `DEMAND`, `WHISPER`, and `SHOW`.
         """
-        nearby_agents = self.world.get_visible_agents(speaking_agent.agent_id)
+        observer_pairs = sorted(
+            (
+                (other_id, self.get_agent_by_id(other_id))
+                for other_id in self.world.get_visible_agents(speaking_agent.agent_id)
+            ),
+            key=lambda pair: pair[0],
+        )
+        observer_pairs = [(agent_id, agent) for agent_id, agent in observer_pairs if agent]
+        if not observer_pairs:
+            return
 
-        for other_id in nearby_agents:
-            other_agent = self.get_agent_by_id(other_id)
-            if not other_agent:
-                continue
-            self._apply_social_critic(other_agent, speaking_agent, action, message)
-            new_trust, new_affinity = self.social.get_scores(other_id, speaking_agent.agent_id)
-            suspicion = self.social.get_suspicion(other_id, speaking_agent.agent_id)
-            label = other_agent._relationship_label(new_trust, new_affinity, suspicion)
-            print(f"[{other_agent.name}] Updated view of {speaking_agent.name}: "
-                  f"T={new_trust}, A={new_affinity} [{label}]")
+        workers = min(self.social_critic_max_workers, len(observer_pairs))
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="social-critic") as executor:
+            futures = {
+                observer_id: executor.submit(self._evaluate_social_critic, observer, speaking_agent, action, message)
+                for observer_id, observer in observer_pairs
+            }
+
+            # Apply results only after the independent requests finish, always in
+            # observer-ID order. This preserves deterministic state mutation.
+            for other_id, other_agent in observer_pairs:
+                update = futures[other_id].result()
+                self._apply_social_critic_update(other_agent, speaking_agent, update)
+                new_trust, new_affinity = self.social.get_scores(other_id, speaking_agent.agent_id)
+                suspicion = self.social.get_suspicion(other_id, speaking_agent.agent_id)
+                label = other_agent._relationship_label(new_trust, new_affinity, suspicion)
+                update_source = update.get("source", "unknown")
+                print(f"[{other_agent.name}] Updated view of {speaking_agent.name}: "
+                      f"T={new_trust}, A={new_affinity} [{label}] via {update_source}")
 
     def run_simulation(self, rounds: int, delay_seconds: float = 0.5) -> list[list[dict[str, Any]]]:
         """

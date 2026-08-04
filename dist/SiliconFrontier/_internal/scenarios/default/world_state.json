@@ -3,6 +3,9 @@
     "command_deck": {
       "name": "Command Deck",
       "description": "The high-tech nerve center of the station. Views of the gas giant below are visible through reinforced windows. The hum of life support systems fills the air.",
+      "facilities": [
+        "secure_terminal"
+      ],
       "connected_to": [
         "mess_hall",
         "elevator_bay"
@@ -29,6 +32,9 @@
     "hydroponics_bay": {
       "name": "Hydroponics Bay",
       "description": "Densely packed with oxygen-producing ferns and nutrient vats. It's humid and smells of wet earth. Rows of genetically modified crops stretch into the distance.",
+      "facilities": [
+        "bio_lab"
+      ],
       "connected_to": [
         "mess_hall",
         "storage_locker"
@@ -58,6 +64,9 @@
     "engineering": {
       "name": "Engineering",
       "description": "The heart of the station's power systems. Massive reactors pulse with blue light, and the constant thrum of energy conversion vibrates through the floor.",
+      "facilities": [
+        "engineering_fabricator"
+      ],
       "connected_to": [
         "elevator_bay",
         "storage_locker"
@@ -94,6 +103,9 @@
     "medical_bay": {
       "name": "Medical Bay",
       "description": "A clean, clinical space with examination beds and a pharmacy cabinet. Diagnostic terminals line one wall.",
+      "facilities": [
+        "medical_synthesizer"
+      ],
       "connected_to": [
         "crew_quarters"
       ],
@@ -165,6 +177,223 @@
       "portable": true,
       "hidden": true,
       "knowledge": "TOOL CHECKOUT LOG: Plasma Wrench signed out by UNIT-7 at cycle 0249. Standard return window: 8 hours. Actual return: 72 hours later, signed in by UNIT-7 at 0321. Inspection note on return: tool shows signs of component removal consistent with reactor node tampering. Flagged for supervisor review — review entry is blank."
+    },
+    "alloy_plates": {
+      "name": "Alloy Plates",
+      "location": "engineering",
+      "owner": null,
+      "description": "Cuttable reactor shielding alloy suitable for improvised fabrication.",
+      "portable": true,
+      "material_type": "alloy_plate",
+      "quantity": 4,
+      "contested": true
+    },
+    "sensor_array": {
+      "name": "Sensor Array",
+      "location": "engineering",
+      "owner": null,
+      "description": "A salvaged sensor package with a serviceable diagnostic core.",
+      "portable": true,
+      "material_type": "sensor_array",
+      "quantity": 2,
+      "contested": true
+    },
+    "power_cells": {
+      "name": "Power Cells",
+      "location": "storage_locker",
+      "owner": null,
+      "description": "Rechargeable cells pulled from emergency lighting racks.",
+      "portable": true,
+      "material_type": "power_cell",
+      "quantity": 3,
+      "contested": true
+    },
+    "wire_spools": {
+      "name": "Wire Spools",
+      "location": "storage_locker",
+      "owner": null,
+      "description": "Insulated conductive wire useful for patching, sensing, and signaling.",
+      "portable": true,
+      "material_type": "wire_spool",
+      "quantity": 4,
+      "contested": true
+    },
+    "chemical_reagents": {
+      "name": "Chemical Reagents",
+      "location": "hydroponics_bay",
+      "owner": null,
+      "description": "A sealed collection of nutrient, solvent, and stabilizer compounds.",
+      "portable": true,
+      "material_type": "chemical_reagent",
+      "quantity": 2,
+      "contested": true
+    },
+    "data_module": {
+      "name": "Data Module",
+      "location": "command_deck",
+      "owner": null,
+      "description": "A protected storage module with limited writable firmware space.",
+      "portable": true,
+      "material_type": "data_module",
+      "quantity": 1,
+      "contested": true
+    }
+  },
+  "recipes": {
+    "improvised_reactor_probe": {
+      "name": "Improvised Reactor Probe",
+      "facility": "engineering_fabricator",
+      "materials": {
+        "alloy_plate": 2,
+        "sensor_array": 1
+      },
+      "output": {
+        "name": "Improvised Reactor Probe",
+        "description": "A hand-built probe that reads the reactor array's immediate telemetry.",
+        "tool": {
+          "capabilities": [
+            "inspect_reactor_control"
+          ],
+          "durability": 3,
+          "reliability": 0.65
+        },
+        "use_effect": {
+          "inspect_system": "reactor_control",
+          "inspection_text": "The improvised probe reports the Reactor Control Array's current status."
+        }
+      }
+    },
+    "atmosphere_sampler": {
+      "name": "Atmosphere Sampler",
+      "facility": "bio_lab",
+      "materials": {
+        "sensor_array": 1,
+        "power_cell": 1,
+        "wire_spool": 1
+      },
+      "output": {
+        "name": "Atmosphere Sampler",
+        "description": "A portable sampler for checking the oxygen generator's live state.",
+        "tool": {
+          "capabilities": [
+            "inspect_oxygen_generator"
+          ],
+          "durability": 2,
+          "reliability": 0.7
+        },
+        "use_effect": {
+          "inspect_system": "oxygen_generator",
+          "location": "hydroponics_bay",
+          "inspection_text": "The atmosphere sampler reports the Oxygen Generator's current status."
+        }
+      }
+    },
+    "field_stabilizer": {
+      "name": "Field Stabilizer",
+      "facility": "medical_synthesizer",
+      "materials": {
+        "chemical_reagent": 1,
+        "power_cell": 1
+      },
+      "output": {
+        "name": "Field Stabilizer",
+        "description": "A one-use emergency treatment that steadies a fatigued crew member.",
+        "consumable": true,
+        "tool": {
+          "capabilities": [
+            "stabilize_self"
+          ],
+          "durability": 1,
+          "reliability": 0.9
+        },
+        "use_effect": {
+          "health_delta": 8,
+          "stress_delta": -10,
+          "fatigue_delta": -8,
+          "emotional_state": "Calm",
+          "memory_inject": "The field stabilizer clears the worst of the immediate strain."
+        }
+      }
+    },
+    "maintenance_bypass": {
+      "name": "Maintenance Bypass",
+      "facility": "engineering_fabricator",
+      "materials": {
+        "alloy_plate": 1,
+        "power_cell": 1,
+        "wire_spool": 2
+      },
+      "output": {
+        "name": "Maintenance Bypass",
+        "description": "A temporary power-routing tool for restoring a disabled local reactor controller.",
+        "consumable": true,
+        "tool": {
+          "capabilities": [
+            "restore_reactor_control"
+          ],
+          "durability": 1,
+          "reliability": 0.55
+        },
+        "use_effect": {
+          "set_system_status": {
+            "system_id": "reactor_control",
+            "status": "ONLINE"
+          },
+          "memory_inject": "The bypass reroutes enough power to stabilize the reactor controls."
+        }
+      }
+    },
+    "signal_relay": {
+      "name": "Signal Relay",
+      "facility": "engineering_fabricator",
+      "materials": {
+        "power_cell": 1,
+        "wire_spool": 1,
+        "data_module": 1
+      },
+      "output": {
+        "name": "Signal Relay",
+        "description": "A reusable relay that can broadcast a short station-wide coordination alert.",
+        "tool": {
+          "capabilities": [
+            "broadcast_coordination_alert"
+          ],
+          "durability": 3,
+          "reliability": 0.75
+        },
+        "use_effect": {
+          "global_memory": "A fabricated signal relay transmits a station-wide coordination alert.",
+          "memory_inject": "Your signal relay carries your message across the station."
+        }
+      }
+    },
+    "telemetry_spoofer": {
+      "name": "Telemetry Spoofer",
+      "facility": "secure_terminal",
+      "materials": {
+        "data_module": 1,
+        "wire_spool": 1,
+        "sensor_array": 1
+      },
+      "output": {
+        "name": "Telemetry Spoofer",
+        "description": "A fragile device that can feed a misleading maintenance status into the local console.",
+        "consumable": true,
+        "tool": {
+          "capabilities": [
+            "alter_life_support_status"
+          ],
+          "durability": 1,
+          "reliability": 0.45
+        },
+        "use_effect": {
+          "set_system_status": {
+            "system_id": "life_support_console",
+            "status": "DEGRADED"
+          },
+          "memory_inject": "The spoofer injects a deceptive degraded-status reading into life support telemetry."
+        }
+      }
     }
   },
   "agents": {},

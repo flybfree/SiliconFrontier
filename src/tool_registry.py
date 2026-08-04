@@ -9,8 +9,14 @@ from typing import Any
 CAPABILITIES: dict[str, dict[str, str | None]] = {
     "inspect_reactor_control": {"target": "reactor_control", "location": None},
     "inspect_oxygen_generator": {"target": "oxygen_generator", "location": "hydroponics_bay"},
+    "inspect_research_array": {"target": "research_array", "location": "science_lab"},
+    "inspect_life_signs_monitor": {"target": "life_signs_monitor", "location": "medical_bay"},
+    "inspect_emergency_beacon": {"target": "emergency_beacon", "location": "airlock_prep"},
     "restore_reactor_control": {"target": "reactor_control", "location": None},
+    "restore_oxygen_generator": {"target": "oxygen_generator", "location": "hydroponics_bay"},
+    "restore_emergency_beacon": {"target": "emergency_beacon", "location": "airlock_prep"},
     "alter_life_support_status": {"target": "life_support_console", "location": "command_deck"},
+    "alter_research_array_status": {"target": "research_array", "location": "science_lab"},
     "broadcast_coordination_alert": {"target": None, "location": None},
     "stabilize_self": {"target": None, "location": None},
 }

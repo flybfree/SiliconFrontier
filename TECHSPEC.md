@@ -197,9 +197,13 @@ Properties of the implementation:
 
 Update sources:
 
-- social critic output from `FrontierAgent.evaluate_social_exchange()`
+- social critic output from `FrontierAgent.evaluate_social_exchange()`. For a single social event, observer calls are dispatched concurrently up to `social_critic_max_workers`, then their results are applied by observer ID so relationship state remains deterministic.
 - heuristic fallback in the orchestrator when critic output is unavailable
 - witnessed pickups, repairs, demands, sabotage evidence, and telemetry-conflict speech checks
+
+### Strategic reasoning reviews
+
+`Orchestrator._run_strategic_reviews()` requests an advisory private plan from each selected `FrontierAgent`. It runs on the configured strategic endpoint/model, periodically and after explicit fabrication or station-status triggers. Requests are bounded by `strategic_max_workers`; plans are applied in agent-ID order. The accepted plan schema is constrained to a goal, subgoals, crafting intent, social intent, and a review condition. It informs subsequent action prompts only and has no direct world-mutation path.
 
 ## 6. Structured Output and Fallbacks
 

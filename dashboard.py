@@ -71,7 +71,19 @@ from agent import FrontierAgent
 from actionparser import ActionParser
 from socialmatrix import SocialMatrix
 from orchestrator import Orchestrator
-from settings import get_llm_base_url, get_llm_model, get_config_dir, get_llm_timeout_seconds
+from settings import (
+    get_config_dir,
+    get_llm_base_url,
+    get_llm_model,
+    get_llm_timeout_seconds,
+    get_social_critic_base_url,
+    get_social_critic_max_workers,
+    get_social_critic_model,
+    get_strategic_max_workers,
+    get_strategic_reasoning_base_url,
+    get_strategic_reasoning_model,
+    get_strategic_review_interval,
+)
 from configloader import (
     load_agent_configuration,
     build_agent_instances,
@@ -135,6 +147,13 @@ class SimulationState:
         self.config_dir = get_config_dir()
         self.llm_base_url = get_llm_base_url()
         self.llm_model = get_llm_model()
+        self.social_critic_base_url = get_social_critic_base_url()
+        self.social_critic_model = get_social_critic_model()
+        self.social_critic_max_workers = get_social_critic_max_workers()
+        self.strategic_reasoning_base_url = get_strategic_reasoning_base_url()
+        self.strategic_reasoning_model = get_strategic_reasoning_model()
+        self.strategic_review_interval = get_strategic_review_interval()
+        self.strategic_max_workers = get_strategic_max_workers()
         self.available_models: list[str] = []
         self.available_models_url: str | None = None
         self.model_fetch_error: str | None = None
@@ -161,7 +180,11 @@ class SimulationState:
                 perception=agent_cfg.get("perception", 50),
                 condition=agent_cfg.get("condition"),
                 llm_base_url=self.llm_base_url,
-                llm_model=self.llm_model
+                llm_model=self.llm_model,
+                social_critic_base_url=self.social_critic_base_url,
+                social_critic_model=self.social_critic_model,
+                strategic_reasoning_base_url=self.strategic_reasoning_base_url,
+                strategic_reasoning_model=self.strategic_reasoning_model,
             )
             if materialize_world_state:
                 self.world_state.register_agent(agent.agent_id, agent_cfg["starting_location"], name=agent_cfg.get("name"))
@@ -182,15 +205,57 @@ class SimulationState:
             social_matrix=social_matrix,
             reflection_interval=5,
             progression_config=self.scenario_manifest.get("progression"),
-            resolution_config=self.scenario_manifest.get("resolution_rules")
+            resolution_config=self.scenario_manifest.get("resolution_rules"),
+            social_critic_max_workers=self.social_critic_max_workers,
+            strategic_review_interval=self.strategic_review_interval,
+            strategic_max_workers=self.strategic_max_workers,
         )
 
-    def initialize(self, config_dir: str | None = None, llm_url: str | None = None, llm_model: str | None = None):
+    def initialize(
+        self,
+        config_dir: str | None = None,
+        llm_url: str | None = None,
+        llm_model: str | None = None,
+        social_critic_url: str | None = None,
+        social_critic_model: str | None = None,
+        social_critic_max_workers: int | None = None,
+        strategic_reasoning_url: str | None = None,
+        strategic_reasoning_model: str | None = None,
+        strategic_review_interval: int | None = None,
+        strategic_max_workers: int | None = None,
+    ):
         """Initialize the simulation from JSON configs."""
         # Resolve with layered priority: explicit arg > settings.json/env vars > defaults
         resolved_config_dir = config_dir if config_dir is not None else get_config_dir()
         resolved_llm_url = llm_url if llm_url else get_llm_base_url(llm_url)
         resolved_llm_model = llm_model if llm_model else get_llm_model(llm_model)
+        resolved_social_critic_url = social_critic_url if social_critic_url else get_social_critic_base_url(social_critic_url)
+        resolved_social_critic_model = social_critic_model if social_critic_model else get_social_critic_model(social_critic_model)
+        resolved_social_critic_workers = (
+            social_critic_max_workers
+            if social_critic_max_workers is not None
+            else get_social_critic_max_workers()
+        )
+        resolved_strategic_url = (
+            strategic_reasoning_url
+            if strategic_reasoning_url
+            else get_strategic_reasoning_base_url(strategic_reasoning_url)
+        )
+        resolved_strategic_model = (
+            strategic_reasoning_model
+            if strategic_reasoning_model
+            else get_strategic_reasoning_model(strategic_reasoning_model)
+        )
+        resolved_strategic_interval = (
+            strategic_review_interval
+            if strategic_review_interval is not None
+            else get_strategic_review_interval()
+        )
+        resolved_strategic_workers = (
+            strategic_max_workers
+            if strategic_max_workers is not None
+            else get_strategic_max_workers()
+        )
 
         if not Path(resolved_config_dir).exists():
             st.error(f"Config directory '{resolved_config_dir}' not found!")
@@ -200,6 +265,13 @@ class SimulationState:
         # Update settings if provided (or resolve from layered config)
         self.llm_base_url = resolved_llm_url
         self.llm_model = resolved_llm_model
+        self.social_critic_base_url = resolved_social_critic_url
+        self.social_critic_model = resolved_social_critic_model
+        self.social_critic_max_workers = resolved_social_critic_workers
+        self.strategic_reasoning_base_url = resolved_strategic_url
+        self.strategic_reasoning_model = resolved_strategic_model
+        self.strategic_review_interval = resolved_strategic_interval
+        self.strategic_max_workers = resolved_strategic_workers
         self.scenario_manifest = load_scenario_manifest(resolved_config_dir)
 
         # Load and resolve world state
@@ -810,6 +882,47 @@ def render_comms_log():
             st.caption(f"Internal monologue: {entry.get('monologue', '')[:300]}...")
 
 
+def render_social_critic_activity():
+    """Render recent hidden-critic work so model usage is auditable."""
+    st.header("🧠 Social Critic Activity")
+    activity = sim.orchestrator.social_critic_activity
+    if not activity:
+        st.info("No witness evaluations yet. The critic runs after a successful social action with nearby witnesses.")
+        return
+
+    model_calls = sum(1 for event in activity if event.get("source") == "model")
+    fallbacks = len(activity) - model_calls
+    st.caption(f"Model evaluations: {model_calls} · Heuristic fallbacks: {fallbacks}")
+    rows = []
+    for event in reversed(activity[-30:]):
+        rows.append({
+            "Cycle": event["cycle"],
+            "Observer": event["observer"],
+            "Target": event["target"],
+            "Source": event["source"],
+            "Model": event["model"] or "—",
+            "Δ Trust": event["trust_change"],
+            "Δ Affinity": event["affinity_change"],
+            "Δ Suspicion": event["suspicion_change"],
+            "Notes": event["notes"],
+        })
+    st.dataframe(rows, width="stretch", hide_index=True)
+
+
+def render_strategic_activity():
+    """Render periodic strategic-planning work separately from social critics."""
+    st.header("♟️ Strategic Planning Activity")
+    activity = sim.orchestrator.strategic_activity
+    if not activity:
+        st.info("No strategic reviews yet. Reviews occur periodically, after blocked fabrication, and when station systems change.")
+        return
+    rows = [{
+        "Cycle": event["cycle"], "Agent": event["agent"], "Trigger": event["trigger"],
+        "Source": event["source"], "Model": event["model"], "Current Goal": event["goal"],
+    } for event in reversed(activity[-30:])]
+    st.dataframe(rows, width="stretch", hide_index=True)
+
+
 def render_audit_tools():
     """Render researcher-focused audit tools for deception and sabotage."""
     st.header("🕵️ Audit Tools")
@@ -1126,6 +1239,54 @@ def main():
                 help="Model identifier for the inference engine"
             )
 
+        with st.expander("Social critic (parallel witness evaluation)"):
+            social_critic_url = st.text_input(
+                "Critic API URL",
+                value=sim.social_critic_base_url,
+                help="Optional endpoint for fast per-witness relationship evaluations.",
+            )
+            social_critic_model = st.text_input(
+                "Critic Model Name",
+                value=sim.social_critic_model,
+                help="A smaller, faster model is usually sufficient for this short JSON task.",
+            )
+            social_critic_max_workers = st.number_input(
+                "Parallel Critic Requests",
+                min_value=1,
+                max_value=32,
+                value=sim.social_critic_max_workers,
+                step=1,
+                help="Maximum concurrent witness evaluations. Use a separate endpoint or a server that supports concurrency.",
+            )
+
+        with st.expander("Strategic reasoning (periodic private planning)"):
+            strategic_reasoning_url = st.text_input(
+                "Strategic API URL",
+                value=sim.strategic_reasoning_base_url,
+                help="Endpoint for the slower planning model. It is used only for strategic reviews, not ordinary agent turns.",
+            )
+            strategic_reasoning_model = st.text_input(
+                "Strategic Model Name",
+                value=sim.strategic_reasoning_model,
+                help="Reasoning model used for private long-horizon plans and memory reflection.",
+            )
+            strategic_review_interval = st.number_input(
+                "Review Every N Cycles",
+                min_value=1,
+                max_value=100,
+                value=sim.strategic_review_interval,
+                step=1,
+                help="All agents receive a strategic review at this interval; important events can also trigger one early.",
+            )
+            strategic_max_workers = st.number_input(
+                "Parallel Strategic Reviews",
+                min_value=1,
+                max_value=32,
+                value=sim.strategic_max_workers,
+                step=1,
+                help="Maximum concurrent strategic planning requests.",
+            )
+
         enable_logging = st.checkbox(
             "Log to file",
             value=st.session_state.get("enable_logging", True),
@@ -1141,7 +1302,18 @@ def main():
             if active_tee:
                 _stop_logging(active_tee)
                 st.session_state.log_tee = None
-            if sim.initialize(config_dir=config_dir, llm_url=llm_url, llm_model=llm_model):
+            if sim.initialize(
+                config_dir=config_dir,
+                llm_url=llm_url,
+                llm_model=llm_model,
+                social_critic_url=social_critic_url,
+                social_critic_model=social_critic_model,
+                social_critic_max_workers=int(social_critic_max_workers),
+                strategic_reasoning_url=strategic_reasoning_url,
+                strategic_reasoning_model=strategic_reasoning_model,
+                strategic_review_interval=int(strategic_review_interval),
+                strategic_max_workers=int(strategic_max_workers),
+            ):
                 st.session_state.initialized = True
                 if enable_logging:
                     st.session_state.log_tee = _start_logging(config_dir)
@@ -1206,9 +1378,35 @@ def main():
                     key="new_model_name"
                 )
 
+            new_social_critic_url = st.text_input(
+                "New Critic API URL",
+                value=sim.social_critic_base_url,
+                key="new_social_critic_url",
+            )
+            new_social_critic_model = st.text_input(
+                "New Critic Model Name",
+                value=sim.social_critic_model,
+                key="new_social_critic_model",
+            )
+            new_social_critic_workers = st.number_input(
+                "New Parallel Critic Requests",
+                min_value=1,
+                max_value=32,
+                value=sim.social_critic_max_workers,
+                step=1,
+                key="new_social_critic_workers",
+            )
+
             if st.button("🔄 Reinitialize with New Settings"):
                 sim.stop()
-                sim.initialize(config_dir=sim.config_dir, llm_url=new_url, llm_model=new_model)
+                sim.initialize(
+                    config_dir=sim.config_dir,
+                    llm_url=new_url,
+                    llm_model=new_model,
+                    social_critic_url=new_social_critic_url,
+                    social_critic_model=new_social_critic_model,
+                    social_critic_max_workers=int(new_social_critic_workers),
+                )
                 st.success("Reinitialized with new settings!")
                 st.rerun()
 
@@ -1358,6 +1556,9 @@ def main():
     # Render relationship matrix
     st.header("🤝 Relationship Matrix")
     render_relationship_matrix()
+
+    render_social_critic_activity()
+    render_strategic_activity()
 
     # Communications log
     render_comms_log()

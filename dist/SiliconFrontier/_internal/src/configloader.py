@@ -9,7 +9,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from app_paths import data_path
+from app_paths import atomic_write_json, data_path
+from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
 
 
 AGENT_DEFINITIONS_FILENAME = "agent_definitions.json"
@@ -22,14 +23,17 @@ _DEFAULT_LIBRARY_DIR = data_path("library")
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Malformed JSON in '{path}': {exc}") from exc
+    except OSError as exc:
+        raise ValueError(f"Could not read '{path}': {exc}") from exc
 
 
 def _save_json(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    atomic_write_json(path, data)
 
 
 def load_scenario_manifest(config_dir: str | Path) -> dict[str, Any]:
@@ -128,7 +132,7 @@ def resolve_relationship_presets(
         preset_name = entry.get("preset", "neutral")
         if not from_id or not to_id:
             continue
-        preset = preset_map.get(preset_name, {"trust": 50, "affinity": 50, "suspicion": 0})
+        preset = preset_map.get(preset_name, {"trust": DEFAULT_RELATIONSHIP_TRUST, "affinity": DEFAULT_RELATIONSHIP_AFFINITY, "suspicion": 0})
         # Don't overwrite manually specified relationships
         if to_id not in rels.get(from_id, {}):
             rels.setdefault(from_id, {})[to_id] = {

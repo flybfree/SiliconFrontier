@@ -1,0 +1,26 @@
+# Derived packaging output; it duplicates authored source and overwhelms updates.
+build
+build_catalog
+build_fixed
+build_parallel
+build_release
+build_retry
+dist
+dist_catalog
+dist_fixed
+dist_parallel
+dist_release
+dist_retry
+
+# Graphify's own generated graph and caches.
+graphify-out
+
+# Runtime and temporary data; scenarios and library are the authored assets.
+.tmp
+data
+logs
+saves
+
+# Python bytecode and transient test output.
+__pycache__
+.pytest_tmp_*

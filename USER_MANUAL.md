@@ -109,9 +109,11 @@ In the sidebar:
 
 1. Set `API URL`
 2. Set `Config Directory` if you want to load a scenario other than the default `data`
-3. Click `Fetch Models` if your server supports the OpenAI-compatible `/models` endpoint, or enter a model name manually
-4. Click `Initialize Simulation`
-5. Run single or multiple cycles
+3. Optionally expand `Social critic` to configure a faster endpoint/model for parallel per-witness relationship evaluations
+4. Optionally expand `Strategic reasoning (periodic private planning)` to set a dedicated endpoint/model, the review interval, and the parallel review limit
+5. Click `Fetch Models` if your primary server supports the OpenAI-compatible `/models` endpoint, or enter a model name manually
+6. Click `Initialize Simulation` to apply all model-role settings
+7. Run single or multiple cycles
 
 ### Run the scenario editor
 
@@ -236,6 +238,41 @@ Each agent has:
 - a `goal_momentum` state: `advancing`, `stalled`, or `setback`
 
 The orchestrator triggers reflection every 5 cycles. During reflection the agent summarizes recent experience into long-term memory and updates `goal_momentum` based on honest self-assessment of progress toward their secret goal. `goal_momentum` is injected into every subsequent system prompt, giving the model a sense of whether its current approach is working.
+
+### Parallel social critics
+
+The main agent model chooses actions. Successful social actions may also be evaluated by each witness's hidden critic. Those short evaluations run concurrently, while their relationship updates are applied afterward in stable agent-ID order.
+
+Set these optional `settings.json` values (or matching `SILICON_FRONTIER_SOCIAL_CRITIC_*` environment variables) to use a faster critic service:
+
+```json
+{
+  "social_critic_base_url": "http://localhost:1234/v1",
+  "social_critic_model": "fast-critic-model",
+  "social_critic_max_workers": 4
+}
+```
+
+If omitted, the critic uses the main endpoint/model. Parallel requests improve cycle time only when the selected endpoint can serve more than one request at once.
+
+### Strategic reasoning
+
+The strategic model is a third, optional role for slower long-horizon planning. It does not select the current action or modify the world directly. Instead, it gives each agent a compact private intent that the normal action model can use on later turns.
+
+Reviews occur periodically, after a failed fabrication attempt, or after a repair or sabotage changes station status. Results are collected in parallel up to the configured limit, then applied in stable agent-ID order so the simulation remains reproducible.
+
+Configure it from the dashboard's `Strategic reasoning (periodic private planning)` expander, or set these optional `settings.json` values (or matching `SILICON_FRONTIER_STRATEGIC_*` environment variables):
+
+```json
+{
+  "strategic_reasoning_base_url": "http://localhost:1234/v1",
+  "strategic_reasoning_model": "reasoning-model",
+  "strategic_review_interval": 6,
+  "strategic_max_workers": 2
+}
+```
+
+If omitted, the strategic role uses the primary endpoint/model. Choose a model that is good at planning and synthesis rather than one optimized solely for fast action selection. Sidebar changes take effect when `Initialize Simulation` is clicked; edit the `settings.json` beside the executable to change launch defaults.
 
 Memory entries are written as experiential consequence records rather than bare mechanical logs. For example: *"You demanded the manifest and got it, though it likely cost you something. (Nova saw this.)"*
 
@@ -876,6 +913,8 @@ Fabrication lets agents create tools entirely inside the simulation. It does not
 
 ### Configure facilities, materials, and recipes
 
+The Scenario Editor includes a **Crafting Catalog** tab for this data. It lets you edit location facilities, material stacks, recipes, and tool-output JSON in one place. Its compatibility checks flag recipes that reference a missing facility, resource material type, registered capability, or target system. The catalog does not block experimental content; it makes inconsistencies visible before a simulation is run.
+
 Locations may expose one or more `facilities`:
 
 ```json
@@ -1089,6 +1128,8 @@ Each scenario directory can include a `scenario.json` file with metadata about t
   "agent_count": 8
 }
 ```
+
+Cascade Failure includes a deliberate fabrication economy: scarce sensor arrays, data modules, power cells, wire spools, reagents, and alloy plates can become forensic probes, oxygen and beacon recovery kits, medical telemetry patches, a station alert relay, or a research telemetry spoofer. The shortages prevent all paths from being completed in one run.
 
 ## Relationship Presets in `simulation_agents.json`
 

@@ -9,16 +9,15 @@ Run with: streamlit run scenario_editor.py
 import copy
 import json
 import sys
-import os
 from pathlib import Path
 
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
-from app_paths import data_path, ensure_runtime_dirs
+from app_paths import bootstrap_runtime, data_path
+from tool_registry import CAPABILITIES
 
-ensure_runtime_dirs()
-os.chdir(data_path())
+bootstrap_runtime()
 
 from configloader import (
     load_scenario_manifest,
@@ -185,6 +184,70 @@ def _agent_library() -> dict:
 def _slugify(name: str) -> str:
     return name.lower().strip().replace(" ", "_").replace("-", "_")
 
+
+def _crafting_catalog() -> tuple[dict[str, list[str]], dict[str, dict], dict[str, dict]]:
+    """Return live facility, material, and recipe catalogs for the current scenario."""
+    facilities: dict[str, list[str]] = {}
+    for location_id, location in _world().get("locations", {}).items():
+        values = location.get("facilities", [])
+        if isinstance(values, dict):
+            values = list(values)
+        facilities[location_id] = [str(value) for value in values if str(value).strip()]
+    materials = {
+        item_id: item for item_id, item in _world().get("items", {}).items()
+        if item.get("material_type")
+    }
+    return facilities, materials, _world().setdefault("recipes", {})
+
+
+def _crafting_validation_issues() -> list[str]:
+    """Return author-facing compatibility warnings without blocking experimentation."""
+    facilities, materials, recipes = _crafting_catalog()
+    known_facilities = {facility for values in facilities.values() for facility in values}
+    known_material_types = {str(item.get("material_type")) for item in materials.values()}
+    known_systems = {
+        system_id
+        for location in _world().get("locations", {}).values()
+        for system_id in location.get("systems", {})
+    }
+    issues: list[str] = []
+    for recipe_id, recipe in recipes.items():
+        facility = str(recipe.get("facility", "")).strip()
+        if not facility:
+            issues.append(f"{recipe_id}: no required facility is configured.")
+        elif facility not in known_facilities:
+            issues.append(f"{recipe_id}: facility '{facility}' does not exist in any location.")
+        materials_needed = recipe.get("materials", {})
+        if not isinstance(materials_needed, dict) or not materials_needed:
+            issues.append(f"{recipe_id}: no materials are configured.")
+        else:
+            for material_id, quantity in materials_needed.items():
+                if material_id not in known_material_types:
+                    issues.append(f"{recipe_id}: material '{material_id}' has no matching resource stack.")
+                try:
+                    if int(quantity) <= 0:
+                        issues.append(f"{recipe_id}: material '{material_id}' must have a positive quantity.")
+                except (TypeError, ValueError):
+                    issues.append(f"{recipe_id}: material '{material_id}' has a non-numeric quantity.")
+        output = recipe.get("output", {})
+        if not isinstance(output, dict) or not output.get("name"):
+            issues.append(f"{recipe_id}: output needs a name.")
+            continue
+        for capability in output.get("tool", {}).get("capabilities", []):
+            spec = CAPABILITIES.get(str(capability))
+            if not spec:
+                issues.append(f"{recipe_id}: capability '{capability}' is not registered.")
+            elif spec.get("target") and spec["target"] not in known_systems:
+                issues.append(f"{recipe_id}: capability '{capability}' expects missing system '{spec['target']}'.")
+        effect = output.get("use_effect", {})
+        target = effect.get("inspect_system") if isinstance(effect, dict) else None
+        if target and target not in known_systems:
+            issues.append(f"{recipe_id}: inspect_system target '{target}' does not exist.")
+        status_change = effect.get("set_system_status") if isinstance(effect, dict) else None
+        if isinstance(status_change, dict) and status_change.get("system_id") not in known_systems:
+            issues.append(f"{recipe_id}: set_system_status target '{status_change.get('system_id')}' does not exist.")
+    return issues
+
 # ---------------------------------------------------------------------------
 # Load / save
 # ---------------------------------------------------------------------------
@@ -301,7 +364,7 @@ def render_sidebar() -> None:
                 if st.session_state.se_pick_dir != "— type above —" else None,
             )
 
-        if st.button("Load Scenario", use_container_width=True):
+        if st.button("Load Scenario", width="stretch"):
             if _ss().se_dirty and not _ss().se_confirm_load:
                 st.session_state.se_confirm_load = True
                 st.rerun()
@@ -311,10 +374,10 @@ def render_sidebar() -> None:
 
         if _ss().se_confirm_load:
             st.warning("You have unsaved changes.")
-            if st.button("Load anyway (discard changes)", use_container_width=True):
+            if st.button("Load anyway (discard changes)", width="stretch"):
                 _load_scenario(st.session_state.se_input_dir)
                 st.rerun()
-            if st.button("Cancel", use_container_width=True):
+            if st.button("Cancel", width="stretch"):
                 st.session_state.se_confirm_load = False
                 st.rerun()
 
@@ -323,7 +386,7 @@ def render_sidebar() -> None:
         # --- Create new ---
         st.subheader("Create New")
         new_name = st.text_input("Scenario name", key="se_new_name")
-        if st.button("Create", use_container_width=True, disabled=not new_name.strip()):
+        if st.button("Create", width="stretch", disabled=not new_name.strip()):
             _create_new_scenario(new_name.strip())
             st.rerun()
 
@@ -332,7 +395,7 @@ def render_sidebar() -> None:
         # --- Save ---
         if st.button(
             "💾 Save All",
-            use_container_width=True,
+            width="stretch",
             type="primary",
             disabled=not _ss().se_dirty or not _ss().se_scenario_dir,
         ):
@@ -789,13 +852,14 @@ def render_tab_items() -> None:
                 c_apply, c_save_lib, c_del, _ = st.columns([1, 1, 1, 3])
                 with c_apply:
                     if st.button("Apply", key=f"item_apply_{item_id}"):
-                        updated = {
+                        updated = dict(item)
+                        updated.update({
                             "name": n_name.strip(),
                             "location": n_loc if loc_options else st.session_state.get(f"item_loc_txt_{item_id}", ""),
                             "owner": item.get("owner"),
                             "description": n_desc.strip(),
                             "portable": n_portable,
-                        }
+                        })
                         if n_contested:
                             updated["contested"] = True
                         if n_hidden:
@@ -1136,12 +1200,14 @@ def render_tab_locations() -> None:
             with c_apply:
                 if st.button("Apply", key=f"loc_apply_{loc_id}"):
                     status_effects = [s.strip() for s in n_status.split(",") if s.strip()]
-                    locations[loc_id] = {
+                    updated_location = dict(loc)
+                    updated_location.update({
                         "name": n_name.strip(),
                         "description": n_desc.strip(),
                         "connected_to": n_conn,
                         "status_effects": status_effects,
-                    }
+                    })
+                    locations[loc_id] = updated_location
                     for access_key in ("requires_item", "requires_items", "access_denied_message", "access_denied_memory"):
                         if access_key in loc:
                             locations[loc_id][access_key] = loc[access_key]
@@ -1206,7 +1272,140 @@ def render_tab_locations() -> None:
                         st.rerun()
 
 # ---------------------------------------------------------------------------
-# Tab 6 — Relationships
+# Tab 6 — Crafting Catalog
+# ---------------------------------------------------------------------------
+
+def render_tab_crafting() -> None:
+    """Edit fabrication facilities, material stacks, and declarative recipes."""
+    if not _ss().se_scenario_dir:
+        st.info("Load or create a scenario first.")
+        return
+
+    facilities, materials, recipes = _crafting_catalog()
+    issues = _crafting_validation_issues()
+    st.caption("Crafting is deterministic: recipes consume material stacks at a matching facility and create only declared in-world tools.")
+    if issues:
+        st.warning("Compatibility checks found issues:")
+        for issue in issues:
+            st.write(f"- {issue}")
+    else:
+        st.success("Crafting catalog is internally compatible.")
+
+    facility_tab, material_tab, recipe_tab = st.tabs(["Facilities", "Resources", "Recipes & Tools"])
+
+    with facility_tab:
+        st.caption("Facilities determine which locations can assemble each recipe.")
+        for location_id, values in facilities.items():
+            location = _world()["locations"][location_id]
+            key = f"craft_facilities_{location_id}"
+            edited = st.text_input(
+                f"{location.get('name', location_id)} facilities (comma-separated)",
+                value=", ".join(values),
+                key=key,
+            )
+            if st.button("Apply Facilities", key=f"craft_apply_facilities_{location_id}"):
+                location["facilities"] = [value.strip() for value in edited.split(",") if value.strip()]
+                _mark_dirty()
+                st.rerun()
+
+    with material_tab:
+        st.caption("Resources are normal scenario items with a material type and finite quantity.")
+        for item_id, item in materials.items():
+            with st.expander(f"{item.get('name', item_id)} ({item_id})", expanded=False):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    material_type = st.text_input("Material type", value=str(item.get("material_type", "")), key=f"craft_material_type_{item_id}")
+                with c2:
+                    quantity = st.number_input("Quantity", min_value=1, value=max(1, int(item.get("quantity", 1))), step=1, key=f"craft_material_quantity_{item_id}")
+                with c3:
+                    location_id = item.get("location", "")
+                    st.text_input("Location", value=_location_name(location_id), disabled=True, key=f"craft_material_location_{item_id}")
+                if st.button("Apply Resource", key=f"craft_apply_resource_{item_id}"):
+                    item["material_type"] = material_type.strip()
+                    item["quantity"] = int(quantity)
+                    _mark_dirty()
+                    st.rerun()
+
+        with st.expander("➕ Add Resource", expanded=False):
+            resource_id = st.text_input("Resource item ID", key="craft_new_resource_id")
+            resource_name = st.text_input("Resource name", key="craft_new_resource_name")
+            resource_type = st.text_input("Material type", key="craft_new_resource_type")
+            resource_qty = st.number_input("Quantity", min_value=1, value=1, step=1, key="craft_new_resource_quantity")
+            locations = _location_options()
+            resource_location = st.selectbox("Location", options=locations, format_func=_location_name, key="craft_new_resource_location") if locations else ""
+            if st.button("Add Resource", key="craft_add_resource"):
+                clean_id = resource_id.strip()
+                if not clean_id or not resource_name.strip() or not resource_type.strip():
+                    st.error("Resource ID, name, and material type are required.")
+                elif clean_id in _world().setdefault("items", {}):
+                    st.error(f"Item ID '{clean_id}' already exists.")
+                else:
+                    _world()["items"][clean_id] = {
+                        "name": resource_name.strip(), "description": "Fabrication material.",
+                        "location": resource_location, "owner": None, "portable": True,
+                        "material_type": resource_type.strip(), "quantity": int(resource_qty),
+                    }
+                    _mark_dirty()
+                    st.rerun()
+
+    with recipe_tab:
+        available_facilities = sorted({facility for values in facilities.values() for facility in values})
+        st.caption("Use material and output JSON for advanced effects; capability names must exist in the simulation registry.")
+        for recipe_id, recipe in list(recipes.items()):
+            with st.expander(f"{recipe.get('name', recipe_id)} ({recipe_id})", expanded=False):
+                name = st.text_input("Recipe name", value=recipe.get("name", recipe_id), key=f"craft_recipe_name_{recipe_id}")
+                current_facility = str(recipe.get("facility", ""))
+                facility = st.selectbox(
+                    "Required facility", options=available_facilities or [current_facility],
+                    index=(available_facilities.index(current_facility) if current_facility in available_facilities else 0),
+                    key=f"craft_recipe_facility_{recipe_id}",
+                )
+                materials_text = st.text_area("Materials JSON", value=json.dumps(recipe.get("materials", {}), indent=2), height=100, key=f"craft_recipe_materials_{recipe_id}")
+                output_text = st.text_area("Tool output JSON", value=json.dumps(recipe.get("output", {}), indent=2), height=220, key=f"craft_recipe_output_{recipe_id}")
+                c_apply, c_delete = st.columns(2)
+                with c_apply:
+                    if st.button("Apply Recipe", key=f"craft_apply_recipe_{recipe_id}"):
+                        try:
+                            parsed_materials = json.loads(materials_text)
+                            parsed_output = json.loads(output_text)
+                            if not isinstance(parsed_materials, dict) or not isinstance(parsed_output, dict):
+                                raise ValueError("Materials and output must both be JSON objects.")
+                            recipes[recipe_id] = {"name": name.strip(), "facility": facility, "materials": parsed_materials, "output": parsed_output}
+                            _mark_dirty()
+                            st.rerun()
+                        except (json.JSONDecodeError, ValueError) as exc:
+                            st.error(f"Recipe was not saved: {exc}")
+                with c_delete:
+                    if st.button("Delete Recipe", key=f"craft_delete_recipe_{recipe_id}", type="secondary"):
+                        del recipes[recipe_id]
+                        _mark_dirty()
+                        st.rerun()
+
+        with st.expander("➕ Add Recipe", expanded=False):
+            new_id = st.text_input("Recipe ID", key="craft_new_recipe_id")
+            new_name = st.text_input("Recipe name", key="craft_new_recipe_name")
+            new_facility = st.selectbox("Required facility", options=available_facilities, key="craft_new_recipe_facility") if available_facilities else ""
+            new_materials = st.text_area("Materials JSON", value="{}", key="craft_new_recipe_materials")
+            new_output = st.text_area("Tool output JSON", value='{"name": "New Tool", "tool": {"capabilities": []}, "use_effect": {}}', key="craft_new_recipe_output")
+            if st.button("Add Recipe", key="craft_add_recipe"):
+                clean_id = new_id.strip()
+                try:
+                    parsed_materials = json.loads(new_materials)
+                    parsed_output = json.loads(new_output)
+                    if not clean_id or not new_name.strip() or not new_facility:
+                        raise ValueError("Recipe ID, name, and facility are required.")
+                    if clean_id in recipes:
+                        raise ValueError(f"Recipe ID '{clean_id}' already exists.")
+                    if not isinstance(parsed_materials, dict) or not isinstance(parsed_output, dict):
+                        raise ValueError("Materials and output must both be JSON objects.")
+                    recipes[clean_id] = {"name": new_name.strip(), "facility": new_facility, "materials": parsed_materials, "output": parsed_output}
+                    _mark_dirty()
+                    st.rerun()
+                except (json.JSONDecodeError, ValueError) as exc:
+                    st.error(f"Recipe was not added: {exc}")
+
+# ---------------------------------------------------------------------------
+# Tab 7 — Relationships
 # ---------------------------------------------------------------------------
 
 def render_tab_relationships() -> None:
@@ -1308,9 +1507,9 @@ def main(*, embedded: bool = False) -> None:
     dirty_marker = " ●" if _ss().se_dirty else ""
     st.subheader(f"{manifest_name}{dirty_marker}")
 
-    tab_meta, tab_agents, tab_slots, tab_items, tab_locs, tab_rels = st.tabs([
+    tab_meta, tab_agents, tab_slots, tab_items, tab_locs, tab_crafting, tab_rels = st.tabs([
         "Scenario", "Agent Definitions", "Simulation Slots",
-        "Items", "Locations", "Relationships",
+        "Items", "Locations", "Crafting Catalog", "Relationships",
     ])
 
     with tab_meta:
@@ -1323,6 +1522,8 @@ def main(*, embedded: bool = False) -> None:
         render_tab_items()
     with tab_locs:
         render_tab_locations()
+    with tab_crafting:
+        render_tab_crafting()
     with tab_rels:
         render_tab_relationships()
 
