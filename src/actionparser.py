@@ -562,7 +562,7 @@ class ActionParser:
             return False, f"Failure: No repairable system '{target}' here. Systems: {', '.join(available) if available else 'none'}."
 
         system_status = systems_here[matching_system_id].get("status", "unknown")
-        if system_status not in {"OFFLINE", "BROKEN"}:
+        if system_status not in {"OFFLINE", "BROKEN", "DEGRADED"}:
             return False, (
                 f"Failure: {systems_here[matching_system_id].get('name', matching_system_id)} "
                 f"is currently {system_status}, so repair is not needed. Consider another action."

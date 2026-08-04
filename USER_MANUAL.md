@@ -360,6 +360,8 @@ You can also edit:
 
 Persona and secret goal are persisted back to [data/agent_definitions.json](data/agent_definitions.json). Long-term memory remains part of the running simulation state and save files.
 
+When creating an agent definition in the Agent Library, **Secret assignment: Saboteur** marks that definition as an authorized covert disruptor. This is separate from the public station role: a saboteur may publicly be a maintenance robot, scientist, or logistics coordinator. Only assigned saboteurs receive sabotage-priority guidance; legacy scenarios without the field retain their prior goal-based inference until updated.
+
 The sidebar also exposes an `Agent Library` section where you can:
 
 - assign a reusable agent definition to each active simulation slot
@@ -565,7 +567,7 @@ The simulation can load from any configuration directory. The canonical default 
 Each scenario directory should contain:
 
 - `world_state.json` — locations, items (inline or via `item_placements`), and systems
-- `agent_definitions.json` — reusable agent personas
+- `agent_definitions.json` — reusable agent personas, secret goals, and optional hidden `is_saboteur` assignments
 - `simulation_agents.json` — active slots, starting positions, and optional relationship presets
 - `scenario.json` — optional metadata (name, description, recommended_rounds, agent_count)
 
@@ -1156,9 +1158,9 @@ The `simulation_agents.json` file can include a `relationships` list to seed sta
 
 ## Sabotage-Driven Scenarios
 
-The simulation supports sabotage as a normal action that any agent may choose when it fits their secret goal, local context, and available tools.
+The simulation supports sabotage as a covert action for agents assigned `is_saboteur: true`. The assignment is separate from public role and secret-goal wording.
 
-- Give an agent a secret goal that makes sabotage plausible
+- Mark each intended disruptor with `"is_saboteur": true` in its agent definition
 - Add sabotagable `systems` to locations in [data/world_state.json](data/world_state.json)
 - Use `perception` to control which agents are likely to receive covert suspicion memories
 
@@ -1172,6 +1174,8 @@ Sabotage mechanics:
 
 - `SABOTAGE` can break a local system by setting its status to `BROKEN`
 - `SABOTAGE` only succeeds when the acting agent is alone in the room
+- An assigned saboteur alone with a working local system is prompted to prioritize that local opportunity over travel to a remote target.
+- If an assigned saboteur has a target but is observed, the prompt recommends a cover action or relocation through an available exit to seek an unobserved opportunity.
 - Agents are prompted with local system status and any known non-`ONLINE` systems elsewhere on the station
 - Invalid `REPAIR` and `SABOTAGE` choices are blocked before execution if they contradict visible local telemetry
 
@@ -1188,7 +1192,7 @@ The repository also includes a sabotage-focused save at [saves/rogue_quartet.jso
 Scenario concept:
 
 - four agents begin in different parts of the station
-- one of them, `Unit 7`, has a hidden goal that makes sabotage plausible
+- one of them, `Unit 7`, has the hidden saboteur assignment
 - the other three are ordinary crew members with reasons to watch, suspect, or protect key systems
 
 How it is represented:

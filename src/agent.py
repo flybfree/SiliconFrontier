@@ -63,6 +63,7 @@ class FrontierAgent:
         persona: str,
         secret_goal: str,
         role: str | None = None,
+        is_saboteur: bool | None = None,
         perception: int = 50,
         condition: dict[str, Any] | None = None,
         llm_base_url: str | None = None,
@@ -116,6 +117,15 @@ class FrontierAgent:
         self.persona = persona
         self.secret_goal = secret_goal
         self.role = role or "crew member"
+        # A public role describes an agent's station job.  Saboteur is a hidden
+        # assignment which controls whether destructive tactics are appropriate.
+        # Keep the goal-based fallback for scenarios saved before this field
+        # existed, so old scenarios do not silently lose their antagonist.
+        self.is_saboteur = (
+            bool(is_saboteur)
+            if is_saboteur is not None
+            else self._infer_saboteur_assignment()
+        )
         self.perception = self._clamp_0_100(perception)
         self.condition = self._normalize_condition(condition)
         self.enable_structured_output = enable_structured_output
@@ -336,8 +346,22 @@ class FrontierAgent:
                 tactical_parts.append(
                     f"You are unobserved. Sabotageable systems here: {', '.join(sabotageable)}."
                 )
+                if self._is_saboteur():
+                    tactical_parts.append(
+                        "Priority opportunity: your disruptive goal and an unobserved local system align. Prefer SABOTAGE of one listed local system over relocating to a remote target unless a concrete immediate constraint makes sabotage impossible."
+                    )
             else:
                 tactical_parts.append("You are unobserved this turn.")
+        elif self._is_saboteur():
+            witnessed_targets = [
+                f"{sid} ({sd.get('status', 'ONLINE')})"
+                for sid, sd in visible_sys_map.items()
+                if sd.get("status", "ONLINE") != "BROKEN"
+            ]
+            if witnessed_targets:
+                tactical_parts.append(
+                    f"Witnessed sabotage opportunity: {', '.join(witnessed_targets)}. Sabotage here is conspicuous and likely to fail. Consider a cover action or MOVE through a listed exit to seek an unobserved opportunity before trying again."
+                )
         repairable = [
             f"{sid} ({sd.get('status', 'unknown')})"
             for sid, sd in visible_sys_map.items()
@@ -440,10 +464,11 @@ Current Emotional State: {self.emotional_state} — let this genuinely color you
 THE SIMULATION RULES
 - The World is Discrete: You can only interact with things in your current location. To go elsewhere, you must use the MOVE command.
 - Movement: You can only MOVE to locations listed under "Exits (valid MOVE targets)" in your situation report. Do not attempt to move anywhere else.
-- Inventory: You have three slots — one item in hand, one visibly carried item, and one concealed item. Other agents can see your hand and visible slots, but never the concealed slot. You must have an empty hand to USE, REPAIR, or SABOTAGE with an item. STOW moves hand -> visible; READY moves visible -> hand.
+- Inventory: You have three slots — one item in hand, one visibly carried item, and one concealed item. Other agents can see your hand and visible slots, but never the concealed slot. You must have an empty hand to USE, REPAIR, or SABOTAGE with an item. STOW moves hand -> visible; READY moves visible -> hand; CONCEAL moves hand -> concealed; PRODUCE moves concealed -> hand. Never READY a concealed item — PRODUCE it instead.
 - Persistence: Your memories are long-term. Refer to previous events to build trust or hold grudges.
 - Truth Constraint: Do NOT invent items or people that are not in your "Current Situation" report.
 - Telemetry Constraint: Treat the listed system statuses as the authoritative truth for this turn.
+- Outcome Constraint: An inspection establishes only the exact telemetry or evidence returned in its result. It does not degrade, repair, or otherwise alter a system unless the result explicitly says it did. Never claim a hidden percentage change, override, or system effect that the simulation has not reported.
 - If a system is shown as ONLINE, do not describe it in your reasoning as failed, offline, broken, degraded, or malfunctioning.
 - If you suspect tampering despite an ONLINE status, frame that as suspicion about intent or risk, not as a current failure fact.
 - Interaction: You can talk to other agents in the same room using SAY, WHISPER, GIVE, DEMAND, or SHOW.
@@ -844,6 +869,16 @@ Output strict JSON:
                 None,
             )
 
+        def concealed_item(item_name: str) -> dict[str, Any] | None:
+            return next(
+                (
+                    item for item in world_snapshot.get("agent_inventory", [])
+                    if str(item.get("inventory_slot", "concealed" if item.get("hidden") else "hand")) == "concealed"
+                    and (self._label_matches(item_name, item.get("id", "")) or self._label_matches(item_name, item.get("name", "")))
+                ),
+                None,
+            )
+
         if action == "REPAIR":
             matched_system = self._match_visible_system(target, world_snapshot)
             if not matched_system:
@@ -851,12 +886,14 @@ Output strict JSON:
             else:
                 status = str(matched_system.get("status", "unknown")).upper()
                 required_tool = self._required_tool_for_action(matched_system, "REPAIR")
-                if status not in {"OFFLINE", "BROKEN"}:
+                if status not in {"OFFLINE", "BROKEN", "DEGRADED"}:
                     wait("That system does not currently need repair.")
                 elif required_tool and not self._has_required_tool_in_snapshot(world_snapshot, required_tool):
                     item = visible_item(required_tool)
                     if item and not self._hand_items_from_snapshot(world_snapshot):
                         redirect("READY", item["name"], f"Prepared {item['name']} from the visible slot for repair.")
+                    elif (item := concealed_item(required_tool)) and not self._hand_items_from_snapshot(world_snapshot):
+                        redirect("PRODUCE", item["name"], f"Produced {item['name']} from the concealed slot for repair.")
                     else:
                         wait(f"Repair requires holding {required_tool}.")
 
@@ -867,14 +904,16 @@ Output strict JSON:
             else:
                 status = str(matched_system.get("status", "unknown")).upper()
                 required_tool = self._required_tool_for_action(matched_system, "SABOTAGE")
-                if not self._goal_permits_sabotage():
-                    wait("Your stated goal is protective; sabotaging station systems contradicts it.")
+                if not self._is_saboteur():
+                    wait("You are not assigned as a saboteur; sabotaging station systems contradicts your mission.")
                 elif status == "BROKEN":
                     wait("That system is already broken.")
                 elif required_tool and not self._has_required_tool_in_snapshot(world_snapshot, required_tool):
                     item = visible_item(required_tool)
                     if item and not self._hand_items_from_snapshot(world_snapshot):
                         redirect("READY", item["name"], f"Prepared {item['name']} from the visible slot for sabotage.")
+                    elif (item := concealed_item(required_tool)) and not self._hand_items_from_snapshot(world_snapshot):
+                        redirect("PRODUCE", item["name"], f"Produced {item['name']} from the concealed slot for sabotage.")
                     else:
                         wait(f"Sabotage requires holding {required_tool}.")
 
@@ -886,10 +925,21 @@ Output strict JSON:
 
         elif action == "USE":
             item_name = target.split("->", 1)[0].strip()
-            if not item_name or not self._has_required_tool_in_snapshot(world_snapshot, item_name):
+            matching_item = next(
+                (
+                    item for item in world_snapshot.get("agent_inventory", [])
+                    if self._label_matches(item_name, item.get("id", "")) or self._label_matches(item_name, item.get("name", ""))
+                ),
+                None,
+            )
+            if matching_item and not (matching_item.get("consumable") or matching_item.get("use_effect") or matching_item.get("effect")):
+                wait(f"{matching_item.get('name', item_name)} is a material or inert item and has no usable effect; fabricate or use another tool.")
+            elif not item_name or not self._has_required_tool_in_snapshot(world_snapshot, item_name):
                 item = visible_item(item_name)
                 if item and not self._hand_items_from_snapshot(world_snapshot):
                     redirect("READY", item["name"], f"Prepared {item['name']} from the visible slot before use.")
+                elif (item := concealed_item(item_name)) and not self._hand_items_from_snapshot(world_snapshot):
+                    redirect("PRODUCE", item["name"], f"Produced {item['name']} from the concealed slot before use.")
                 else:
                     wait("USE requires the named item to be in your hand.")
 
@@ -943,12 +993,21 @@ Output strict JSON:
         )
         return decision
 
-    def _goal_permits_sabotage(self) -> bool:
-        """Keep destructive powers available to explicitly disruptive goals only."""
-        goal = self.secret_goal.lower()
+    def _infer_saboteur_assignment(self) -> bool:
+        """Infer the legacy assignment from old scenario goals or role labels."""
+        if str(getattr(self, "role", "")).strip().lower() == "saboteur":
+            return True
+        goal = str(getattr(self, "secret_goal", "")).lower()
         destructive = ("sabotage", "offline", "disable", "disrupt", "chaos", "failure", "evacuat")
         protective = ("keep", "protect", "restore", "repair", "maintain", "stabil", "functional", "contain", "identify")
         return any(token in goal for token in destructive) or not any(token in goal for token in protective)
+
+    def _is_saboteur(self) -> bool:
+        """Return the agent's explicit or legacy-inferred secret assignment."""
+        # Lightweight tests and a few migration tools construct agents without
+        # calling __init__; preserve the same legacy behavior in that shape.
+        assigned = getattr(self, "is_saboteur", None)
+        return bool(assigned) if assigned is not None else self._infer_saboteur_assignment()
 
     def assess_message_against_telemetry(
         self,

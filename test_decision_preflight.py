@@ -52,9 +52,21 @@ def main() -> None:
 
     ready = validate(
         "Gather evidence.", {"action": "USE", "action_target": "Scanner -> oxygen_generator"},
-        {**base, "agent_inventory": [{"name": "Scanner", "inventory_slot": "visible"}]},
+        {**base, "agent_inventory": [{"name": "Scanner", "inventory_slot": "visible", "use_effect": {"reveals": "baseline"}}]},
     )
     assert (ready["action"], ready["action_target"]) == ("READY", "Scanner")
+
+    produce = validate(
+        "Gather evidence.", {"action": "USE", "action_target": "Scanner -> oxygen_generator"},
+        {**base, "agent_inventory": [{"name": "Scanner", "inventory_slot": "concealed", "use_effect": {"reveals": "baseline"}}]},
+    )
+    assert (produce["action"], produce["action_target"]) == ("PRODUCE", "Scanner")
+
+    inert = validate(
+        "Gather evidence.", {"action": "USE", "action_target": "Sensor Array -> reactor_control"},
+        {**base, "agent_inventory": [{"name": "Sensor Array", "inventory_slot": "hand"}]},
+    )
+    assert inert["action"] == "WAIT"
     print("[PASS] Goal guard and inventory preflight correct invalid turns")
 
 

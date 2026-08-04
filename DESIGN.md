@@ -64,6 +64,7 @@ Current implementation detail:
 
 - identity and role
 - persona and secret goal
+- hidden assignment flags, including `is_saboteur`
 - visible inventory state, including distinct hand, visible, and concealed slots
 - emotional state
 - nearby social context
@@ -91,7 +92,7 @@ After parsing, the agent normalizes the response into a safe decision payload.
 Current implementation validates telemetry-sensitive system actions before parser execution:
 
 - `REPAIR` is downgraded to `WAIT` if the local target is not visible or not `OFFLINE` / `BROKEN`
-- `SABOTAGE` is downgraded to `WAIT` if the local target is not visible or is already `BROKEN`
+- `SABOTAGE` is downgraded to `WAIT` if the agent is not assigned as a saboteur, the local target is not visible, or it is already `BROKEN`
 
 Speech is intentionally not rewritten:
 

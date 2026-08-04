@@ -240,12 +240,25 @@ class Orchestrator:
             for agent in affected_agents:
                 self._apply_agent_effects(agent, agent_effects, "[Scenario Pressure]")
 
+        for update in threshold.get("system_updates", []):
+            if not isinstance(update, dict):
+                continue
+            location = str(update.get("location", ""))
+            system_id = str(update.get("system_id", ""))
+            status = str(update.get("status", "")).upper()
+            if location and system_id and status and self.world.set_system_status(location, system_id, status):
+                self._apply_system_consequence(location, system_id, status, None)
+                print(f"  [Scenario Pressure] {system_id} set to {status}.")
+                for affected in self.agents:
+                    self._queue_strategic_trigger(affected, f"scenario pressure changed {system_id} to {status}")
+
     def _update_progression_pressure(
         self,
         agent: Any,
         action: str,
         target: str,
-        success: bool
+        success: bool,
+        item_effect: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Update scenario pressure after an action and fire newly crossed thresholds."""
         if not self._is_progression_enabled():
@@ -260,6 +273,11 @@ class Orchestrator:
 
         changed = False
         reason = None
+        tool_pressure_delta = int((item_effect or {}).get("pressure_delta", 0) or 0)
+        if success and tool_pressure_delta:
+            self.progression_state["stall_score"] = max(0, self.progression_state["stall_score"] + tool_pressure_delta)
+            changed = True
+            reason = "tool_pressure"
         if success or count_failed_actions:
             phrase_stall = self._matches_progression_phrase(
                 action_upper,
@@ -475,7 +493,7 @@ class Orchestrator:
                 self._apply_agent_effects(affected, agent_effects, f"[System Effect] {system_id}")
 
         consequence_memory = consequence.get("actor_memory")
-        if consequence_memory:
+        if consequence_memory and actor is not None:
             actor.add_to_memory(str(consequence_memory))
 
     def _apply_agent_effects(self, agent: Any, effect: dict, source_label: str) -> None:
@@ -639,11 +657,11 @@ class Orchestrator:
                     return left, right
         return None
 
-    def _apply_item_effect(self, agent: Any, item: dict) -> None:
+    def _apply_item_effect(self, agent: Any, item: dict) -> dict[str, Any]:
         """Apply an item's effect fields to the picking agent, then delete it if consumable."""
         effect = item.get("use_effect") or item.get("effect")
         if not effect:
-            return
+            return {}
 
         item_name = item.get("name", item.get("id", "item"))
         current_loc = self.world.get_agent_location(agent.agent_id)
@@ -675,6 +693,12 @@ class Orchestrator:
                 fact_key = fact_id or f"system_inspection:{inspection_loc}:{inspect_system}"
                 self.world.remember_fact(agent.agent_id, fact_key, str(detail), source_item_id=item["id"])
                 agent.add_to_memory(f"[Inspection] {detail}")
+
+        suspicion_on_use = int(effect.get("suspicion_on_use", 0) or 0)
+        if suspicion_on_use:
+            for witness_id in self.world.get_visible_agents(agent.agent_id):
+                self.social.update_suspicion(witness_id, agent.agent_id, suspicion_on_use)
+            self._sync_relationships()
 
         set_system = effect.get("set_system_status")
         if isinstance(set_system, dict):
@@ -716,6 +740,7 @@ class Orchestrator:
             self.world.delete_item(item["id"])
             agent.add_to_memory(f"[Consumed] The {item_name} is gone — used up.")
             print(f"  [Consumed] {item_name} removed from world.")
+        return dict(effect)
 
     def _heuristic_social_update(self, action: str, message: str) -> tuple[int, int]:
         """Fallback heuristic if the social critic is unavailable."""
@@ -1041,7 +1066,8 @@ class Orchestrator:
                     agent.pending_drop = None
                     agent.pending_drop_name = None
 
-            elif action == "USE" and success:
+            item_effect: dict[str, Any] = {}
+            if action == "USE" and success:
                 # Find the item in the agent's hand and apply its effect
                 item_target = target.split("->", 1)[0].strip()
                 hand_items = self.world.find_items_by_owner(agent.agent_id)
@@ -1051,7 +1077,8 @@ class Orchestrator:
                     None
                 )
                 if used_item:
-                    self._apply_item_effect(agent, used_item)
+                    item_effect = self._apply_item_effect(agent, used_item)
+                    result_entry["item_effect"] = item_effect
                     event_msg = f"You saw {agent.name} use {used_item['name']}{' on ' + target.split('->', 1)[1].strip() if '->' in target else ''}"
                     self.broadcast_event(event_msg, current_loc, exclude_agent_id=agent.agent_id)
 
@@ -1107,7 +1134,7 @@ class Orchestrator:
                 self._evaluate_social_impact(agent, action, target)
 
             cycle_results.append(result_entry)
-            pressure_results = self._update_progression_pressure(agent, action, target, success)
+            pressure_results = self._update_progression_pressure(agent, action, target, success, item_effect)
             cycle_results.extend(pressure_results)
             terminal_entry = self._update_terminal_resolution()
             if terminal_entry:

@@ -7,5 +7,28 @@
     "investigation"
   ],
   "notes": "Good starting scenario for testing and prompt tuning.",
-  "recommended_rounds": 10
+  "recommended_rounds": 10,
+  "progression": {
+    "enabled": true,
+    "stalled_actions": [],
+    "progress_actions": [],
+    "thresholds": [
+      {
+        "id": "reactor_degraded",
+        "after_stall_score": 3,
+        "message": "Repeated unsupervised probe activity has pushed Reactor Control outside its normal calibration envelope.",
+        "system_updates": [
+          {"location": "engineering", "system_id": "reactor_control", "status": "DEGRADED"}
+        ]
+      },
+      {
+        "id": "reactor_failed",
+        "after_stall_score": 5,
+        "message": "The accumulated reactor calibration faults have cascaded into a controller failure.",
+        "system_updates": [
+          {"location": "engineering", "system_id": "reactor_control", "status": "BROKEN"}
+        ]
+      }
+    ]
+  }
 }

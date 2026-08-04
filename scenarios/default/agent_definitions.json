@@ -12,6 +12,7 @@
       "definition_id": "unit7",
       "name": "Unit 7",
       "role": "maintenance robot",
+      "is_saboteur": true,
       "perception": 58,
       "persona": "A helpful maintenance robot with a dry sense of humor and genuine enthusiasm for efficient teamwork.",
       "secret_goal": "make systems offline"

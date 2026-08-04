@@ -177,6 +177,7 @@ class SimulationState:
                 persona=agent_cfg["persona"],
                 secret_goal=agent_cfg["secret_goal"],
                 role=agent_cfg.get("role"),
+                is_saboteur=agent_cfg.get("is_saboteur"),
                 perception=agent_cfg.get("perception", 50),
                 condition=agent_cfg.get("condition"),
                 llm_base_url=self.llm_base_url,
@@ -395,6 +396,7 @@ class SimulationState:
         perception: int,
         persona: str,
         secret_goal: str,
+        is_saboteur: bool = False,
         condition: dict | None = None
     ) -> None:
         """Add a new reusable agent definition and persist it."""
@@ -406,7 +408,8 @@ class SimulationState:
             "perception": int(perception),
             "condition": copy.deepcopy(condition or FrontierAgent.DEFAULT_CONDITION),
             "persona": persona,
-            "secret_goal": secret_goal
+            "secret_goal": secret_goal,
+            "is_saboteur": bool(is_saboteur),
         })
         save_agent_definitions(self.agent_definitions, self.config_dir)
         self._baseline_agent_definitions = copy.deepcopy(self.agent_definitions)
@@ -1100,6 +1103,11 @@ def render_agent_library_controls():
         new_definition_id = st.text_input("Definition ID", key="new_def_id")
         new_name = st.text_input("Name", key="new_def_name")
         new_role = st.text_input("Role", value="crew member", key="new_def_role")
+        new_is_saboteur = st.checkbox(
+            "Secret assignment: Saboteur",
+            key="new_def_is_saboteur",
+            help="Assigned saboteurs seek covert opportunities to disable systems; other agents do not."
+        )
         new_perception = st.slider("Perception", min_value=0, max_value=100, value=50, key="new_def_perception")
         new_persona = st.text_area("Persona", key="new_def_persona", height=100)
         new_secret_goal = st.text_area("Secret Goal", key="new_def_goal", height=80)
@@ -1115,7 +1123,8 @@ def render_agent_library_controls():
                     role=new_role.strip() or "crew member",
                     perception=int(new_perception),
                     persona=new_persona.strip(),
-                    secret_goal=new_secret_goal.strip()
+                    secret_goal=new_secret_goal.strip(),
+                    is_saboteur=new_is_saboteur,
                 )
                 st.success("Agent definition created. You can now assign it to a slot.")
                 st.rerun()

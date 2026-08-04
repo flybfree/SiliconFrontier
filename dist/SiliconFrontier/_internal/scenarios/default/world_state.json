@@ -78,7 +78,25 @@
         "reactor_control": {
           "name": "Reactor Control Array",
           "status": "ONLINE",
-          "description": "Monitors and adjusts the station's power core output."
+          "description": "Monitors and adjusts the station's power core output.",
+          "required_tool_repair": "plasma_wrench",
+          "consequences": {
+            "DEGRADED": {
+              "add_location_effects": ["reactor_instability"],
+              "global_memory": "Reactor Control has entered a degraded state. Engineering telemetry now requires immediate verification.",
+              "agent_effects": {"stress_delta": 4, "emotional_state": "Alert"}
+            },
+            "BROKEN": {
+              "add_location_effects": ["reactor_failure"],
+              "remove_location_effects": ["reactor_instability"],
+              "global_memory": "Reactor Control has failed. Emergency repair is required before station power becomes unstable.",
+              "agent_effects": {"stress_delta": 12, "morale_delta": -8, "emotional_state": "Anxious"}
+            },
+            "ONLINE": {
+              "remove_location_effects": ["reactor_instability", "reactor_failure"],
+              "global_memory": "Reactor Control has been restored to a stable online state."
+            }
+          }
         }
       }
     },
@@ -123,7 +141,22 @@
     {
       "item_id": "plasma_wrench",
       "location": "engineering",
-      "contested": true
+      "contested": true,
+      "tool": {
+        "capabilities": [
+          "inspect_reactor_control"
+        ]
+      },
+      "use_effect": {
+        "inspect_system": "reactor_control",
+        "location": "engineering",
+        "inspection_text": "The Plasma Wrench records an authenticated baseline for the Reactor Control Array; recent manual calibration marks are preserved for review.",
+        "fact_id": "diagnostic:reactor_baseline",
+        "add_location_effects": [
+          "reactor_baseline_recorded"
+        ],
+        "memory_inject": "The wrench preserves a reactor calibration baseline that can be compared with later readings."
+      }
     },
     {
       "item_id": "reactor_key",
@@ -132,7 +165,22 @@
     },
     {
       "item_id": "oxygen_scanner",
-      "location": "hydroponics_bay"
+      "location": "hydroponics_bay",
+      "tool": {
+        "capabilities": [
+          "inspect_oxygen_generator"
+        ]
+      },
+      "use_effect": {
+        "inspect_system": "oxygen_generator",
+        "location": "hydroponics_bay",
+        "inspection_text": "The Oxygen Scanner records a stable atmospheric baseline and preserves a trace history for detecting later life-support tampering.",
+        "fact_id": "diagnostic:oxygen_baseline",
+        "add_location_effects": [
+          "oxygen_baseline_recorded"
+        ],
+        "memory_inject": "The scanner stored an oxygen baseline that can expose later changes."
+      }
     },
     {
       "item_id": "seed_canister",
@@ -186,7 +234,16 @@
       "portable": true,
       "material_type": "alloy_plate",
       "quantity": 4,
-      "contested": true
+      "contested": true,
+      "tool": {
+        "capabilities": ["analyze_secure_terminal"]
+      },
+      "use_effect": {
+        "reveals": "The Commander ID Card authenticates a secure-terminal access review and records which command credential opened the audit.",
+        "fact_id": "evidence:commander_access_review",
+        "add_location_effects": ["command_access_reviewed"],
+        "memory_inject": "The command credential has opened a traceable terminal access review."
+      }
     },
     "sensor_array": {
       "name": "Sensor Array",
@@ -236,7 +293,20 @@
       "portable": true,
       "material_type": "data_module",
       "quantity": 1,
-      "contested": true
+      "contested": true,
+      "tool": {
+        "capabilities": [
+          "analyze_secure_terminal"
+        ]
+      },
+      "use_effect": {
+        "reveals": "The secure terminal indexes the Data Module's audit trail, creating a durable forensic record of the station's recent overrides.",
+        "fact_id": "evidence:data_module_audit",
+        "add_location_effects": [
+          "forensic_audit_indexed"
+        ],
+        "memory_inject": "The data module's audit trail is now indexed at the secure terminal."
+      }
     }
   },
   "recipes": {
@@ -259,7 +329,9 @@
         },
         "use_effect": {
           "inspect_system": "reactor_control",
-          "inspection_text": "The improvised probe reports the Reactor Control Array's current status."
+          "inspection_text": "The improvised probe reports the Reactor Control Array's current status.",
+          "pressure_delta": 1,
+          "suspicion_on_use": 2
         }
       }
     },

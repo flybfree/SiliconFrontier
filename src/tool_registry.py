@@ -17,6 +17,7 @@ CAPABILITIES: dict[str, dict[str, str | None]] = {
     "restore_emergency_beacon": {"target": "emergency_beacon", "location": "airlock_prep"},
     "alter_life_support_status": {"target": "life_support_console", "location": "command_deck"},
     "alter_research_array_status": {"target": "research_array", "location": "science_lab"},
+    "analyze_secure_terminal": {"target": "secure_terminal", "location": "command_deck", "target_type": "facility"},
     "broadcast_coordination_alert": {"target": None, "location": None},
     "stabilize_self": {"target": None, "location": None},
 }
@@ -61,6 +62,10 @@ def validate_tool_use(world: Any, agent_id: str, item: dict[str, Any], target: s
         if not _matches(target, str(expected_target)):
             return False, f"Failure: {item.get('name', 'This tool')} cannot target '{target}'. Valid target: {expected_target}."
         location = spec["location"] or world.get_agent_location(agent_id)
-        if expected_target not in world.get_location_systems(str(location)):
+        if spec.get("target_type") == "facility":
+            facilities = world.get_location(str(location)).get("facilities", []) if world.get_location(str(location)) else []
+            if expected_target not in facilities:
+                return False, f"Failure: Target facility '{expected_target}' is unavailable."
+        elif expected_target not in world.get_location_systems(str(location)):
             return False, f"Failure: Target system '{expected_target}' is unavailable."
     return True, ""

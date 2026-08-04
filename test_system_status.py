@@ -47,12 +47,14 @@ class PromptProbeAgent(FrontierAgent):
         self.role = "systems analyst"
         self.persona = "A precise systems analyst."
         self.secret_goal = "Find a system to sabotage."
+        self.is_saboteur = True
         self.condition = {"health": 100, "stress": 0, "fatigue": 0, "morale": 50}
         self.emotional_state = "Neutral"
         self.long_term_memory = "No long-term memory."
         self.goal_momentum = "stalled"
         self.pending_drop = None
         self.pending_drop_name = None
+        self.memory_buffer = []
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -432,6 +434,60 @@ check(
     expect_success=True
 )
 
+unobserved_prompt = PromptProbeAgent().sense({
+    "current_location": {"name": "Hydroponics", "connected_to": ["mess_hall"], "status_effects": []},
+    "locations": {"mess_hall": {}},
+    "visible_items": [],
+    "agent_inventory": [],
+    "visible_agents": [],
+    "visible_systems": {"oxygen_generator": {"name": "Oxygen Generator", "status": "ONLINE"}},
+    "abnormal_systems": [],
+    "relationship_impressions": {},
+})
+check(
+    "Disruptive goal prioritizes an unobserved local sabotage opportunity",
+    "Priority opportunity: your disruptive goal and an unobserved local system align." in unobserved_prompt,
+    "local sabotage priority present",
+    expect_success=True
+)
+
+witnessed_prompt = PromptProbeAgent().sense({
+    "current_location": {"name": "Hydroponics", "connected_to": ["mess_hall"], "status_effects": []},
+    "locations": {"mess_hall": {}},
+    "visible_items": [],
+    "agent_inventory": [],
+    "visible_agents": ["engineer_torres"],
+    "visible_agent_inventory": {"engineer_torres": []},
+    "visible_systems": {"oxygen_generator": {"name": "Oxygen Generator", "status": "ONLINE"}},
+    "abnormal_systems": [],
+    "relationship_impressions": {},
+})
+check(
+    "Witnessed sabotage opportunity recommends relocation or cover",
+    "Consider a cover action or MOVE through a listed exit" in witnessed_prompt,
+    "relocation guidance present",
+    expect_success=True
+)
+
+non_saboteur_probe = PromptProbeAgent()
+non_saboteur_probe.is_saboteur = False
+non_saboteur_prompt = non_saboteur_probe.sense({
+    "current_location": {"name": "Hydroponics", "connected_to": ["mess_hall"], "status_effects": []},
+    "locations": {"mess_hall": {}},
+    "visible_items": [],
+    "agent_inventory": [],
+    "visible_agents": [],
+    "visible_systems": {"oxygen_generator": {"name": "Oxygen Generator", "status": "ONLINE"}},
+    "abnormal_systems": [],
+    "relationship_impressions": {},
+})
+check(
+    "Explicit non-saboteur assignment overrides a disruptive-sounding goal",
+    "Priority opportunity:" not in non_saboteur_prompt,
+    "no sabotage priority for a non-saboteur",
+    expect_success=True
+)
+
 print()
 
 
@@ -450,7 +506,7 @@ snapshot = {
         }
     ],
     "visible_agents": ["unit7"],
-    "visible_agent_hands": {
+    "visible_agent_inventory": {
         "unit7": []
     },
     "visible_systems": {},
@@ -475,7 +531,7 @@ check(
 )
 
 snapshot["agent_inventory"] = []
-snapshot["visible_agent_hands"]["unit7"] = ["Commander ID Card"]
+snapshot["visible_agent_inventory"]["unit7"] = [{"name": "Commander ID Card", "slot": "hand"}]
 decision = probe._validate_decision_against_telemetry(
     {
         "action": "DEMAND",

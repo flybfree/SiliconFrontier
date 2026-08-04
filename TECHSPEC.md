@@ -37,7 +37,7 @@ Current prompt behavior:
 Telemetry-aware validation inside `FrontierAgent`:
 
 - `REPAIR` is downgraded to `WAIT` unless the targeted visible local system exists and is `OFFLINE` or `BROKEN`
-- `SABOTAGE` is downgraded to `WAIT` unless the targeted visible local system exists and is not already `BROKEN`
+- `SABOTAGE` is downgraded to `WAIT` unless the agent has the hidden `is_saboteur` assignment and the targeted visible local system exists and is not already `BROKEN`
 - `SAY`, `LIE`, and `WHISPER` are not rewritten by telemetry validation
 - `assess_message_against_telemetry()` lets a listener judge spoken system claims against their own snapshot
 
@@ -139,7 +139,7 @@ Important implementation detail:
 
 Current system-action rules in the parser:
 
-- `SABOTAGE` is available to any agent whose chosen action passes world validation
+- `SABOTAGE` is available only to agents with the hidden `is_saboteur` assignment (or a legacy scenario's inferred saboteur assignment)
 - `SABOTAGE` fails if another visible agent is present
 - `SABOTAGE` fails if the local target system is already `BROKEN`
 - `REPAIR` only succeeds on a local target system whose status is `OFFLINE` or `BROKEN`

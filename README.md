@@ -256,7 +256,7 @@ The base agent class. Each instance is one participant in the simulation.
 | `evaluate_social_exchange(...)` | Hidden critic call, optionally using a dedicated endpoint/model, that returns trust/affinity/suspicion deltas after a social action |
 | `add_to_memory(event)` | Append a string to the short-term memory buffer (capped at 10 entries) |
 
-All configured agents use `FrontierAgent`; hostile or deceptive behavior emerges from persona, secret goal, memory, and world constraints rather than a special subclass.
+All configured agents use `FrontierAgent`; a public role describes an agent's station job, while the optional hidden `is_saboteur` assignment authorizes covert destructive tactics. Persona, secret goal, memory, and world constraints still shape how each agent pursues that assignment.
 
 ---
 
@@ -300,7 +300,7 @@ Validates and executes every action the LLM returns. It is the primary mutation 
 | `_handle_say` / `_handle_lie` | Validate non-empty speech; broadcasting is done by the orchestrator |
 | `_handle_whisper` | Validate presence of target agent; delivery and social update done by orchestrator |
 | `_handle_use` | Validate item is held and has either `consumable` or `use_effect`; effect application done by orchestrator |
-| `_handle_sabotage` | Saboteur-only; requires solitude; sets system status to `BROKEN` |
+| `_handle_sabotage` | Explicit-saboteur-only; requires solitude; sets system status to `BROKEN` |
 | `_handle_repair` | Any agent; restores a local `OFFLINE` or `BROKEN` system to `ONLINE` |
 | `_handle_conceal` | Move item from hand slot to concealed person slot |
 | `_handle_produce` | Move item from concealed person slot to hand slot |
@@ -349,7 +349,7 @@ Tracks directional trust, affinity, and hidden suspicion between every agent pai
 The simulation loads from any directory containing three files:
 
 - `world_state.json` — locations, items (inline or via `item_placements`), sabotagable systems
-- `agent_definitions.json` — reusable agent definitions with personas and secret goals
+- `agent_definitions.json` — reusable agent definitions with personas, secret goals, and optional hidden `is_saboteur` assignments
 - `simulation_agents.json` — active slots, starting positions, and optional relationship presets
 - `scenario.json` — optional metadata (name, description, recommended_rounds)
 
@@ -376,7 +376,7 @@ See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flag
 
 - Load existing scenarios or scaffold new ones from the sidebar
 - **Agent library** — browse `library/agents.json`, add agents to the current scenario with one click, push edits back to the library; agents and items are both reusable assets
-- Agent definition editor — name, role, perception, health, stress, fatigue, morale, persona, secret goal
+- Agent definition editor — name, role, perception, health, stress, fatigue, morale, persona, secret goal, and optional secret saboteur assignment
 - Simulation slot editor — assign definitions to slots with location and inventory dropdowns
 - Item editor — inline items and library placements, with conditional fields for hidden knowledge, return obligations, durable use effects, and consumable effects
 - Location editor — connections multiselect, status effects, inline system add/remove
