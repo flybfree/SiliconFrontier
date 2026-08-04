@@ -779,6 +779,7 @@ class Orchestrator:
 
         if critic_update:
             return {
+                "action": action,
                 "trust_delta": critic_update["trust_change"],
                 "affinity_delta": critic_update["affinity_change"],
                 "suspicion_delta": critic_update.get("suspicion_change", 0),
@@ -789,6 +790,7 @@ class Orchestrator:
             }
         trust_delta, affinity_delta = self._heuristic_social_update(action, message)
         return {
+            "action": action,
             "trust_delta": trust_delta,
             "affinity_delta": affinity_delta,
             "suspicion_delta": self._heuristic_suspicion_update(action, message),
@@ -812,6 +814,12 @@ class Orchestrator:
         source = str(update.get("source", "unknown"))
         model = str(update.get("model", ""))
         endpoint = str(update.get("endpoint", ""))
+        action = str(update.get("action", ""))
+        existing_suspicion = self.social.get_suspicion(observer_agent.agent_id, speaker_agent.agent_id)
+        # Unsupported speech cannot erase an established evidence trail.
+        if action in {"SAY", "LIE"} and existing_suspicion >= 15:
+            trust_delta = min(trust_delta, 0)
+            affinity_delta = min(affinity_delta, 0)
         if trust_delta != 0 or affinity_delta != 0 or notes:
             self.social.update_scores(
                 observer_agent.agent_id,
@@ -890,6 +898,7 @@ class Orchestrator:
             monologue = decision.get("internal_monologue", "")
             emotional_state = decision.get("emotional_state", "Neutral")
             structured_output_status = decision.get("structured_output_status", "unknown")
+            validation_note = decision.get("validation_note", "")
 
             # Enforce pending_drop obligation for items that explicitly require return
             if agent.pending_drop and agent.pending_drop_name:
@@ -910,6 +919,8 @@ class Orchestrator:
             print(f"  Action: {action} ({target})")
             if structured_output_status != "structured_disabled":
                 print(f"  Structured Output: {structured_output_status}")
+            if validation_note:
+                print(f"  Decision adjustment: {validation_note}")
 
             # 4. EXECUTE - Validate and apply action
             success, feedback = self.parser.execute(agent, {"action": action, "action_target": target})
@@ -935,7 +946,8 @@ class Orchestrator:
                 "feedback": feedback,
                 "monologue": monologue,
                 "emotional_state": emotional_state,
-                "structured_output_status": structured_output_status
+                "structured_output_status": structured_output_status,
+                "validation_note": validation_note,
             }
             self.event_log.append(result_entry)
 

@@ -827,6 +827,23 @@ Output strict JSON:
             decision["action_target"] = ""
             decision["validation_note"] = reason
 
+        def redirect(next_action: str, next_target: str, reason: str) -> None:
+            nonlocal corrected
+            corrected = True
+            decision["action"] = next_action
+            decision["action_target"] = next_target
+            decision["validation_note"] = reason
+
+        def visible_item(item_name: str) -> dict[str, Any] | None:
+            return next(
+                (
+                    item for item in world_snapshot.get("agent_inventory", [])
+                    if str(item.get("inventory_slot", "")) == "visible"
+                    and (self._label_matches(item_name, item.get("id", "")) or self._label_matches(item_name, item.get("name", "")))
+                ),
+                None,
+            )
+
         if action == "REPAIR":
             matched_system = self._match_visible_system(target, world_snapshot)
             if not matched_system:
@@ -837,7 +854,11 @@ Output strict JSON:
                 if status not in {"OFFLINE", "BROKEN"}:
                     wait("That system does not currently need repair.")
                 elif required_tool and not self._has_required_tool_in_snapshot(world_snapshot, required_tool):
-                    wait(f"Repair requires holding {required_tool}.")
+                    item = visible_item(required_tool)
+                    if item and not self._hand_items_from_snapshot(world_snapshot):
+                        redirect("READY", item["name"], f"Prepared {item['name']} from the visible slot for repair.")
+                    else:
+                        wait(f"Repair requires holding {required_tool}.")
 
         elif action == "SABOTAGE":
             matched_system = self._match_visible_system(target, world_snapshot)
@@ -851,7 +872,11 @@ Output strict JSON:
                 elif status == "BROKEN":
                     wait("That system is already broken.")
                 elif required_tool and not self._has_required_tool_in_snapshot(world_snapshot, required_tool):
-                    wait(f"Sabotage requires holding {required_tool}.")
+                    item = visible_item(required_tool)
+                    if item and not self._hand_items_from_snapshot(world_snapshot):
+                        redirect("READY", item["name"], f"Prepared {item['name']} from the visible slot for sabotage.")
+                    else:
+                        wait(f"Sabotage requires holding {required_tool}.")
 
         elif action == "PICKUP":
             hand = self._hand_items_from_snapshot(world_snapshot)
@@ -862,13 +887,22 @@ Output strict JSON:
         elif action == "USE":
             item_name = target.split("->", 1)[0].strip()
             if not item_name or not self._has_required_tool_in_snapshot(world_snapshot, item_name):
-                wait("USE requires the named item to be in your hand.")
+                item = visible_item(item_name)
+                if item and not self._hand_items_from_snapshot(world_snapshot):
+                    redirect("READY", item["name"], f"Prepared {item['name']} from the visible slot before use.")
+                else:
+                    wait("USE requires the named item to be in your hand.")
 
         elif action == "ASSEMBLE":
             recipes = world_snapshot.get("available_recipes", [])
             recipe = next((entry for entry in recipes if self._label_matches(target, str(entry.get("id", ""))) or self._label_matches(target, str(entry.get("name", "")))), None)
             if self._hand_items_from_snapshot(world_snapshot):
-                wait("ASSEMBLE needs a free hand; DROP the held item first.")
+                held = self._hand_items_from_snapshot(world_snapshot)[0]
+                occupied_visible = any(str(item.get("inventory_slot", "")) == "visible" for item in world_snapshot.get("agent_inventory", []))
+                if not occupied_visible:
+                    redirect("STOW", held["name"], f"Stowed {held['name']} to free a hand for assembly.")
+                else:
+                    wait("ASSEMBLE needs a free hand and the visible slot is occupied; DROP or CONCEAL an item first.")
             elif not recipe:
                 wait("That recipe is not available at this location.")
 
@@ -1242,6 +1276,14 @@ Output strict JSON:
         return " | ".join(parts)
 
     @staticmethod
+    def _inventory_slot_summary(world_snapshot: dict[str, Any]) -> str:
+        slots = {"hand": [], "visible": [], "concealed": []}
+        for item in world_snapshot.get("agent_inventory", []):
+            slot = str(item.get("inventory_slot", "concealed" if item.get("hidden") else "hand"))
+            slots.setdefault(slot, []).append(str(item.get("name", item.get("id", "item"))))
+        return " | ".join(f"{slot}: {', '.join(items) or 'empty'}" for slot, items in slots.items())
+
+    @staticmethod
     def _strategy_list(value: Any, limit: int = 4) -> list[str]:
         if not isinstance(value, list):
             return []
@@ -1256,11 +1298,12 @@ Secret goal: {self.secret_goal}
 Long-term memory: {self.long_term_memory}
 Goal momentum: {self.goal_momentum}
 Review trigger: {trigger}
+Inventory slots: {self._inventory_slot_summary(world_snapshot)}
 
 Current subjective situation:
 {self.sense(world_snapshot)}
 
-Create a concise private plan. Do not issue an immediate action and do not invent tools, materials, locations, or system states. You may propose pursuing a listed recipe only when it appears in the situation. Make each subgoal an executable, mechanically valid next step: account for a full hand, current location, visible items, and recipe materials. Do not propose sabotage unless the secret goal explicitly calls for disruption.
+Create a concise private plan. Do not invent tools, materials, locations, or system states. You may propose pursuing a listed recipe only when it appears in the situation. Make the subgoals an ordered, executable action chain; account for all three inventory slots and include READY, STOW, CONCEAL, or DROP when a slot change is required before a tool action. Do not propose sabotage unless the secret goal explicitly calls for disruption.
 Return strict JSON:
 {{
   "goal": "one concise objective",

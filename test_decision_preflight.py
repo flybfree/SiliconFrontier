@@ -48,7 +48,13 @@ def main() -> None:
         "Gather evidence.", {"action": "ASSEMBLE", "action_target": "probe"},
         {**base, "agent_inventory": [{"name": "Probe", "hidden": False}], "available_recipes": [{"id": "probe"}]},
     )
-    assert assembly["action"] == "WAIT"
+    assert (assembly["action"], assembly["action_target"]) == ("STOW", "Probe")
+
+    ready = validate(
+        "Gather evidence.", {"action": "USE", "action_target": "Scanner -> oxygen_generator"},
+        {**base, "agent_inventory": [{"name": "Scanner", "inventory_slot": "visible"}]},
+    )
+    assert (ready["action"], ready["action_target"]) == ("READY", "Scanner")
     print("[PASS] Goal guard and inventory preflight correct invalid turns")
 
 

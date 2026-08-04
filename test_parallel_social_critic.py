@@ -72,6 +72,14 @@ def main() -> None:
         trust, affinity = social.get_scores(observer_id, "speaker")
         check(f"{observer_id} critic update applied", (trust, affinity) == (52, 51))
 
+    social.update_suspicion("observer_a", "speaker", 40)
+    orchestrator._apply_social_critic_update(observer_a, speaker, {
+        "action": "SAY", "trust_delta": 12, "affinity_delta": 8,
+        "suspicion_delta": 0, "notes": "Unsupported reassurance.", "source": "model",
+    })
+    trust, affinity = social.get_scores("observer_a", "speaker")
+    check("High suspicion prevents unsupported trust recovery", (trust, affinity) == (52, 51))
+
 
 if __name__ == "__main__":
     main()
