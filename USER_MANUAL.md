@@ -107,13 +107,12 @@ streamlit run dashboard.py
 
 In the sidebar:
 
-1. Set `API URL`
-2. Set `Config Directory` if you want to load a scenario other than the default `data`
-3. Optionally expand `Social critic` to configure a faster endpoint/model for parallel per-witness relationship evaluations
-4. Optionally expand `Strategic reasoning (periodic private planning)` to set a dedicated endpoint/model, the review interval, and the parallel review limit
-5. Click `Fetch Models` if your primary server supports the OpenAI-compatible `/models` endpoint, or enter a model name manually
-6. Click `Initialize Simulation` to apply all model-role settings
-7. Run single or multiple cycles
+1. Select a scenario.
+2. Expand **Action model**, **Social critic**, or **Strategic reasoning** as needed.
+3. For each role, set its endpoint and click `Fetch models` to select from that server's dropdown. If the server does not expose `/models`, enter its model name manually instead.
+4. Set the critic concurrency or strategic review settings where applicable.
+5. Click `Initialize Simulation` to apply all model-role settings.
+6. Run single or multiple cycles.
 
 ### Run the scenario editor
 

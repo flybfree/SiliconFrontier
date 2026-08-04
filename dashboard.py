@@ -154,6 +154,11 @@ class SimulationState:
         self.strategic_reasoning_model = get_strategic_reasoning_model()
         self.strategic_review_interval = get_strategic_review_interval()
         self.strategic_max_workers = get_strategic_max_workers()
+        # Cache model lists by endpoint so each model role can use its own
+        # OpenAI-compatible server without overwriting another role's choices.
+        self.available_models_by_url: dict[str, list[str]] = {}
+        self.model_fetch_errors_by_url: dict[str, str] = {}
+        # Keep these fields for compatibility with existing dashboard state.
         self.available_models: list[str] = []
         self.available_models_url: str | None = None
         self.model_fetch_error: str | None = None
@@ -452,11 +457,9 @@ class SimulationState:
 
     def fetch_models(self, llm_url: str | None = None) -> list[str]:
         """Fetch model IDs from an OpenAI-compatible /models endpoint."""
-        if llm_url:
-            self.llm_base_url = llm_url
-
         self.model_fetch_error = None
-        client = OpenAI(base_url=self.llm_base_url, api_key="not-needed", timeout=get_llm_timeout_seconds())
+        endpoint = llm_url or self.llm_base_url
+        client = OpenAI(base_url=endpoint, api_key="not-needed", timeout=get_llm_timeout_seconds())
 
         try:
             response = client.models.list()
@@ -464,14 +467,26 @@ class SimulationState:
                 model.id for model in getattr(response, "data", [])
                 if getattr(model, "id", None)
             })
+            self.available_models_by_url[endpoint] = models
+            self.model_fetch_errors_by_url.pop(endpoint, None)
             self.available_models = models
-            self.available_models_url = self.llm_base_url
+            self.available_models_url = endpoint
             return models
         except Exception as e:
+            self.available_models_by_url[endpoint] = []
+            self.model_fetch_errors_by_url[endpoint] = str(e)
             self.available_models = []
-            self.available_models_url = self.llm_base_url
+            self.available_models_url = endpoint
             self.model_fetch_error = str(e)
             return []
+
+    def fetched_models_for(self, endpoint: str) -> list[str]:
+        """Return the model IDs most recently fetched for one endpoint."""
+        return self.available_models_by_url.get(endpoint, [])
+
+    def model_fetch_error_for(self, endpoint: str) -> str | None:
+        """Return the latest fetch error for one endpoint, if any."""
+        return self.model_fetch_errors_by_url.get(endpoint)
 
     def queue_cycles(self, count: int) -> None:
         """Schedule one or more cycles to run across Streamlit reruns."""
@@ -1239,6 +1254,52 @@ def render_agent_library_controls():
             st.caption("Create at least one agent definition and one location before adding slots.")
 
 
+def render_model_role_selector(
+    *,
+    role_key: str,
+    endpoint_label: str,
+    endpoint_value: str,
+    model_label: str,
+    model_value: str,
+    endpoint_help: str,
+    model_help: str,
+) -> tuple[str, str]:
+    """Render one consistent endpoint + fetched-model control for an LLM role."""
+    endpoint = st.text_input(
+        endpoint_label,
+        value=endpoint_value,
+        key=f"{role_key}_endpoint",
+        help=endpoint_help,
+    )
+    if st.button("Fetch models", key=f"{role_key}_fetch_models"):
+        sim.fetch_models(endpoint)
+
+    fetch_error = sim.model_fetch_error_for(endpoint)
+    if fetch_error:
+        st.caption(f"Model fetch failed: {fetch_error}")
+
+    models = sim.fetched_models_for(endpoint)
+    if models:
+        # Retain a configured model that the server did not report, so opening
+        # the selector never silently changes an existing configuration.
+        options = models if model_value in models else [model_value, *models]
+        model = st.selectbox(
+            model_label,
+            options=options,
+            index=options.index(model_value),
+            key=f"{role_key}_model_select",
+            help=model_help,
+        )
+    else:
+        model = st.text_input(
+            model_label,
+            value=model_value,
+            key=f"{role_key}_model_name",
+            help=f"{model_help} Fetch models from this endpoint to choose from a dropdown.",
+        )
+    return endpoint, model
+
+
 def main():
     with st.sidebar:
         app_mode = st.radio(
@@ -1265,11 +1326,7 @@ def main():
 
         # LLM Configuration Section
         st.subheader("LLM Configuration")
-        llm_url = st.text_input(
-            "API URL",
-            value=sim.llm_base_url,
-            help="Local OpenAI-compatible API endpoint (e.g., http://localhost:1234/v1)"
-        )
+        llm_url = sim.llm_base_url
         scenarios_root = data_path("scenarios")
         scenario_dirs = sorted([
             str(p.relative_to(data_path())).replace("\\", "/")
@@ -1296,40 +1353,26 @@ def main():
             format_func=_scenario_label,
             help="Directory containing world_state.json plus agent definitions and simulation slots."
         )
-        if st.button("Fetch Models", key="fetch_models_init"):
-            sim.fetch_models(llm_url)
-        if sim.model_fetch_error and sim.available_models_url == llm_url:
-            st.caption(f"Model fetch failed: {sim.model_fetch_error}")
-
-        if sim.available_models and sim.available_models_url == llm_url:
-            default_model = (
-                sim.llm_model
-                if sim.llm_model in sim.available_models
-                else sim.available_models[0]
-            )
-            llm_model = st.selectbox(
-                "Model Name",
-                options=sim.available_models,
-                index=sim.available_models.index(default_model),
-                help="Model identifier returned by the inference server"
-            )
-        else:
-            llm_model = st.text_input(
-                "Model Name",
-                value=sim.llm_model,
-                help="Model identifier for the inference engine"
+        with st.expander("Action model (agent turns)", expanded=True):
+            llm_url, llm_model = render_model_role_selector(
+                role_key="action_model_init",
+                endpoint_label="Action API URL",
+                endpoint_value=llm_url,
+                model_label="Action Model",
+                model_value=sim.llm_model,
+                endpoint_help="OpenAI-compatible endpoint used for ordinary agent turns.",
+                model_help="Model identifier used for frequent, validated agent actions.",
             )
 
         with st.expander("Social critic (parallel witness evaluation)"):
-            social_critic_url = st.text_input(
-                "Critic API URL",
-                value=sim.social_critic_base_url,
-                help="Optional endpoint for fast per-witness relationship evaluations.",
-            )
-            social_critic_model = st.text_input(
-                "Critic Model Name",
-                value=sim.social_critic_model,
-                help="A smaller, faster model is usually sufficient for this short JSON task.",
+            social_critic_url, social_critic_model = render_model_role_selector(
+                role_key="social_critic_init",
+                endpoint_label="Critic API URL",
+                endpoint_value=sim.social_critic_base_url,
+                model_label="Critic Model",
+                model_value=sim.social_critic_model,
+                endpoint_help="Optional endpoint for fast per-witness relationship evaluations.",
+                model_help="A smaller, faster model is usually sufficient for this short JSON task.",
             )
             social_critic_max_workers = st.number_input(
                 "Parallel Critic Requests",
@@ -1341,15 +1384,14 @@ def main():
             )
 
         with st.expander("Strategic reasoning (periodic private planning)"):
-            strategic_reasoning_url = st.text_input(
-                "Strategic API URL",
-                value=sim.strategic_reasoning_base_url,
-                help="Endpoint for the slower planning model. It is used only for strategic reviews, not ordinary agent turns.",
-            )
-            strategic_reasoning_model = st.text_input(
-                "Strategic Model Name",
-                value=sim.strategic_reasoning_model,
-                help="Reasoning model used for private long-horizon plans and memory reflection.",
+            strategic_reasoning_url, strategic_reasoning_model = render_model_role_selector(
+                role_key="strategic_reasoning_init",
+                endpoint_label="Strategic API URL",
+                endpoint_value=sim.strategic_reasoning_base_url,
+                model_label="Strategic Model",
+                model_value=sim.strategic_reasoning_model,
+                endpoint_help="Endpoint for the slower planning model. It is used only for strategic reviews, not ordinary agent turns.",
+                model_help="Reasoning model used for private long-horizon plans and memory reflection.",
             )
             strategic_review_interval = st.number_input(
                 "Review Every N Cycles",
@@ -1430,53 +1472,60 @@ def main():
             # Settings update section (only show when running)
             st.subheader("Settings")
             st.caption("Update LLM settings and reinitialize")
-            new_url = st.text_input(
-                "New API URL",
-                value=sim.llm_base_url,
-                key="new_api_url"
-            )
-            if st.button("Refresh Model List", key="fetch_models_settings"):
-                sim.fetch_models(new_url)
-            if sim.model_fetch_error and sim.available_models_url == new_url:
-                st.caption(f"Model fetch failed: {sim.model_fetch_error}")
-
-            if sim.available_models and sim.available_models_url == new_url:
-                default_model = (
-                    sim.llm_model
-                    if sim.llm_model in sim.available_models
-                    else sim.available_models[0]
+            with st.expander("Action model (agent turns)"):
+                new_url, new_model = render_model_role_selector(
+                    role_key="action_model_settings",
+                    endpoint_label="Action API URL",
+                    endpoint_value=sim.llm_base_url,
+                    model_label="Action Model",
+                    model_value=sim.llm_model,
+                    endpoint_help="OpenAI-compatible endpoint used for ordinary agent turns.",
+                    model_help="Model identifier used for frequent, validated agent actions.",
                 )
-                new_model = st.selectbox(
-                    "New Model Name",
-                    options=sim.available_models,
-                    index=sim.available_models.index(default_model),
-                    key="new_model_select"
+            with st.expander("Social critic (parallel witness evaluation)"):
+                new_social_critic_url, new_social_critic_model = render_model_role_selector(
+                    role_key="social_critic_settings",
+                    endpoint_label="Critic API URL",
+                    endpoint_value=sim.social_critic_base_url,
+                    model_label="Critic Model",
+                    model_value=sim.social_critic_model,
+                    endpoint_help="Optional endpoint for fast per-witness relationship evaluations.",
+                    model_help="A smaller, faster model is usually sufficient for this short JSON task.",
                 )
-            else:
-                new_model = st.text_input(
-                    "New Model Name",
-                    value=sim.llm_model,
-                    key="new_model_name"
+                new_social_critic_workers = st.number_input(
+                    "Parallel Critic Requests",
+                    min_value=1,
+                    max_value=32,
+                    value=sim.social_critic_max_workers,
+                    step=1,
+                    key="new_social_critic_workers",
                 )
-
-            new_social_critic_url = st.text_input(
-                "New Critic API URL",
-                value=sim.social_critic_base_url,
-                key="new_social_critic_url",
-            )
-            new_social_critic_model = st.text_input(
-                "New Critic Model Name",
-                value=sim.social_critic_model,
-                key="new_social_critic_model",
-            )
-            new_social_critic_workers = st.number_input(
-                "New Parallel Critic Requests",
-                min_value=1,
-                max_value=32,
-                value=sim.social_critic_max_workers,
-                step=1,
-                key="new_social_critic_workers",
-            )
+            with st.expander("Strategic reasoning (periodic private planning)"):
+                new_strategic_url, new_strategic_model = render_model_role_selector(
+                    role_key="strategic_reasoning_settings",
+                    endpoint_label="Strategic API URL",
+                    endpoint_value=sim.strategic_reasoning_base_url,
+                    model_label="Strategic Model",
+                    model_value=sim.strategic_reasoning_model,
+                    endpoint_help="Endpoint for the slower planning model.",
+                    model_help="Reasoning model used for private long-horizon plans and memory reflection.",
+                )
+                new_strategic_interval = st.number_input(
+                    "Review Every N Cycles",
+                    min_value=1,
+                    max_value=100,
+                    value=sim.strategic_review_interval,
+                    step=1,
+                    key="new_strategic_interval",
+                )
+                new_strategic_workers = st.number_input(
+                    "Parallel Strategic Reviews",
+                    min_value=1,
+                    max_value=32,
+                    value=sim.strategic_max_workers,
+                    step=1,
+                    key="new_strategic_workers",
+                )
 
             if st.button("🔄 Reinitialize with New Settings"):
                 sim.stop()
@@ -1487,6 +1536,10 @@ def main():
                     social_critic_url=new_social_critic_url,
                     social_critic_model=new_social_critic_model,
                     social_critic_max_workers=int(new_social_critic_workers),
+                    strategic_reasoning_url=new_strategic_url,
+                    strategic_reasoning_model=new_strategic_model,
+                    strategic_review_interval=int(new_strategic_interval),
+                    strategic_max_workers=int(new_strategic_workers),
                 )
                 st.success("Reinitialized with new settings!")
                 st.rerun()

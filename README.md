@@ -52,7 +52,7 @@ By default, all terminal output is also mirrored to a timestamped file in `logs/
 streamlit run dashboard.py
 ```
 
-Set the API URL and config directory in the sidebar, click **Initialize Simulation**, then run cycles. The **Social critic** expander can point per-witness relationship evaluations at a faster endpoint/model and set a bounded number of parallel requests. The **Strategic reasoning (periodic private planning)** expander separately configures the strategic endpoint, model, review interval, and parallel review limit. Check **Log to file** to mirror all simulation output to a timestamped file in `logs/`.
+Choose the scenario and configure each model role in the sidebar, then click **Initialize Simulation** and run cycles. The action model, **Social critic**, and **Strategic reasoning (periodic private planning)** are consistent expanders: each can fetch models from its own OpenAI-compatible endpoint and select one from a dropdown, with manual entry available when a server does not expose `/models`. Check **Log to file** to mirror all simulation output to a timestamped file in `logs/`.
 
 ### Scenario editor
 
