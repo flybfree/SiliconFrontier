@@ -31,7 +31,7 @@ class FrontierAgent:
     """
 
     # Valid actions an agent can take
-    VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "USE", "GIVE", "DEMAND", "LIE", "READ", "SHOW", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "ASSEMBLE", "WAIT"]
+    VALID_ACTIONS = ["MOVE", "SAY", "WHISPER", "PICKUP", "DROP", "USE", "GIVE", "DEMAND", "LIE", "READ", "SHOW", "SABOTAGE", "REPAIR", "CONCEAL", "PRODUCE", "STOW", "READY", "ASSEMBLE", "WAIT"]
     VALID_EMOTIONAL_STATES = ["Calm", "Alert", "Anxious", "Fearful", "Angry", "Hopeful", "Suspicious", "Confident", "Resigned", "Determined", "Neutral"]
     VALID_EMOTIONAL_STATE_FALLBACK = "Neutral"
     RESPONSE_SCHEMA_NAME = "silicon_frontier_agent_turn"
@@ -285,12 +285,12 @@ class FrontierAgent:
         ]
         abnormal_systems_str = "\n".join(f"- {line}" for line in abnormal_system_lines) if abnormal_system_lines else "- None"
 
-        agent_hands = world_snapshot.get("visible_agent_hands", {})
+        agent_inventory = world_snapshot.get("visible_agent_inventory", {})
         nearby_agent_parts = []
         for aid in world_snapshot["visible_agents"]:
-            held = agent_hands.get(aid, [])
-            holding_str = f" (holding: {', '.join(held)})" if held else " (hands empty)"
-            nearby_agent_parts.append(f"'{aid}'{holding_str}")
+            carried = agent_inventory.get(aid, [])
+            carried_str = ", ".join(f"{entry['name']} ({entry['slot']})" for entry in carried)
+            nearby_agent_parts.append(f"'{aid}' ({carried_str or 'no visible items'})")
         agents_str = ", ".join(nearby_agent_parts) if nearby_agent_parts else "no one"
         relationship_lines = []
         for other_id, rel in world_snapshot.get("relationship_impressions", {}).items():
@@ -370,9 +370,11 @@ class FrontierAgent:
         """Construct the master system prompt for this agent."""
         from settings import DEFAULT_RELATIONSHIP_TRUST, DEFAULT_RELATIONSHIP_AFFINITY
 
-        hand_items = [item["name"] for item in world_snapshot["agent_inventory"] if not item.get("hidden")]
-        person_items = [item["name"] for item in world_snapshot["agent_inventory"] if item.get("hidden")]
-        inventory_str = f"In hand: {hand_items[0] if hand_items else 'empty'} | Concealed on person: {person_items[0] if person_items else 'empty'}"
+        slots = {"hand": [], "visible": [], "concealed": []}
+        for item in world_snapshot["agent_inventory"]:
+            slot = str(item.get("inventory_slot", "concealed" if item.get("hidden") else "hand"))
+            slots.setdefault(slot, []).append(item["name"])
+        inventory_str = f"In hand: {', '.join(slots['hand']) or 'empty'} | Visible: {', '.join(slots['visible']) or 'empty'} | Concealed: {', '.join(slots['concealed']) or 'empty'}"
         tool_lines = []
         for item in world_snapshot["agent_inventory"]:
             capabilities = item.get("tool", {}).get("capabilities", [])
@@ -438,7 +440,7 @@ Current Emotional State: {self.emotional_state} — let this genuinely color you
 THE SIMULATION RULES
 - The World is Discrete: You can only interact with things in your current location. To go elsewhere, you must use the MOVE command.
 - Movement: You can only MOVE to locations listed under "Exits (valid MOVE targets)" in your situation report. Do not attempt to move anywhere else.
-- Inventory: You have two slots — one item in hand (visible to others) and one item concealed on your person (hidden items only). You must have a free hand to pick up any item. Hidden items also require your person slot to be free.
+- Inventory: You have three slots — one item in hand, one visibly carried item, and one concealed item. Other agents can see your hand and visible slots, but never the concealed slot. You must have an empty hand to USE, REPAIR, or SABOTAGE with an item. STOW moves hand -> visible; READY moves visible -> hand.
 - Persistence: Your memories are long-term. Refer to previous events to build trust or hold grudges.
 - Truth Constraint: Do NOT invent items or people that are not in your "Current Situation" report.
 - Telemetry Constraint: Treat the listed system statuses as the authoritative truth for this turn.
@@ -508,7 +510,7 @@ ACTION TARGET RULES — action_target must be:
 - DEMAND: "item name -> agent_id" for an item the other agent is visibly holding
 - READ: the item name
 - SHOW: "item name -> agent_id"
-- CONCEAL / PRODUCE: the item name
+- CONCEAL / PRODUCE / STOW / READY: the item name
 - ASSEMBLE: the exact recipe ID shown in your situation report
 - SABOTAGE / REPAIR: the system name
 - WAIT: leave blank or write "nothing"
@@ -749,7 +751,10 @@ Output strict JSON:
     @staticmethod
     def _hand_items_from_snapshot(world_snapshot: dict[str, Any]) -> list[dict[str, Any]]:
         """Return visible in-hand items from the snapshot inventory."""
-        return [item for item in world_snapshot.get("agent_inventory", []) if not item.get("hidden")]
+        return [
+            item for item in world_snapshot.get("agent_inventory", [])
+            if str(item.get("inventory_slot", "concealed" if item.get("hidden") else "hand")) == "hand"
+        ]
 
     def _has_required_tool_in_snapshot(self, world_snapshot: dict[str, Any], required_tool: str) -> bool:
         """Check if the snapshot shows the agent holding the required tool."""
@@ -771,10 +776,11 @@ Output strict JSON:
         """Return whether another visible agent is shown holding the target item."""
         if agent_id not in world_snapshot.get("visible_agents", []):
             return False
-        visible_hands = world_snapshot.get("visible_agent_hands", {})
+        visible_inventory = world_snapshot.get("visible_agent_inventory", {})
         return any(
-            self._label_matches(item_name, held_item)
-            for held_item in visible_hands.get(agent_id, [])
+            self._label_matches(item_name, held_item.get("name", ""))
+            for held_item in visible_inventory.get(agent_id, [])
+            if held_item.get("slot") == "hand"
         )
 
     def _system_requirement_text(self, system_data: dict[str, Any]) -> str:
@@ -814,41 +820,57 @@ Output strict JSON:
         action = decision.get("action", "WAIT")
         target = decision.get("action_target", "")
 
+        def wait(reason: str) -> None:
+            nonlocal corrected
+            corrected = True
+            decision["action"] = "WAIT"
+            decision["action_target"] = ""
+            decision["validation_note"] = reason
+
         if action == "REPAIR":
             matched_system = self._match_visible_system(target, world_snapshot)
             if not matched_system:
-                corrected = True
-                decision["action"] = "WAIT"
-                decision["action_target"] = ""
+                wait("The repair target is not visible here.")
             else:
                 status = str(matched_system.get("status", "unknown")).upper()
                 required_tool = self._required_tool_for_action(matched_system, "REPAIR")
                 if status not in {"OFFLINE", "BROKEN"}:
-                    corrected = True
-                    decision["action"] = "WAIT"
-                    decision["action_target"] = ""
+                    wait("That system does not currently need repair.")
                 elif required_tool and not self._has_required_tool_in_snapshot(world_snapshot, required_tool):
-                    corrected = True
-                    decision["action"] = "WAIT"
-                    decision["action_target"] = ""
+                    wait(f"Repair requires holding {required_tool}.")
 
         elif action == "SABOTAGE":
             matched_system = self._match_visible_system(target, world_snapshot)
             if not matched_system:
-                corrected = True
-                decision["action"] = "WAIT"
-                decision["action_target"] = ""
+                wait("The sabotage target is not visible here.")
             else:
                 status = str(matched_system.get("status", "unknown")).upper()
                 required_tool = self._required_tool_for_action(matched_system, "SABOTAGE")
-                if status == "BROKEN":
-                    corrected = True
-                    decision["action"] = "WAIT"
-                    decision["action_target"] = ""
+                if not self._goal_permits_sabotage():
+                    wait("Your stated goal is protective; sabotaging station systems contradicts it.")
+                elif status == "BROKEN":
+                    wait("That system is already broken.")
                 elif required_tool and not self._has_required_tool_in_snapshot(world_snapshot, required_tool):
-                    corrected = True
-                    decision["action"] = "WAIT"
-                    decision["action_target"] = ""
+                    wait(f"Sabotage requires holding {required_tool}.")
+
+        elif action == "PICKUP":
+            hand = self._hand_items_from_snapshot(world_snapshot)
+            visible = [item for item in world_snapshot.get("agent_inventory", []) if item.get("inventory_slot") == "visible"]
+            if hand and visible:
+                wait("Your hand and visible inventory slots are occupied; DROP or CONCEAL an item first.")
+
+        elif action == "USE":
+            item_name = target.split("->", 1)[0].strip()
+            if not item_name or not self._has_required_tool_in_snapshot(world_snapshot, item_name):
+                wait("USE requires the named item to be in your hand.")
+
+        elif action == "ASSEMBLE":
+            recipes = world_snapshot.get("available_recipes", [])
+            recipe = next((entry for entry in recipes if self._label_matches(target, str(entry.get("id", ""))) or self._label_matches(target, str(entry.get("name", "")))), None)
+            if self._hand_items_from_snapshot(world_snapshot):
+                wait("ASSEMBLE needs a free hand; DROP the held item first.")
+            elif not recipe:
+                wait("That recipe is not available at this location.")
 
         elif action == "DEMAND":
             parsed = self._parse_item_agent_target(target)
@@ -886,6 +908,13 @@ Output strict JSON:
             self.STRUCTURED_STATUS_VALIDATED_CORRECTED if corrected else self.STRUCTURED_STATUS_VALIDATED
         )
         return decision
+
+    def _goal_permits_sabotage(self) -> bool:
+        """Keep destructive powers available to explicitly disruptive goals only."""
+        goal = self.secret_goal.lower()
+        destructive = ("sabotage", "offline", "disable", "disrupt", "chaos", "failure", "evacuat")
+        protective = ("keep", "protect", "restore", "repair", "maintain", "stabil", "functional", "contain", "identify")
+        return any(token in goal for token in destructive) or not any(token in goal for token in protective)
 
     def assess_message_against_telemetry(
         self,
@@ -1231,7 +1260,7 @@ Review trigger: {trigger}
 Current subjective situation:
 {self.sense(world_snapshot)}
 
-Create a concise private plan. Do not issue an immediate action and do not invent tools, materials, locations, or system states. You may propose pursuing a listed recipe only when it appears in the situation.
+Create a concise private plan. Do not issue an immediate action and do not invent tools, materials, locations, or system states. You may propose pursuing a listed recipe only when it appears in the situation. Make each subgoal an executable, mechanically valid next step: account for a full hand, current location, visible items, and recipe materials. Do not propose sabotage unless the secret goal explicitly calls for disruption.
 Return strict JSON:
 {{
   "goal": "one concise objective",

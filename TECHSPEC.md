@@ -94,6 +94,7 @@ Agent runtime state tracked by the world:
 
 - `location`
 - `inventory`
+- per-item runtime `inventory_slot` (`hand`, `visible`, or `concealed`)
 - `status_effects`
 
 Snapshot behavior:
@@ -106,6 +107,7 @@ Snapshot behavior:
 - `abnormal_systems`: all systems anywhere in the station whose status is not `ONLINE`
 - `visible_agents`
 - `visible_agent_hands`
+- `visible_agent_inventory`: nearby agents' hand and visible carried items only
 - `relationship_impressions`
 - `agent_inventory`
 - `facilities`: fabrication capabilities in the current location
@@ -125,7 +127,7 @@ It validates and executes all world mutations, including:
 - whisper target presence
 - sabotage solitude requirement
 - repair status and required-tool requirements
-- conceal/produce slot management
+- conceal/produce/stow/ready slot management
 - item consumption
 - recipe assembly: facility, material, and inventory validation followed by atomic material consumption and tool creation
 

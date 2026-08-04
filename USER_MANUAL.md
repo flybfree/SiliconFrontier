@@ -190,6 +190,8 @@ Agents are constrained to these actions:
 - `SHOW` — share an item's hidden `knowledge` with another agent in the room
 - `CONCEAL` — move an item from the hand slot to the concealed person slot
 - `PRODUCE` — move an item from the concealed person slot to the hand slot
+- `STOW` — move an in-hand item to the visible carried slot
+- `READY` — move a visibly carried item into the hand slot
 - `REPAIR` — restore a `BROKEN` system in the current location
 - `SABOTAGE` — break a system in the current location when alone
 - `WAIT` — take no action
@@ -206,28 +208,28 @@ Important constraints:
 - Agents can only talk to agents in the same location.
 - Movement only succeeds if the destination is listed under the current location's `connected_to`. Valid exits are shown explicitly in each agent's situation report.
 - Some destinations can optionally require an access item. This is configured per location and only applies where the scenario sets `requires_item` or `requires_items`.
-- Pickup only succeeds if the item is in the current room and is portable.
-- Each agent has a two-slot inventory: one item in hand and one concealed on their person. See [Inventory](#inventory) below.
+- Pickup only succeeds if the item is in the current room and is portable. Ordinary items enter the hand slot when free, otherwise the visible carried slot.
+- Each agent has three carried-item slots: one in hand, one visibly carried, and one concealed on their person. See [Inventory](#inventory) below.
 - Agent prompts include local system status plus a station-wide list of any systems whose status is not `ONLINE`.
 - `REPAIR` and `SABOTAGE` are pre-validated against the acting agent's visible local system telemetry before execution.
 
 ### Inventory
 
-Each agent carries at most two items:
+Each agent carries at most three items:
 
-- **In hand**: one regular (non-hidden) item, visible to other agents in the same room.
-- **Concealed on person**: one hidden item only.
+- **In hand**: one item ready for `USE`, `REPAIR`, `SABOTAGE`, `GIVE`, or `DEMAND`; visible to other agents in the same room.
+- **Visible carried**: one item co-located agents can see, but which must be moved into hand with `READY` before it can be used.
+- **Concealed on person**: one item unknown to co-located agents.
 
 Rules enforced by the action parser:
 
-- `PICKUP` of any item requires the hand slot to be free.
-- `PICKUP` of a hidden item additionally requires the person slot to be free.
+- `PICKUP` uses the hand slot when free, then the visible carried slot; hidden items use the concealed slot for compatibility with existing scenarios.
 - `GIVE` fails if the receiver's hand is already occupied.
 - `DEMAND` fails if your own hand is already occupied.
 - `READ` requires an item the agent is carrying or can access in the current room.
 - `SHOW` requires `item -> agent_id` and a visible recipient in the same room.
 
-Agents can see what others are holding in hand. Concealed items are not visible to others.
+Agents can see what others are holding in hand and visibly carrying. Concealed items are not visible to others.
 
 ### Memory and reflection
 
@@ -1065,10 +1067,14 @@ Durable tool example:
 
 ## CONCEAL and PRODUCE Actions
 
-`CONCEAL` and `PRODUCE` let agents manage their two-slot inventory directly.
+`CONCEAL`, `PRODUCE`, `STOW`, and `READY` let agents manage their three carried-item slots directly.
 
-- `CONCEAL item_name` — moves an item from the hand slot to the concealed person slot. The item's `hidden` flag is set to `true`, making it invisible to observers.
-- `PRODUCE item_name` — moves an item from the concealed person slot to the hand slot. The item's `hidden` flag is cleared.
+- `CONCEAL item_name` — moves an item from the hand slot to the concealed person slot.
+- `PRODUCE item_name` — moves an item from the concealed person slot to the hand slot.
+- `STOW item_name` — moves an item from the hand slot to the visibly carried slot.
+- `READY item_name` — moves an item from the visibly carried slot to the hand slot.
+
+Carried placement is stored in the runtime `inventory_slot` field (`hand`, `visible`, or `concealed`). This is separate from an item's `hidden` data flag, which continues to mark hidden knowledge in existing scenario assets.
 
 Both require the destination slot to be free. These actions let agents hide objects they have obtained and later reveal them deliberately.
 

@@ -668,7 +668,14 @@ def render_agent_card(agent):
     """Render a clickable agent card that opens an editor when expanded."""
     loc = sim.world_state.get_agent_location(agent.agent_id)
     inventory = sim.world_state.find_items_by_owner(agent.agent_id)
-    inventory_str = ', '.join([i['name'] for i in inventory]) if inventory else 'empty'
+    slots = {"hand": [], "visible": [], "concealed": []}
+    for item in inventory:
+        slots[sim.world_state.inventory_slot(item)].append(item["name"])
+    inventory_str = (
+        f"Hand: {', '.join(slots['hand']) or 'empty'} | "
+        f"Visible: {', '.join(slots['visible']) or 'empty'} | "
+        f"Concealed: {', '.join(slots['concealed']) or 'empty'}"
+    )
     short_term_memory = list(agent.memory_buffer)
 
     with st.expander(f"🤖 {agent.name} — {agent.emotional_state} @ {loc or 'unplaced'}"):

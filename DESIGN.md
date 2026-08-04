@@ -46,7 +46,7 @@ Each agent follows a `Sense -> Think -> Act -> Reflect` cycle.
 - current location
 - visible items
 - visible local systems
-- visible nearby agents and their visible hand items
+- visible nearby agents and their in-hand and visibly carried items
 - directional relationship impressions
 - the agent's own inventory
 - local fabrication facilities and recipes available there
@@ -64,7 +64,7 @@ Current implementation detail:
 
 - identity and role
 - persona and secret goal
-- visible inventory state
+- visible inventory state, including distinct hand, visible, and concealed slots
 - emotional state
 - nearby social context
 - local systems

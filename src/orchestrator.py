@@ -404,6 +404,18 @@ class Orchestrator:
         }
         self.system_incidents.append(incident)
 
+        # A station-wide fault leaves an auditable access trail. This gives
+        # uninvolved agents actionable evidence rather than a vague alert.
+        if agent.agent_id in prior_occupants:
+            for observer in self.agents:
+                if observer.agent_id == agent.agent_id:
+                    continue
+                observer.add_to_memory(
+                    f"Access records place {agent.name} near {system_id} shortly before its failure. Treat this as a lead, not proof."
+                )
+                self.social.update_suspicion(observer.agent_id, agent.agent_id, 8)
+            self._sync_relationships()
+
     def _print_system_status_snapshot(self) -> None:
         """Print the current status of every system in the station."""
         print("  System status snapshot:")
@@ -940,9 +952,9 @@ class Orchestrator:
                         self._apply_telemetry_speech_check(witness, agent, target)
                 if action == "LIE":
                     for witness_id in self.world.get_visible_agents(agent.agent_id):
-                        self.social.update_suspicion(witness_id, agent.agent_id, 4)
+                        self.social.update_suspicion(witness_id, agent.agent_id, 8)
                     self._sync_relationships()
-                    print(f"  [LIE] {agent.name}'s choice to lie raised suspicion among witnesses (+4).")
+                    print(f"  [LIE] {agent.name}'s choice to lie raised suspicion among witnesses (+8).")
 
             elif action == "READ" and success:
                 self._apply_read_side_effects(agent, target)
@@ -1023,7 +1035,7 @@ class Orchestrator:
                 hand_items = self.world.find_items_by_owner(agent.agent_id)
                 used_item = next(
                     (item for item in hand_items
-                     if not item.get("hidden") and (item_target.lower() in item["name"].lower() or item["id"] == item_target)),
+                     if self.world.inventory_slot(item) == "hand" and (item_target.lower() in item["name"].lower() or item["id"] == item_target)),
                     None
                 )
                 if used_item:

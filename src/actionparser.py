@@ -69,6 +69,8 @@ class ActionParser:
             "WHISPER": self._handle_whisper,
             "CONCEAL": self._handle_conceal,
             "PRODUCE": self._handle_produce,
+            "STOW": self._handle_stow,
+            "READY": self._handle_ready,
             "ASSEMBLE": self._handle_assemble,
             "USE": self._handle_use,
             "WAIT": self._handle_wait
@@ -149,12 +151,15 @@ class ActionParser:
         return True, f"Success: You said '{target}' to everyone in the room."
 
     def _hand_items(self, agent_id: str) -> list[dict]:
-        """Return the agent's non-hidden (in-hand) inventory items."""
-        return [i for i in self.world.find_items_by_owner(agent_id) if not i.get("hidden")]
+        """Return the agent's in-hand inventory item."""
+        return [i for i in self.world.find_items_by_owner(agent_id) if self.world.inventory_slot(i) == "hand"]
+
+    def _visible_items(self, agent_id: str) -> list[dict]:
+        return [i for i in self.world.find_items_by_owner(agent_id) if self.world.inventory_slot(i) == "visible"]
 
     def _person_items(self, agent_id: str) -> list[dict]:
-        """Return the agent's hidden (on-person) inventory items."""
-        return [i for i in self.world.find_items_by_owner(agent_id) if i.get("hidden")]
+        """Return the agent's concealed inventory item."""
+        return [i for i in self.world.find_items_by_owner(agent_id) if self.world.inventory_slot(i) == "concealed"]
 
     def _resolve_system_tool_requirement(self, system_data: dict[str, Any], action: str) -> str | None:
         """Return the configured required tool, or None when the action only needs an agent."""
@@ -235,24 +240,27 @@ class ActionParser:
         if not matching_item.get("portable", True):
             return False, f"Failure: The {matching_item['name']} is too heavy to move."
 
-        # Enforce two-slot inventory (one in hand, one concealed on person)
+        # A pickup occupies the hand when possible, otherwise the visible slot.
         hand = self._hand_items(agent.agent_id)
+        visible = self._visible_items(agent.agent_id)
         person = self._person_items(agent.agent_id)
 
         if matching_item.get("hidden"):
-            # Hidden items require a free hand to handle and a free person slot to conceal
-            if hand:
-                return False, f"Failure: You need a free hand to handle {matching_item['name']}. Drop {hand[0]['name']} first."
             if person:
                 return False, f"Failure: You're already concealing something on your person. You can't hide another item."
+            slot = "concealed"
         else:
-            # Regular items go in hand — hand must be free
             if hand:
-                return False, f"Failure: Your hand is already full (holding {hand[0]['name']}). Drop it first."
+                if visible:
+                    return False, f"Failure: Your hand holds {hand[0]['name']} and your visible slot holds {visible[0]['name']}."
+                slot = "visible"
+            else:
+                slot = "hand"
 
         # Execute pickup
         self.world.add_item_to_agent_inventory(agent.agent_id, matching_item["id"])
-        return True, f"Success: You are now holding the {matching_item['name']}."
+        self.world.set_item_inventory_slot(matching_item["id"], slot)
+        return True, f"Success: You placed {matching_item['name']} in your {slot} slot."
 
     def _handle_drop(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
         """Handle DROP action."""
@@ -602,7 +610,7 @@ class ActionParser:
         if person:
             return False, f"Failure: You are already concealing {person[0]['name']} on your person."
 
-        self.world.set_item_hidden(matching_item["id"], True)
+        self.world.set_item_inventory_slot(matching_item["id"], "concealed")
         return True, f"Success: You concealed the {matching_item['name']} on your person."
 
     def _handle_produce(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
@@ -623,8 +631,28 @@ class ActionParser:
         if hand:
             return False, f"Failure: Your hand is already holding {hand[0]['name']}. Drop it first."
 
-        self.world.set_item_hidden(matching_item["id"], False)
+        self.world.set_item_inventory_slot(matching_item["id"], "hand")
         return True, f"Success: You produced the {matching_item['name']}."
+
+    def _handle_stow(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Move an in-hand item to the visible carried slot."""
+        if self._visible_items(agent.agent_id):
+            return False, "Failure: Your visible slot is already occupied."
+        item = next((i for i in self._hand_items(agent.agent_id) if self._matches_entity(target, i.get("id", ""), i.get("name", ""))), None)
+        if not item:
+            return False, f"Failure: '{target}' is not in your hand."
+        self.world.set_item_inventory_slot(item["id"], "visible")
+        return True, f"Success: You stowed {item['name']} visibly."
+
+    def _handle_ready(self, agent, target: str, action_json: dict[str, Any]) -> tuple[bool, str]:
+        """Move a visible carried item into the hand slot."""
+        if self._hand_items(agent.agent_id):
+            return False, "Failure: Your hand is occupied."
+        item = next((i for i in self._visible_items(agent.agent_id) if self._matches_entity(target, i.get("id", ""), i.get("name", ""))), None)
+        if not item:
+            return False, f"Failure: '{target}' is not in your visible slot."
+        self.world.set_item_inventory_slot(item["id"], "hand")
+        return True, f"Success: You readied {item['name']} in your hand."
 
     # Validation utilities for Orchestrator to use before executing actions
     @staticmethod

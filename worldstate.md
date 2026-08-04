@@ -75,7 +75,7 @@ Materials are normal item entries with `material_type` and `quantity`, so they c
 This tracks the dynamic state of the agents, including their current location and what they believe they are doing.
 Key	Purpose
 Current Location	Determines what "Sense" data the agent receives.
-Inventory	A list of item IDs currently held by the agent.
+Inventory	A list of item IDs currently held by the agent. Each carried item also has a runtime `inventory_slot`: `hand`, `visible`, or `concealed`. Only hand and visible items are exposed to co-located agents.
 Current Goal	A high-level directive that guides the LLM's decision-making.
 Memory Buffer	A temporary list of the last few events perceived.
 Implementation Philosophy: "The Truth Table"

@@ -117,7 +117,7 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 ## Agent behavior mechanics
 
-**Inventory** — each agent holds at most two items: one in hand (visible to others) and one concealed on their person (hidden items only).
+**Inventory** — each agent has three carried-item slots: one in hand, one visibly carried, and one concealed. Co-located agents can see the hand and visible slots, but never the concealed slot.
 
 **Hidden information** — items with `knowledge` can be inspected with `READ` and disclosed with `SHOW item -> agent_id`. Facts are recorded per agent, so information can spread independently of who currently holds the item. Items can opt into a return obligation with `on_read.force_drop` or `return_required`.
 
@@ -129,7 +129,7 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **Whisper** — private directed communication to one agent in the room; bystanders see only that a whisper occurred.
 
-**Conceal / Produce** — agents can move items between their hand slot and concealed person slot, managing what is visible to others.
+**Inventory management** — `CONCEAL` / `PRODUCE` move items between hand and concealed slots; `STOW` / `READY` move items between hand and visibly carried slots.
 
 **Access-gated movement** — locations can optionally declare `requires_item` or `requires_items`; only those destinations require a matching carried item.
 
@@ -304,6 +304,7 @@ Validates and executes every action the LLM returns. It is the primary mutation 
 | `_handle_repair` | Any agent; restores a local `OFFLINE` or `BROKEN` system to `ONLINE` |
 | `_handle_conceal` | Move item from hand slot to concealed person slot |
 | `_handle_produce` | Move item from concealed person slot to hand slot |
+| `_handle_stow` / `_handle_ready` | Move an item between the hand and visibly carried slots |
 | `_handle_wait` | No-op; always succeeds |
 
 ---

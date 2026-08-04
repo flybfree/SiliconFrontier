@@ -440,6 +440,20 @@ class WorldState:
             if data.get("location") == my_loc and aid != agent_id
         ]
 
+    @staticmethod
+    def inventory_slot(item: dict[str, Any]) -> str:
+        """Return the carried slot, preserving legacy hidden-item saves."""
+        slot = str(item.get("inventory_slot", "")).lower()
+        if slot in {"hand", "visible", "concealed"}:
+            return slot
+        return "concealed" if item.get("hidden") else "hand"
+
+    def set_item_inventory_slot(self, item_id: str, slot: str) -> bool:
+        if slot not in {"hand", "visible", "concealed"} or item_id not in self.items:
+            return False
+        self.items[item_id]["inventory_slot"] = slot
+        return True
+
     def get_snapshot_for_agent(self, agent_id: str) -> dict[str, Any]:
         """
         Get a filtered view of the world suitable for an agent's Sense phase.
@@ -491,7 +505,15 @@ class WorldState:
                 other_id: [
                     item["name"]
                     for item in self.find_items_by_owner(other_id)
-                    if not item.get("hidden")
+                    if self.inventory_slot(item) == "hand"
+                ]
+                for other_id in visible_agents
+            },
+            "visible_agent_inventory": {
+                other_id: [
+                    {"name": item["name"], "slot": self.inventory_slot(item)}
+                    for item in self.find_items_by_owner(other_id)
+                    if self.inventory_slot(item) in {"hand", "visible"}
                 ]
                 for other_id in visible_agents
             },
