@@ -294,6 +294,23 @@ class FrontierAgent:
             for entry in abnormal_systems
         ]
         abnormal_systems_str = "\n".join(f"- {line}" for line in abnormal_system_lines) if abnormal_system_lines else "- None"
+        known_map = world_snapshot.get("known_map", {})
+        known_map_lines = []
+        for loc_id, map_data in sorted(known_map.items()):
+            state = "explored" if map_data.get("explored") else "mapped but unexplored"
+            exits = ", ".join(map_data.get("exits", [])) or "no known exits"
+            known_map_lines.append(f"- {map_data.get('name', loc_id)} ({loc_id}; {state}; exits: {exits})")
+        known_map_str = "\n".join(known_map_lines) if known_map_lines else "- Only your current surroundings are known."
+        known_system_lines = []
+        for system in world_snapshot.get("known_systems", []):
+            route = system.get("route", [])
+            route_text = " -> ".join(route) if route else "route not yet known"
+            known_system_lines.append(
+                f"- {system.get('name', system.get('system_id', 'unknown'))} in "
+                f"{system.get('location_name', system.get('location_id', 'unknown'))} "
+                f"is last known {system.get('status', 'unknown')} (route: {route_text})"
+            )
+        known_systems_str = "\n".join(known_system_lines) if known_system_lines else "- No systems discovered outside your current room."
 
         agent_inventory = world_snapshot.get("visible_agent_inventory", {})
         nearby_agent_parts = []
@@ -362,6 +379,19 @@ class FrontierAgent:
                 tactical_parts.append(
                     f"Witnessed sabotage opportunity: {', '.join(witnessed_targets)}. Sabotage here is conspicuous and likely to fail. Consider a cover action or MOVE through a listed exit to seek an unobserved opportunity before trying again."
                 )
+        if self._is_saboteur() and not any("Priority opportunity:" in part for part in tactical_parts):
+            remote_targets = [
+                system for system in world_snapshot.get("known_systems", [])
+                if system.get("location_id") != (loc.get("id") if loc else None)
+                and system.get("status", "ONLINE") != "BROKEN"
+                and system.get("route")
+            ]
+            if remote_targets:
+                target = min(remote_targets, key=lambda system: len(system.get("route", [])))
+                tactical_parts.append(
+                    f"Known alternative: {target.get('name', target.get('system_id'))} is reachable via "
+                    f"{' -> '.join(target['route'])}. You may pursue it, or explore an unvisited listed exit to discover new opportunities."
+                )
         repairable = [
             f"{sid} ({sd.get('status', 'unknown')})"
             for sid, sd in visible_sys_map.items()
@@ -381,6 +411,8 @@ class FrontierAgent:
             f"Fabrication facilities here: {facilities_str}\n"
             f"Recipes available here:\n{recipes_str}\n"
             f"Systems here: {systems_str}\n"
+            f"Known map:\n{known_map_str}\n"
+            f"Known discovered systems:\n{known_systems_str}\n"
             f"Known systems needing attention:\n{abnormal_systems_str}\n"
             f"Other agents present: {agents_str}\n"
             f"{contested_lines}"
@@ -995,16 +1027,19 @@ Output strict JSON:
 
     def _infer_saboteur_assignment(self) -> bool:
         """Infer the legacy assignment from old scenario goals or role labels."""
-        if self.role.strip().lower() == "saboteur":
+        if str(getattr(self, "role", "")).strip().lower() == "saboteur":
             return True
-        goal = self.secret_goal.lower()
+        goal = str(getattr(self, "secret_goal", "")).lower()
         destructive = ("sabotage", "offline", "disable", "disrupt", "chaos", "failure", "evacuat")
         protective = ("keep", "protect", "restore", "repair", "maintain", "stabil", "functional", "contain", "identify")
         return any(token in goal for token in destructive) or not any(token in goal for token in protective)
 
     def _is_saboteur(self) -> bool:
         """Return the agent's explicit or legacy-inferred secret assignment."""
-        return bool(self.is_saboteur)
+        # Lightweight tests and a few migration tools construct agents without
+        # calling __init__; preserve the same legacy behavior in that shape.
+        assigned = getattr(self, "is_saboteur", None)
+        return bool(assigned) if assigned is not None else self._infer_saboteur_assignment()
 
     def assess_message_against_telemetry(
         self,

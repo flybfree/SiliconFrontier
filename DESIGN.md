@@ -65,6 +65,7 @@ Current implementation detail:
 - identity and role
 - persona and secret goal
 - hidden assignment flags, including `is_saboteur`
+- private discovered-map knowledge: explored rooms, known exits, and last observed systems
 - visible inventory state, including distinct hand, visible, and concealed slots
 - emotional state
 - nearby social context

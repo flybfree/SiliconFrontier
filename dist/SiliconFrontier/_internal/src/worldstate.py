@@ -164,6 +164,80 @@ class WorldState:
             facilities = facilities.keys()
         return [str(facility) for facility in facilities]
 
+    # Map knowledge operations -------------------------------------------------
+    # The complete location graph remains authoritative world state.  Each agent
+    # instead carries a private, persistent record of rooms and exits it has
+    # actually discovered.  This makes map layout and exploration consequential.
+    def _map_entry(self, loc_id: str, explored: bool = False) -> dict[str, Any]:
+        location = self.get_location(loc_id) or {}
+        return {
+            "name": location.get("name", loc_id),
+            "explored": bool(explored),
+            "exits": [],
+            "facilities": [],
+            "systems": {},
+        }
+
+    def discover_location_for_agent(self, agent_id: str, loc_id: str) -> bool:
+        """Record a room's local details and reveal its direct exits to an agent."""
+        agent_data = self._data["agents"].get(agent_id)
+        location = self.get_location(loc_id)
+        if not agent_data or not location:
+            return False
+
+        knowledge = agent_data.setdefault("map_knowledge", {})
+        entry = knowledge.setdefault(loc_id, self._map_entry(loc_id))
+        entry.update({
+            "name": location.get("name", loc_id),
+            "explored": True,
+            "exits": list(location.get("connected_to", [])),
+            "facilities": list(self.get_location_facilities(loc_id)),
+            "systems": {
+                system_id: {
+                    "name": system.get("name", system_id),
+                    "status": system.get("status", "ONLINE"),
+                }
+                for system_id, system in self.get_location_systems(loc_id).items()
+            },
+        })
+        for exit_id in entry["exits"]:
+            knowledge.setdefault(exit_id, self._map_entry(exit_id))
+        return True
+
+    def get_agent_map_knowledge(self, agent_id: str) -> dict[str, dict[str, Any]]:
+        """Return a defensive copy of the agent's discovered map."""
+        knowledge = self._data["agents"].get(agent_id, {}).get("map_knowledge", {})
+        return {
+            loc_id: {
+                "name": entry.get("name", loc_id),
+                "explored": bool(entry.get("explored", False)),
+                "exits": list(entry.get("exits", [])),
+                "facilities": list(entry.get("facilities", [])),
+                "systems": {sid: dict(system) for sid, system in entry.get("systems", {}).items()},
+            }
+            for loc_id, entry in knowledge.items()
+            if loc_id in self.locations
+        }
+
+    @staticmethod
+    def _known_route(knowledge: dict[str, dict[str, Any]], start: str, destination: str) -> list[str]:
+        """Find a route through exits the agent has already discovered."""
+        if start == destination:
+            return [start]
+        frontier = [(start, [start])]
+        visited = {start}
+        while frontier:
+            current, path = frontier.pop(0)
+            for next_id in knowledge.get(current, {}).get("exits", []):
+                if next_id in visited or next_id not in knowledge:
+                    continue
+                candidate = path + [next_id]
+                if next_id == destination:
+                    return candidate
+                visited.add(next_id)
+                frontier.append((next_id, candidate))
+        return []
+
     def get_recipes_for_location(self, loc_id: str) -> list[dict[str, Any]]:
         """Return recipes that can be assembled at one of this location's facilities."""
         facilities = set(self.get_location_facilities(loc_id))
@@ -350,6 +424,7 @@ class WorldState:
         if agent_id not in self._data["agents"]:
             return False
         self._data["agents"][agent_id]["location"] = loc_id
+        self.discover_location_for_agent(agent_id, loc_id)
         return True
 
     def get_agent_location(self, agent_id: str) -> str | None:
@@ -413,14 +488,29 @@ class WorldState:
             return False
         return self.add_item_to_agent_inventory(to_agent_id, item_id)
 
-    def register_agent(self, agent_id: str, location: str, name: str | None = None) -> None:
+    def register_agent(
+        self,
+        agent_id: str,
+        location: str,
+        name: str | None = None,
+        initial_map_locations: list[str] | None = None,
+    ) -> None:
         """Register a new agent in the world state."""
         self._data["agents"][agent_id] = {
             "location": location,
             "name": name or agent_id,
             "inventory": [],
-            "status_effects": []
+            "status_effects": [],
+            "map_knowledge": {},
         }
+        # Scenario authors may seed room names/routes from a briefing or map.
+        # Only the room the agent occupies is explored automatically.
+        for known_id in initial_map_locations or []:
+            if known_id in self.locations:
+                self._data["agents"][agent_id]["map_knowledge"].setdefault(
+                    known_id, self._map_entry(known_id)
+                )
+        self.discover_location_for_agent(agent_id, location)
 
     # Utility methods for agents to query their environment
     def get_visible_items(self, agent_id: str) -> list[dict[str, Any]]:
@@ -461,6 +551,8 @@ class WorldState:
         """
         loc = self.get_agent_location(agent_id)
         location_data = self.get_location(loc) if loc else None
+        if loc:
+            self.discover_location_for_agent(agent_id, loc)
 
         visible_agents = self.get_visible_agents(agent_id)
 
@@ -472,11 +564,12 @@ class WorldState:
             } if location_data else None,
             "locations": {
                 location_id: {
-                    "name": data.get("name", location_id),
-                    "requires_item": data.get("requires_item"),
-                    "requires_items": data.get("requires_items")
+                    "name": map_data.get("name", location_id),
+                    "requires_item": self.locations[location_id].get("requires_item"),
+                    "requires_items": self.locations[location_id].get("requires_items"),
+                    "explored": bool(map_data.get("explored", False)),
                 }
-                for location_id, data in self.locations.items()
+                for location_id, map_data in self.get_agent_map_knowledge(agent_id).items()
             },
             "visible_items": [
                 {"id": iid, **item}
@@ -489,15 +582,27 @@ class WorldState:
             } if loc else {},
             "facilities": self.get_location_facilities(loc) if loc else [],
             "available_recipes": self.get_recipes_for_location(loc) if loc else [],
+            "known_map": self.get_agent_map_knowledge(agent_id),
+            "known_systems": [
+                {
+                    "location_id": location_id,
+                    "location_name": map_data.get("name", location_id),
+                    "system_id": system_id,
+                    **dict(system_data),
+                    "route": self._known_route(self.get_agent_map_knowledge(agent_id), loc or "", location_id),
+                }
+                for location_id, map_data in self.get_agent_map_knowledge(agent_id).items()
+                for system_id, system_data in map_data.get("systems", {}).items()
+            ],
             "abnormal_systems": [
                 {
                     "location_id": location_id,
-                    "location_name": loc_data.get("name", location_id),
+                    "location_name": map_data.get("name", location_id),
                     "system_id": system_id,
                     **dict(system_data),
                 }
-                for location_id, loc_data in self.locations.items()
-                for system_id, system_data in loc_data.get("systems", {}).items()
+                for location_id, map_data in self.get_agent_map_knowledge(agent_id).items()
+                for system_id, system_data in map_data.get("systems", {}).items()
                 if system_data.get("status", "ONLINE") != "ONLINE"
             ],
             "visible_agents": visible_agents,

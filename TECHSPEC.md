@@ -39,6 +39,7 @@ Telemetry-aware validation inside `FrontierAgent`:
 - `REPAIR` is downgraded to `WAIT` unless the targeted visible local system exists and is `OFFLINE` or `BROKEN`
 - `SABOTAGE` is downgraded to `WAIT` unless the agent has the hidden `is_saboteur` assignment and the targeted visible local system exists and is not already `BROKEN`
 - `SAY`, `LIE`, and `WHISPER` are not rewritten by telemetry validation
+- map knowledge is agent-private: a snapshot contains only explored room details and discovered exits, not the full location graph
 - `assess_message_against_telemetry()` lets a listener judge spoken system claims against their own snapshot
 
 ## 2. WorldState Schema

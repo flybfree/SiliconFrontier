@@ -356,11 +356,24 @@ You can also edit:
 
 - persona
 - secret goal
+- secret saboteur assignment
 - long-term memory
 
 Persona and secret goal are persisted back to [data/agent_definitions.json](data/agent_definitions.json). Long-term memory remains part of the running simulation state and save files.
 
-When creating an agent definition in the Agent Library, **Secret assignment: Saboteur** marks that definition as an authorized covert disruptor. This is separate from the public station role: a saboteur may publicly be a maintenance robot, scientist, or logistics coordinator. Only assigned saboteurs receive sabotage-priority guidance; legacy scenarios without the field retain their prior goal-based inference until updated.
+**Secret assignment: Saboteur** marks that definition as an authorized covert disruptor. It is available in each existing agent card's **Edit** section and while creating a new Agent Library definition. This is separate from the public station role: a saboteur may publicly be a maintenance robot, scientist, or logistics coordinator. Only assigned saboteurs receive sabotage-priority guidance; legacy scenarios without the field retain their prior goal-based inference until updated.
+
+### Map knowledge
+
+Each agent has a private discovered map. On entering a room, the agent learns that room's facilities, systems, and direct exits; an exit places the connected room on the agent's map but does not reveal its contents. Agents can plan routes only through exits they have discovered. The **Known Map** section of an agent card shows this state from the God-view dashboard.
+
+To model a briefing, station directory, or prior familiarity, set `initial_map_locations` on an agent definition. The listed room IDs begin as mapped; the agent must still visit them to discover their local systems and facilities. The starting room is always explored.
+
+### Map knowledge
+
+Each agent has a private discovered map. On entering a room, the agent learns that room's facilities, systems, and direct exits; an exit places the connected room on the agent's map but does not reveal its contents. Agents can plan routes only through exits they have discovered. The **Known Map** section of an agent card shows this state from the God-view dashboard.
+
+To model a briefing, station directory, or prior familiarity, set `initial_map_locations` on an agent definition. The listed room IDs begin as mapped; the agent must still visit them to discover their local systems and facilities. The starting room is always explored.
 
 The sidebar also exposes an `Agent Library` section where you can:
 

@@ -188,7 +188,12 @@ class SimulationState:
                 strategic_reasoning_model=self.strategic_reasoning_model,
             )
             if materialize_world_state:
-                self.world_state.register_agent(agent.agent_id, agent_cfg["starting_location"], name=agent_cfg.get("name"))
+                self.world_state.register_agent(
+                    agent.agent_id,
+                    agent_cfg["starting_location"],
+                    name=agent_cfg.get("name"),
+                    initial_map_locations=agent_cfg.get("initial_map_locations", []),
+                )
                 for item_id in agent_cfg.get("inventory", []):
                     if not self.world_state.add_item_to_agent_inventory(agent.agent_id, item_id):
                         import streamlit as st
@@ -307,7 +312,9 @@ class SimulationState:
         definition_id: str,
         *,
         persona: str,
-        secret_goal: str
+        secret_goal: str,
+        is_saboteur: bool | None = None,
+        initial_map_locations: list[str] | None = None,
     ) -> None:
         """Persist selected definition fields back to the reusable agent catalog."""
         import copy
@@ -316,6 +323,10 @@ class SimulationState:
                 continue
             agent_def["persona"] = persona
             agent_def["secret_goal"] = secret_goal
+            if is_saboteur is not None:
+                agent_def["is_saboteur"] = bool(is_saboteur)
+            if initial_map_locations is not None:
+                agent_def["initial_map_locations"] = list(initial_map_locations)
             break
 
         save_agent_definitions(self.agent_definitions, self.config_dir)
@@ -397,6 +408,7 @@ class SimulationState:
         persona: str,
         secret_goal: str,
         is_saboteur: bool = False,
+        initial_map_locations: list[str] | None = None,
         condition: dict | None = None
     ) -> None:
         """Add a new reusable agent definition and persist it."""
@@ -410,6 +422,7 @@ class SimulationState:
             "persona": persona,
             "secret_goal": secret_goal,
             "is_saboteur": bool(is_saboteur),
+            "initial_map_locations": list(initial_map_locations or []),
         })
         save_agent_definitions(self.agent_definitions, self.config_dir)
         self._baseline_agent_definitions = copy.deepcopy(self.agent_definitions)
@@ -504,6 +517,10 @@ class SimulationState:
             agent.persona = definition["persona"]
             agent.secret_goal = definition["secret_goal"]
             agent.role = definition.get("role", "crew member")
+            if "is_saboteur" in definition:
+                agent.is_saboteur = bool(definition["is_saboteur"])
+            else:
+                agent.is_saboteur = agent._infer_saboteur_assignment()
             agent.perception = int(definition.get("perception", 50))
             agent.condition = FrontierAgent._normalize_condition(definition.get("condition"))
             agent.memory_buffer = []
@@ -553,6 +570,7 @@ class SimulationState:
                     "condition": copy.deepcopy(getattr(a, "condition", FrontierAgent.DEFAULT_CONDITION)),
                     "persona": a.persona,
                     "secret_goal": a.secret_goal,
+                    "is_saboteur": bool(getattr(a, "is_saboteur", False)),
                     "memory_buffer": list(a.memory_buffer),
                     "long_term_memory": a.long_term_memory,
                     "emotional_state": a.emotional_state,
@@ -596,6 +614,10 @@ class SimulationState:
             agent.persona = saved["persona"]
             agent.secret_goal = saved["secret_goal"]
             agent.role = saved.get("role", agent.role)
+            if "is_saboteur" in saved:
+                agent.is_saboteur = bool(saved["is_saboteur"])
+            else:
+                agent.is_saboteur = agent._infer_saboteur_assignment()
             agent.perception = int(saved.get("perception", agent.perception))
             agent.condition = FrontierAgent._normalize_condition(saved.get("condition", getattr(agent, "condition", None)))
             agent.definition_id = saved.get("definition_id", getattr(agent, "definition_id", None))
@@ -699,6 +721,21 @@ def render_agent_card(agent):
         else:
             st.caption("No short-term memories recorded yet.")
 
+        st.markdown("**Known Map**")
+        known_map = sim.world_state.get_agent_map_knowledge(agent.agent_id)
+        if known_map:
+            map_rows = [
+                {
+                    "Location": entry.get("name", location_id),
+                    "Status": "Explored" if entry.get("explored") else "Mapped",
+                    "Known exits": ", ".join(entry.get("exits", [])) or "—",
+                }
+                for location_id, entry in sorted(known_map.items())
+            ]
+            st.dataframe(map_rows, width="stretch", hide_index=True)
+        else:
+            st.caption("No map knowledge recorded yet.")
+
         st.divider()
         st.markdown("**Edit**")
         all_loc_ids = list(sim.world_state.locations.keys())
@@ -707,6 +744,24 @@ def render_agent_card(agent):
         new_loc = st.selectbox("Location", options=all_loc_ids, index=loc_index, key=f"loc_{agent.agent_id}")
         new_persona = st.text_area("Persona", value=agent.persona, key=f"persona_{agent.agent_id}")
         new_goal = st.text_input("Secret Goal", value=agent.secret_goal, key=f"goal_{agent.agent_id}")
+        new_is_saboteur = st.checkbox(
+            "Secret assignment: Saboteur",
+            value=bool(getattr(agent, "is_saboteur", False)),
+            key=f"saboteur_{agent.agent_id}",
+            help="Allows covert sabotage tactics. This is separate from the public station role."
+        )
+        definition = next(
+            (entry for entry in sim.agent_definitions.get("agents", [])
+             if entry.get("definition_id") == getattr(agent, "definition_id", None)),
+            {},
+        )
+        new_initial_map_locations = st.multiselect(
+            "Starting Map Knowledge",
+            options=all_loc_ids,
+            default=[location_id for location_id in definition.get("initial_map_locations", []) if location_id in all_loc_ids],
+            help="Rooms known from a briefing or map after the next reinitialization or reset.",
+            key=f"map_knowledge_{agent.agent_id}",
+        )
         new_memory = st.text_area("Long-term Memory", value=agent.long_term_memory, key=f"mem_{agent.agent_id}", height=100)
 
         if st.button("Apply Changes", key=f"apply_{agent.agent_id}"):
@@ -714,11 +769,14 @@ def render_agent_card(agent):
                 sim.world_state.register_agent(agent.agent_id, new_loc, name=agent.name)
             agent.persona = new_persona
             agent.secret_goal = new_goal
+            agent.is_saboteur = new_is_saboteur
             agent.long_term_memory = new_memory
             sim.update_agent_definition(
                 getattr(agent, "definition_id", agent.agent_id),
                 persona=new_persona,
-                secret_goal=new_goal
+                secret_goal=new_goal,
+                is_saboteur=new_is_saboteur,
+                initial_map_locations=new_initial_map_locations,
             )
             st.success("Updated.")
             st.rerun()
@@ -1108,6 +1166,12 @@ def render_agent_library_controls():
             key="new_def_is_saboteur",
             help="Assigned saboteurs seek covert opportunities to disable systems; other agents do not."
         )
+        new_initial_map_locations = st.multiselect(
+            "Initial Map Knowledge",
+            options=all_locations,
+            help="Rooms this definition knows by briefing or map at scenario start. The starting room is always explored.",
+            key="new_def_map_knowledge",
+        )
         new_perception = st.slider("Perception", min_value=0, max_value=100, value=50, key="new_def_perception")
         new_persona = st.text_area("Persona", key="new_def_persona", height=100)
         new_secret_goal = st.text_area("Secret Goal", key="new_def_goal", height=80)
@@ -1125,6 +1189,7 @@ def render_agent_library_controls():
                     persona=new_persona.strip(),
                     secret_goal=new_secret_goal.strip(),
                     is_saboteur=new_is_saboteur,
+                    initial_map_locations=new_initial_map_locations,
                 )
                 st.success("Agent definition created. You can now assign it to a slot.")
                 st.rerun()

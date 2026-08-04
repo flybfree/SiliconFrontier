@@ -355,6 +355,14 @@ The simulation loads from any directory containing three files:
 
 Items can reference shared definitions from `library/items.json` via an `item_placements` list instead of duplicating full item objects in each scenario. Starting relationships can be seeded using named presets from `library/relationship_presets.json`.
 
+### Map knowledge and exploration
+
+Agents do not receive the full station map or every system target. They begin by exploring their starting room, learn its direct exits, and discover a room's facilities and systems only on entry. A discovered exit exposes a room on the private map but not its contents. Agent snapshots, saves, and the dashboard preserve this private map knowledge. Scenario authors may add `initial_map_locations` to an agent definition to model a briefing, schematic, or prior familiarity; those rooms are mapped but remain unexplored until visited.
+
+### Map knowledge and exploration
+
+Agents do not receive the full station map or every system target. They begin by exploring their starting room, learn its direct exits, and discover a room's facilities and systems only on entry. A discovered exit exposes a room on the private map but not its contents. Agent snapshots, saves, and the dashboard preserve this private map knowledge. Scenario authors may add `initial_map_locations` to an agent definition to model a briefing, schematic, or prior familiarity; those rooms are mapped but remain unexplored until visited.
+
 See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flags, consumable effects, rogue agent setup, and dashboard controls.
 
 ---
@@ -363,6 +371,8 @@ See [USER_MANUAL.md](USER_MANUAL.md) for full configuration reference, item flag
 
 - Run single or batched cycles
 - Inspect agent memory, emotional state, and inventory per turn
+- Inspect each agent's private discovered map and configure starting map knowledge
+- Inspect each agent's private discovered map and configure starting map knowledge
 - Edit agent persona, secret goal, and location live
 - Relationship matrix with trust, affinity, and notes per observer-target pair; scores shown as human-readable labels with numeric values
 - World state editor for locations, items, and systems
