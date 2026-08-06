@@ -89,6 +89,10 @@ Runtime `logs/`, `saves/`, and the editable `settings.json` are created next to 
 
 The simulation can use three independent model roles. `llm_model` handles frequent, validated agent turns; `social_critic_model` performs short parallel witness evaluations; and `strategic_reasoning_model` performs occasional private planning reviews. Strategic reviews run every `strategic_review_interval` cycles, after blocked fabrication, or after a station-system change. They produce intent only—never direct world mutations. Sidebar changes apply when **Initialize Simulation** is clicked; `settings.json` beside the executable supplies the next launch's defaults.
 
+Model requests are fault-tolerant. If an action model request fails, that agent safely waits for the turn; social-critic and strategic-review failures fall back to deterministic behavior; and reflection failures retain the agent's existing memory. Logs identify the failed role, endpoint, model, and exception so transient server pressure can be diagnosed without stopping the simulation.
+
+When an action is preempted by a known environmental rule before it changes world state—for example, an observed saboteur attempting sabotage—the agent gets one informed replacement choice in the same turn. The replacement cannot repeat sabotage while witnesses are present, and every preemption/reconsideration pair is recorded in the event log.
+
 ```json
 {
   "llm_base_url": "http://192.168.3.181:1234/v1",
@@ -137,9 +141,11 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **Tool-gated systems** — systems can optionally require one tool for `REPAIR`, one tool for `SABOTAGE`, or the same tool for both via `required_tool_repair` and `required_tool_sabotage`. A missing, empty, `null`, `"None"`, or `"null"` tool value means no tool is required for that action.
 
-**Fabrication** — a scenario may define location `facilities`, material stacks (`material_type` and `quantity`), and declarative `recipes`. An agent can use `ASSEMBLE <recipe_id>` at a compatible facility with the required local or carried materials and an empty hand. The engine consumes the materials and creates a persistent, provenance-tagged tool; tool effects remain declarative simulation data rather than executable agent code. Fabricated capability tools use `USE tool -> target`, which is checked against a fixed simulation capability registry. The default scenario deliberately creates competing paths: its single Data Module can become either a Signal Relay for coordination or a Telemetry Spoofer for deception.
+**Fabrication** — a scenario may define location `facilities`, material stacks (`material_type` and `quantity`), and declarative `recipes`. Each agent's local recipe view reports missing material quantities, whether the materials are ready, and whether the recipe is immediately craftable with its current hand slot. An agent can use `ASSEMBLE <recipe_id>` at a compatible facility with the required local or carried materials and an empty hand. Decision preflight turns an occupied-hand attempt into the next valid `STOW` or `CONCEAL` step, and prevents a wasted assembly turn when materials are known to be absent. The engine consumes the materials and creates a persistent, provenance-tagged tool; tool effects remain declarative simulation data rather than executable agent code. Fabricated capability tools use `USE tool -> target`, which is checked against a fixed simulation capability registry. The default scenario deliberately creates competing paths: its single Data Module can become either a Signal Relay for coordination or a Telemetry Spoofer for deception.
 
 **System consequences** — systems can declare status-triggered consequences that add/remove location effects, broadcast memories, and apply runtime agent effects when `SABOTAGE` or `REPAIR` changes system status.
+
+**Critical recovery** — an `OFFLINE` or `BROKEN` system remains an active incident. The incident is recorded immediately, escalates crew stress and morale loss every two unresolved cycles, and triggers new strategic reviews. Non-saboteurs carrying the required repair tool are deterministically directed through the next recovery step: free a hand, ready or produce the tool, move along a known route, demand a visibly held tool, then `REPAIR`. This prevents evidence gathering and conversation from indefinitely displacing an achievable emergency repair.
 
 **Speech as knowledge** — agents retain heard `SAY`/`LIE` content and direct `WHISPER` content as durable known facts. Whisper bystanders only know that a private exchange occurred.
 

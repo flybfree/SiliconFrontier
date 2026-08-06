@@ -82,6 +82,19 @@ class ActionParser:
 
         return False, f"Failure: Unknown action '{action}'. Valid actions: {', '.join(agent.VALID_ACTIONS)}"
 
+    @staticmethod
+    def is_reconsiderable_failure(action: str, feedback: str) -> bool:
+        """Return whether an unmet environmental condition merits one new choice.
+
+        These failures leave world state unchanged but make the originally
+        intended action impossible for this turn. They differ from ordinary
+        failed attempts, which remain part of the simulation's consequences.
+        """
+        return (
+            str(action).upper() == "SABOTAGE"
+            and "Someone else is here. Sabotage would be too obvious." in str(feedback)
+        )
+
     def _handle_move(self, agent, target: str, _) -> tuple[bool, str]:
         """Handle MOVE action."""
         current_loc = self.world.get_agent_location(agent.agent_id)

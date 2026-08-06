@@ -89,8 +89,10 @@ class Orchestrator:
         self.event_log: list[dict[str, Any]] = []
         self.social_critic_activity: list[dict[str, Any]] = []
         self.strategic_activity: list[dict[str, Any]] = []
+        self.reflection_activity: list[dict[str, Any]] = []
         self._strategic_triggers: dict[str, str] = {}
         self.system_incidents: list[dict[str, Any]] = []
+        self.critical_incident_pressure: dict[str, int] = {}
         self.proximity_log: list[dict[str, Any]] = []
 
         # Cycle counter
@@ -433,6 +435,53 @@ class Orchestrator:
                 )
                 self.social.update_suspicion(observer.agent_id, agent.agent_id, 8)
             self._sync_relationships()
+
+    def _advance_critical_incident_pressure(self) -> list[dict[str, Any]]:
+        """Escalate unresolved OFFLINE/BROKEN systems once per cycle."""
+        active: dict[str, tuple[str, str, dict[str, Any]]] = {}
+        for location_id, location in self.world.locations.items():
+            for system_id, system in location.get("systems", {}).items():
+                if str(system.get("status", "ONLINE")).upper() in {"OFFLINE", "BROKEN"}:
+                    active[f"{location_id}:{system_id}"] = (location_id, system_id, system)
+
+        entries: list[dict[str, Any]] = []
+        for key in list(self.critical_incident_pressure):
+            if key not in active:
+                del self.critical_incident_pressure[key]
+
+        for key, (location_id, system_id, system) in active.items():
+            age = self.critical_incident_pressure.get(key, 0) + 1
+            self.critical_incident_pressure[key] = age
+            system_name = system.get("name", system_id)
+            location_name = self.world.get_location(location_id).get("name", location_id)
+            if age == 1:
+                message = f"Critical incident active: {system_name} in {location_name} is {system.get('status')}. Recovery remains the station priority."
+            elif age % 2 == 0:
+                message = f"Critical incident unresolved for {age} cycles: {system_name} in {location_name} remains {system.get('status')}."
+                for agent in self.agents:
+                    changed = agent.adjust_condition(stress=2, morale=-1)
+                    if changed:
+                        agent.add_to_memory(message)
+                for agent in self.agents:
+                    self._queue_strategic_trigger(agent, f"critical incident unresolved: {system_id}")
+            else:
+                continue
+
+            print(f"  [Critical Incident] {message}")
+            entry = {
+                "cycle": self.cycle_count,
+                "agent_id": "scenario",
+                "agent_name": "Critical Incident",
+                "action": "INCIDENT_PRESSURE",
+                "target": system_id,
+                "success": True,
+                "feedback": message,
+                "structured_output_status": "n/a",
+                "incident_age": age,
+            }
+            self.event_log.append(entry)
+            entries.append(entry)
+        return entries
 
     def _print_system_status_snapshot(self) -> None:
         """Print the current status of every system in the station."""
@@ -924,6 +973,7 @@ class Orchestrator:
             emotional_state = decision.get("emotional_state", "Neutral")
             structured_output_status = decision.get("structured_output_status", "unknown")
             validation_note = decision.get("validation_note", "")
+            model_error = getattr(agent, "last_model_error", None)
 
             # Enforce pending_drop obligation for items that explicitly require return
             if agent.pending_drop and agent.pending_drop_name:
@@ -946,9 +996,50 @@ class Orchestrator:
                 print(f"  Structured Output: {structured_output_status}")
             if validation_note:
                 print(f"  Decision adjustment: {validation_note}")
+            if model_error:
+                print(
+                    "  Model fallback: "
+                    f"role={model_error.get('role')}; endpoint={model_error.get('endpoint')}; "
+                    f"model={model_error.get('model')}; error={model_error.get('exception_type')}: "
+                    f"{model_error.get('message')}"
+                )
 
             # 4. EXECUTE - Validate and apply action
             success, feedback = self.parser.execute(agent, {"action": action, "action_target": target})
+            preempted_action: dict[str, str] | None = None
+            if not success and self.parser.is_reconsiderable_failure(action, feedback):
+                preempted_action = {
+                    "action": action,
+                    "target": target,
+                    "feedback": feedback,
+                }
+                retry_snapshot = self.world.get_snapshot_for_agent(agent.agent_id)
+                retry_observation = agent.sense(retry_snapshot)
+                retry = agent.reconsider_action(
+                    retry_observation,
+                    retry_snapshot,
+                    action,
+                    target,
+                    feedback,
+                )
+                action = retry.get("action", "WAIT").upper()
+                target = retry.get("action_target", "")
+                monologue = retry.get("internal_monologue", "")
+                emotional_state = retry.get("emotional_state", emotional_state)
+                structured_output_status = retry.get("structured_output_status", structured_output_status)
+                validation_note = retry.get("validation_note", "")
+                model_error = getattr(agent, "last_model_error", None)
+                agent.set_emotional_state(emotional_state)
+                success, feedback = self.parser.execute(agent, {"action": action, "action_target": target})
+                print(
+                    f"  Reconsidered after preemption: {preempted_action['action']} "
+                    f"({preempted_action['target']}) → {action} ({target})"
+                )
+                print(f"  Revised thoughts: {monologue}")
+                if structured_output_status != "structured_disabled":
+                    print(f"  Revised Structured Output: {structured_output_status}")
+                if validation_note:
+                    print(f"  Revised decision adjustment: {validation_note}")
             if action == "ASSEMBLE" and not success:
                 self._queue_strategic_trigger(agent, "fabrication attempt blocked")
             elif action in {"REPAIR", "SABOTAGE"} and success:
@@ -973,6 +1064,8 @@ class Orchestrator:
                 "emotional_state": emotional_state,
                 "structured_output_status": structured_output_status,
                 "validation_note": validation_note,
+                "model_error": model_error,
+                "preempted_action": preempted_action,
             }
             self.event_log.append(result_entry)
 
@@ -1141,15 +1234,35 @@ class Orchestrator:
                 cycle_results.append(terminal_entry)
                 break
 
+        cycle_results.extend(self._advance_critical_incident_pressure())
+
         # Check for reflection trigger
         if self.cycle_count % self.reflection_interval == 0:
             print(f"\n--- REFLECTION PHASE (Cycle {self.cycle_count}) ---")
             for agent in self.agents:
                 agent_snapshot = self.world.get_snapshot_for_agent(agent.agent_id)
                 new_summary = agent.reflect(agent_snapshot)
+                reflection = getattr(agent, "last_reflection_result", None) or {"source": "unknown"}
+                reflection_entry = {
+                    "cycle": self.cycle_count,
+                    "agent": agent.name,
+                    "source": reflection.get("source", "unknown"),
+                    "endpoint": getattr(agent, "strategic_reasoning_base_url", ""),
+                    "model": getattr(agent, "strategic_reasoning_model", ""),
+                    "error": reflection.get("message", ""),
+                    "exception_type": reflection.get("exception_type", ""),
+                }
+                self.reflection_activity.append(reflection_entry)
                 print(f"[{agent.name}] Memory consolidated. New long-term memory:")
                 print(f"  '{new_summary[:150]}...'")
                 print(f"  Goal momentum: {agent.goal_momentum}")
+                if reflection_entry["source"] == "fallback":
+                    print(
+                        "  Reflection fallback: "
+                        f"endpoint={reflection_entry['endpoint']}; model={reflection_entry['model']}; "
+                        f"error={reflection_entry['exception_type']}: {reflection_entry['error']}"
+                    )
+            self.reflection_activity = self.reflection_activity[-100:]
 
         self._run_strategic_reviews()
 

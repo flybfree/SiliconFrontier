@@ -7,6 +7,7 @@ its goals, and takes actions through a local LLM inference engine.
 
 import json
 import re
+import traceback
 from typing import Any
 from openai import OpenAI
 
@@ -41,6 +42,7 @@ class FrontierAgent:
     STRUCTURED_STATUS_DISABLED = "structured_disabled"
     STRUCTURED_STATUS_VALIDATED = "structured_validated"
     STRUCTURED_STATUS_VALIDATED_CORRECTED = "structured_validated_corrected"
+    STRUCTURED_STATUS_MODEL_FALLBACK = "model_error_fallback"
     DEFAULT_CONDITION = {
         "health": 100,
         "stress": 0,
@@ -140,6 +142,7 @@ class FrontierAgent:
             api_key=resolved_api_key,
             timeout=resolved_timeout
         )
+        self.llm_base_url = resolved_llm_base_url
         self.llm_model = resolved_llm_model
         self.social_critic_client = OpenAI(
             base_url=resolved_social_critic_base_url,
@@ -158,6 +161,10 @@ class FrontierAgent:
         self.strategic_plan: dict[str, Any] = {}
         self.last_strategic_review_cycle: int | None = None
         self.last_strategic_trigger: str | None = None
+        self.last_model_error: dict[str, str] | None = None
+        self.last_social_critic_error: dict[str, str] | None = None
+        self.last_strategic_error: dict[str, str] | None = None
+        self.last_reflection_result: dict[str, str] | None = None
 
         # Emotional state tracking (for observation)
         self.emotional_state: str = "Neutral"
@@ -335,11 +342,23 @@ class FrontierAgent:
         known_facts_str = "\n".join(known_fact_lines) if known_fact_lines else "- None"
         facilities = world_snapshot.get("facilities", [])
         facilities_str = ", ".join(facilities) if facilities else "None"
-        recipe_lines = [
-            f"- {recipe.get('id')}: {recipe.get('name', recipe.get('id'))} "
-            f"(materials: {recipe.get('materials', {})})"
-            for recipe in world_snapshot.get("available_recipes", [])
-        ]
+        recipe_lines = []
+        for recipe in world_snapshot.get("available_recipes", []):
+            readiness = "materials unavailable"
+            if recipe.get("craftable_now"):
+                readiness = "READY TO ASSEMBLE NOW"
+            elif recipe.get("requires_free_hand"):
+                readiness = "materials ready — free your hand first"
+            elif recipe.get("missing_materials"):
+                missing = ", ".join(
+                    f"{material} x{quantity}"
+                    for material, quantity in recipe["missing_materials"].items()
+                )
+                readiness = f"missing: {missing}"
+            recipe_lines.append(
+                f"- {recipe.get('id')}: {recipe.get('name', recipe.get('id'))} "
+                f"(materials: {recipe.get('materials', {})}; {readiness})"
+            )
         recipes_str = "\n".join(recipe_lines) if recipe_lines else "- None"
 
         contested_lines = ""
@@ -522,6 +541,7 @@ KNOWN NON-ONLINE SYSTEMS ACROSS THE STATION
 SYSTEM DECISION RULES
 - Only choose REPAIR for a system whose visible status is OFFLINE or BROKEN.
 - If a system is ONLINE or DEGRADED, do not attempt REPAIR. Consider another action instead.
+- An OFFLINE or BROKEN system is a critical recovery priority. If you can directly advance its repair, do that before optional conversation, observation, or evidence gathering.
 - SABOTAGE is different from REPAIR: an ONLINE or DEGRADED system can be sabotaged if it is visible here.
 - Do not choose SABOTAGE for a system whose visible status is already BROKEN.
 - If a system lists `repair_tool=...`, you must be holding that tool in your hand to REPAIR it.
@@ -529,6 +549,7 @@ SYSTEM DECISION RULES
 - If the tool for the chosen system action is not listed, no tool is required; the action still requires a valid local target.
 - Do not claim a system is failing unless that status is shown in the telemetry above.
 - You may ASSEMBLE only a listed recipe at a listed fabrication facility. This consumes its materials and creates a real in-world tool; do not invent recipes or tool effects.
+- When a listed recipe says `READY TO ASSEMBLE NOW` and its tool would advance your goal, prefer ASSEMBLE over repeatedly inspecting, waiting, or collecting unrelated materials. When its materials are ready but your hand is occupied, take the indicated slot-management step first.
 - For a fabricated tool with a listed capability target, use `USE tool name -> exact system ID`. Tools without a target-aware capability still use `USE tool name`.
 
 ITEM TRANSFER RULES
@@ -617,6 +638,7 @@ Output strict JSON:
 }}
 """
 
+        self.last_social_critic_error = None
         try:
             response = self.social_critic_client.chat.completions.create(
                 model=self.social_critic_model,
@@ -624,7 +646,13 @@ Output strict JSON:
                 temperature=0.2
             )
         except Exception as exc:
-            print(f"  [Warning] Social critic evaluation failed for {self.name}: {exc}")
+            self._record_model_failure(
+                role="social_critic",
+                endpoint=self.social_critic_base_url,
+                model=self.social_critic_model,
+                exc=exc,
+                state_attr="last_social_critic_error",
+            )
             return None
 
         parsed = self._parse_decision_from_response(response)
@@ -867,6 +895,90 @@ Output strict JSON:
                 }
         return None
 
+    def _critical_recovery_action(self, world_snapshot: dict[str, Any]) -> tuple[str, str, str] | None:
+        """Choose one concrete next step toward repairing a known critical fault."""
+        if self._is_saboteur():
+            return None
+
+        inventory = world_snapshot.get("agent_inventory", [])
+
+        def slot_item(slot: str) -> dict[str, Any] | None:
+            return next((
+                item for item in inventory
+                if str(item.get("inventory_slot", "concealed" if item.get("hidden") else "hand")) == slot
+            ), None)
+
+        def matches_tool(item: dict[str, Any], tool: str | None) -> bool:
+            return bool(tool) and (
+                self._label_matches(tool, item.get("id", ""))
+                or self._label_matches(tool, item.get("name", ""))
+            )
+
+        def free_hand_step(reason: str) -> tuple[str, str, str] | None:
+            held = slot_item("hand")
+            if not held:
+                return None
+            if not slot_item("visible"):
+                return "STOW", held["name"], f"Critical recovery priority: stow {held['name']} to free a hand for {reason}."
+            if not slot_item("concealed"):
+                return "CONCEAL", held["name"], f"Critical recovery priority: conceal {held['name']} to free a hand for {reason}."
+            return None
+
+        def repair_step(system: dict[str, Any], system_id: str) -> tuple[str, str, str] | None:
+            required_tool = self._required_tool_for_action(system, "REPAIR")
+            hand = slot_item("hand")
+            if not required_tool or (hand and matches_tool(hand, required_tool)):
+                return "REPAIR", system_id, f"Critical recovery priority: repair {system.get('name', system_id)} now."
+            required_item = next((item for item in inventory if matches_tool(item, required_tool)), None)
+            if not required_item:
+                return None
+            if hand:
+                return free_hand_step(f"readying {required_item['name']} for repair")
+            slot = str(required_item.get("inventory_slot", "concealed" if required_item.get("hidden") else "hand"))
+            return (
+                "READY" if slot == "visible" else "PRODUCE",
+                required_item["name"],
+                f"Critical recovery priority: prepare {required_item['name']} for repair.",
+            )
+
+        local_faults = [
+            (system_id, system_data)
+            for system_id, system_data in world_snapshot.get("visible_systems", {}).items()
+            if str(system_data.get("status", "ONLINE")).upper() in {"OFFLINE", "BROKEN"}
+        ]
+        if local_faults:
+            system_id, system_data = local_faults[0]
+            if step := repair_step(system_data, system_id):
+                return step
+            required_tool = self._required_tool_for_action(system_data, "REPAIR")
+            if required_tool:
+                for other_id, items in world_snapshot.get("visible_agent_inventory", {}).items():
+                    if any(entry.get("slot") == "hand" and self._label_matches(required_tool, entry.get("name", "")) for entry in items):
+                        if step := free_hand_step(f"demanding {required_tool} for repair"):
+                            return step
+                        return "DEMAND", f"{required_tool} -> {other_id}", f"Critical recovery priority: obtain {required_tool} from {other_id} for repair."
+
+        for system in world_snapshot.get("known_systems", []):
+            if (
+                str(system.get("status", "ONLINE")).upper() not in {"OFFLINE", "BROKEN"}
+                or system.get("location_id") == (world_snapshot.get("current_location") or {}).get("id")
+                or not system.get("route")
+            ):
+                continue
+            required_tool = self._required_tool_for_action(system, "REPAIR")
+            if required_tool and not any(matches_tool(item, required_tool) for item in inventory):
+                continue
+            if required_tool and not (slot_item("hand") and matches_tool(slot_item("hand"), required_tool)):
+                required_item = next(item for item in inventory if matches_tool(item, required_tool))
+                if step := free_hand_step(f"preparing {required_item['name']} for emergency repair"):
+                    return step
+                slot = str(required_item.get("inventory_slot", "concealed" if required_item.get("hidden") else "hand"))
+                return "READY" if slot == "visible" else "PRODUCE", required_item["name"], f"Critical recovery priority: prepare {required_item['name']} for repair."
+            route = list(system.get("route", []))
+            if len(route) >= 2:
+                return "MOVE", route[1], f"Critical recovery priority: travel toward {system.get('name', system.get('system_id'))}."
+        return None
+
     def _validate_decision_against_telemetry(
         self,
         decision: dict[str, Any],
@@ -911,6 +1023,28 @@ Output strict JSON:
                 None,
             )
 
+        def slot_item(slot: str) -> dict[str, Any] | None:
+            return next(
+                (
+                    item for item in world_snapshot.get("agent_inventory", [])
+                    if str(item.get("inventory_slot", "concealed" if item.get("hidden") else "hand")) == slot
+                ),
+                None,
+            )
+
+        def free_hand(reason: str) -> bool:
+            """Turn an impossible hand-dependent action into its first useful setup step."""
+            held = slot_item("hand")
+            if not held:
+                return True
+            if not slot_item("visible"):
+                redirect("STOW", held["name"], f"Stowed {held['name']} to free a hand for {reason}.")
+            elif not slot_item("concealed"):
+                redirect("CONCEAL", held["name"], f"Concealed {held['name']} to free a hand for {reason}.")
+            else:
+                wait(f"{reason} needs a free hand, but all inventory slots are occupied.")
+            return False
+
         if action == "REPAIR":
             matched_system = self._match_visible_system(target, world_snapshot)
             if not matched_system:
@@ -953,7 +1087,7 @@ Output strict JSON:
             hand = self._hand_items_from_snapshot(world_snapshot)
             visible = [item for item in world_snapshot.get("agent_inventory", []) if item.get("inventory_slot") == "visible"]
             if hand and visible:
-                wait("Your hand and visible inventory slots are occupied; DROP or CONCEAL an item first.")
+                free_hand("picking up another item")
 
         elif action == "USE":
             item_name = target.split("->", 1)[0].strip()
@@ -968,9 +1102,13 @@ Output strict JSON:
                 wait(f"{matching_item.get('name', item_name)} is a material or inert item and has no usable effect; fabricate or use another tool.")
             elif not item_name or not self._has_required_tool_in_snapshot(world_snapshot, item_name):
                 item = visible_item(item_name)
-                if item and not self._hand_items_from_snapshot(world_snapshot):
+                if item and not free_hand(f"readying {item['name']} for use"):
+                    pass
+                elif item:
                     redirect("READY", item["name"], f"Prepared {item['name']} from the visible slot before use.")
-                elif (item := concealed_item(item_name)) and not self._hand_items_from_snapshot(world_snapshot):
+                elif (item := concealed_item(item_name)) and not free_hand(f"producing {item['name']} for use"):
+                    pass
+                elif item:
                     redirect("PRODUCE", item["name"], f"Produced {item['name']} from the concealed slot before use.")
                 else:
                     wait("USE requires the named item to be in your hand.")
@@ -979,14 +1117,59 @@ Output strict JSON:
             recipes = world_snapshot.get("available_recipes", [])
             recipe = next((entry for entry in recipes if self._label_matches(target, str(entry.get("id", ""))) or self._label_matches(target, str(entry.get("name", "")))), None)
             if self._hand_items_from_snapshot(world_snapshot):
-                held = self._hand_items_from_snapshot(world_snapshot)[0]
-                occupied_visible = any(str(item.get("inventory_slot", "")) == "visible" for item in world_snapshot.get("agent_inventory", []))
-                if not occupied_visible:
-                    redirect("STOW", held["name"], f"Stowed {held['name']} to free a hand for assembly.")
-                else:
-                    wait("ASSEMBLE needs a free hand and the visible slot is occupied; DROP or CONCEAL an item first.")
+                free_hand("assembly")
             elif not recipe:
                 wait("That recipe is not available at this location.")
+            elif not recipe.get("materials_ready", True):
+                missing = recipe.get("missing_materials", {})
+                details = ", ".join(f"{material} x{quantity}" for material, quantity in missing.items())
+                wait(f"Assembly materials are not available: {details or 'required materials are missing'}.")
+
+        elif action == "READY":
+            item = visible_item(target)
+            if not item:
+                wait(f"{target or 'That item'} is not in your visible slot.")
+            elif self._hand_items_from_snapshot(world_snapshot):
+                free_hand(f"readying {item['name']}")
+
+        elif action == "PRODUCE":
+            item = concealed_item(target)
+            if not item:
+                wait(f"{target or 'That item'} is not concealed on your person.")
+            elif self._hand_items_from_snapshot(world_snapshot):
+                free_hand(f"producing {item['name']}")
+
+        elif action == "CONCEAL":
+            hand_match = next(
+                (
+                    item for item in self._hand_items_from_snapshot(world_snapshot)
+                    if self._label_matches(target, item.get("id", "")) or self._label_matches(target, item.get("name", ""))
+                ),
+                None,
+            )
+            if hand_match and slot_item("concealed"):
+                wait("Your concealed inventory slot is already occupied.")
+            elif not hand_match:
+                visible_match = visible_item(target)
+                if visible_match and not self._hand_items_from_snapshot(world_snapshot):
+                    redirect("READY", visible_match["name"], f"Readied {visible_match['name']} before concealing it.")
+                elif visible_match:
+                    free_hand(f"concealing {visible_match['name']}")
+                else:
+                    wait(f"{target or 'That item'} is not in your hand.")
+
+        elif action == "STOW":
+            hand_match = next(
+                (
+                    item for item in self._hand_items_from_snapshot(world_snapshot)
+                    if self._label_matches(target, item.get("id", "")) or self._label_matches(target, item.get("name", ""))
+                ),
+                None,
+            )
+            if not hand_match:
+                wait(f"{target or 'That item'} is not in your hand.")
+            elif slot_item("visible"):
+                wait("Your visible inventory slot is already occupied.")
 
         elif action == "DEMAND":
             parsed = self._parse_item_agent_target(target)
@@ -1003,6 +1186,8 @@ Output strict JSON:
                     corrected = True
                     decision["action"] = "WAIT"
                     decision["action_target"] = ""
+                elif self._hand_items_from_snapshot(world_snapshot):
+                    free_hand(f"demanding {item_name}")
 
         elif action == "GIVE":
             parsed = self._parse_item_agent_target(target)
@@ -1020,9 +1205,20 @@ Output strict JSON:
                     decision["action"] = "WAIT"
                     decision["action_target"] = ""
 
-        decision["structured_output_status"] = (
-            self.STRUCTURED_STATUS_VALIDATED_CORRECTED if corrected else self.STRUCTURED_STATUS_VALIDATED
-        )
+        recovery_action = self._critical_recovery_action(world_snapshot)
+        if recovery_action:
+            next_action, next_target, reason = recovery_action
+            if (decision.get("action"), decision.get("action_target")) != (next_action, next_target):
+                redirect(next_action, next_target, reason)
+
+        # A deterministic validation result must not conceal an upstream model
+        # outage. The fallback decision is valid, but it was not model-generated.
+        if getattr(self, "last_structured_output_status", None) == self.STRUCTURED_STATUS_MODEL_FALLBACK:
+            decision["structured_output_status"] = self.STRUCTURED_STATUS_MODEL_FALLBACK
+        else:
+            decision["structured_output_status"] = (
+                self.STRUCTURED_STATUS_VALIDATED_CORRECTED if corrected else self.STRUCTURED_STATUS_VALIDATED
+            )
         return decision
 
     def _infer_saboteur_assignment(self) -> bool:
@@ -1179,6 +1375,31 @@ Output strict JSON:
 
         return self.client.chat.completions.create(**request_kwargs)
 
+    def _record_model_failure(
+        self,
+        *,
+        role: str,
+        endpoint: str,
+        model: str,
+        exc: Exception,
+        state_attr: str,
+    ) -> dict[str, str]:
+        """Record a concise, actionable LLM failure without exposing a traceback to prompts."""
+        error = {
+            "role": role,
+            "endpoint": endpoint,
+            "model": model,
+            "exception_type": type(exc).__name__,
+            "message": str(exc)[:500],
+            "traceback": traceback.format_exc(limit=5),
+        }
+        setattr(self, state_attr, error)
+        print(
+            f"  [Model failure] role={role}; endpoint={endpoint}; model={model}; "
+            f"error={error['exception_type']}: {error['message']}"
+        )
+        return error
+
     @staticmethod
     def _extract_message_text(response: Any) -> str:
         """Best-effort extraction of text content from OpenAI-compatible responses."""
@@ -1249,51 +1470,104 @@ Output strict JSON:
 
         user_prompt = f"Current Situation:\n{observation}\n\nWhat do you do next?"
 
-        if self.enable_structured_output:
-            try:
-                response = self._request_turn_completion(
-                    system_prompt,
-                    user_prompt,
-                    use_response_schema=True
-                )
-                self.last_structured_output_status = self.STRUCTURED_STATUS_STRUCTURED
-            except Exception as exc:
-                if not self._error_suggests_unsupported_schema(exc):
-                    raise
-                self.last_structured_output_status = self.STRUCTURED_STATUS_FALLBACK
-                self.enable_structured_output = False
+        self.last_model_error = None
+        try:
+            if self.enable_structured_output:
+                try:
+                    response = self._request_turn_completion(
+                        system_prompt,
+                        user_prompt,
+                        use_response_schema=True
+                    )
+                    self.last_structured_output_status = self.STRUCTURED_STATUS_STRUCTURED
+                except Exception as exc:
+                    if not self._error_suggests_unsupported_schema(exc):
+                        raise
+                    self.last_structured_output_status = self.STRUCTURED_STATUS_FALLBACK
+                    self.enable_structured_output = False
+                    response = self._request_turn_completion(
+                        system_prompt,
+                        user_prompt,
+                        use_response_schema=False
+                    )
+            else:
+                self.last_structured_output_status = self.STRUCTURED_STATUS_DISABLED
                 response = self._request_turn_completion(
                     system_prompt,
                     user_prompt,
                     use_response_schema=False
                 )
-        else:
-            self.last_structured_output_status = self.STRUCTURED_STATUS_DISABLED
-            response = self._request_turn_completion(
-                system_prompt,
-                user_prompt,
-                use_response_schema=False
-            )
 
-        parsed_decision = self._parse_decision_from_response(response)
-        if parsed_decision is not None:
-            normalized = self._normalize_decision(parsed_decision)
-            return self._validate_decision_against_telemetry(normalized, snapshot)
-
-        if self.last_structured_output_status == self.STRUCTURED_STATUS_STRUCTURED:
-            self.last_structured_output_status = self.STRUCTURED_STATUS_PARSE_FALLBACK
-            fallback_response = self._request_turn_completion(
-                system_prompt,
-                user_prompt,
-                use_response_schema=False
-            )
-            parsed_decision = self._parse_decision_from_response(fallback_response)
+            parsed_decision = self._parse_decision_from_response(response)
             if parsed_decision is not None:
                 normalized = self._normalize_decision(parsed_decision)
                 return self._validate_decision_against_telemetry(normalized, snapshot)
 
+            if self.last_structured_output_status == self.STRUCTURED_STATUS_STRUCTURED:
+                self.last_structured_output_status = self.STRUCTURED_STATUS_PARSE_FALLBACK
+                fallback_response = self._request_turn_completion(
+                    system_prompt,
+                    user_prompt,
+                    use_response_schema=False
+                )
+                parsed_decision = self._parse_decision_from_response(fallback_response)
+                if parsed_decision is not None:
+                    normalized = self._normalize_decision(parsed_decision)
+                    return self._validate_decision_against_telemetry(normalized, snapshot)
+        except Exception as exc:
+            self._record_model_failure(
+                role="action",
+                endpoint=self.llm_base_url,
+                model=self.llm_model,
+                exc=exc,
+                state_attr="last_model_error",
+            )
+            self.last_structured_output_status = self.STRUCTURED_STATUS_MODEL_FALLBACK
+            normalized = self._normalize_decision({
+                "internal_monologue": "My action model is temporarily unavailable; waiting preserves the situation until I can reason again.",
+                "action": "WAIT",
+                "action_target": "",
+                "emotional_state": self.emotional_state,
+            })
+            return self._validate_decision_against_telemetry(normalized, snapshot)
+
         normalized = self._normalize_decision({})
         return self._validate_decision_against_telemetry(normalized, snapshot)
+
+    def reconsider_action(
+        self,
+        observation: str,
+        world_snapshot: dict[str, Any],
+        attempted_action: str,
+        attempted_target: str,
+        feedback: str,
+    ) -> dict[str, Any]:
+        """Give an agent one informed replacement choice after a preempted action.
+
+        This is deliberately a single re-decision, not a retry loop. The failed
+        action did not alter the world, so the agent can choose a useful cover,
+        movement, inventory, or social action in the same turn.
+        """
+        correction = (
+            "\n\nACTION PREEMPTED — choose a DIFFERENT action now.\n"
+            f"Your attempted action was: {attempted_action} ({attempted_target or 'no target'}).\n"
+            f"The simulation rejected it because: {feedback}\n"
+            "This did not consume your turn and did not change the world. "
+            "Do not repeat the attempted action. Choose one legal alternative from your current situation. "
+            "If sabotage was blocked by witnesses, do not choose SABOTAGE this turn; use a cover action, prepare resources, communicate, or MOVE."
+        )
+        decision = self.think_and_act(observation + correction, world_snapshot)
+        action = str(decision.get("action", "WAIT")).upper()
+        target = str(decision.get("action_target", ""))
+        if action == str(attempted_action).upper() or action == "SABOTAGE":
+            decision = self._normalize_decision({
+                "internal_monologue": "My first plan was preempted, so I will wait rather than repeat an impossible action.",
+                "action": "WAIT",
+                "action_target": "",
+                "emotional_state": self.emotional_state,
+            })
+            decision["validation_note"] = "Reconsideration must choose a different non-sabotage action while witnesses are present."
+        return decision
 
     def reflect(self, world_snapshot: dict[str, Any]) -> str:
         """
@@ -1328,10 +1602,24 @@ Output strict JSON:
   "goal_momentum": "One of: advancing, stalled, or setback — honestly assess whether recent events moved you toward or away from your secret goal."
 }}"""
 
-        response = self.strategic_client.chat.completions.create(
-            model=self.strategic_reasoning_model,
-            messages=[{"role": "user", "content": reflection_prompt}]
-        )
+        self.last_reflection_result = None
+        try:
+            response = self.strategic_client.chat.completions.create(
+                model=self.strategic_reasoning_model,
+                messages=[{"role": "user", "content": reflection_prompt}]
+            )
+        except Exception as exc:
+            error = self._record_model_failure(
+                role="reflection",
+                endpoint=self.strategic_reasoning_base_url,
+                model=self.strategic_reasoning_model,
+                exc=exc,
+                state_attr="last_reflection_result",
+            )
+            # Reflection is advisory memory maintenance. Preserve existing
+            # memory and keep the simulation running when its model is busy.
+            error["source"] = "fallback"
+            return self.long_term_memory
 
         reflection_text = self._extract_message_text(response).strip()
 
@@ -1349,6 +1637,7 @@ Output strict JSON:
             self.long_term_memory = reflection_text
 
         self.memory_buffer = []  # Clear buffer after consolidation
+        self.last_reflection_result = {"source": "model"}
         return self.long_term_memory
 
     def _strategic_plan_text(self) -> str:
@@ -1419,7 +1708,14 @@ Return strict JSON:
             }
             return {"source": "model", "plan": plan}
         except Exception as exc:
-            return {"source": "fallback", "plan": {}, "error": str(exc)[:240]}
+            error = self._record_model_failure(
+                role="strategic_reasoning",
+                endpoint=self.strategic_reasoning_base_url,
+                model=self.strategic_reasoning_model,
+                exc=exc,
+                state_attr="last_strategic_error",
+            )
+            return {"source": "fallback", "plan": {}, "error": error["message"]}
 
     def apply_strategic_plan(self, plan: dict[str, Any], cycle: int, trigger: str) -> None:
         """Apply a validated planner result after the orchestrator orders reviews."""

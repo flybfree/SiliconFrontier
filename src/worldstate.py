@@ -556,6 +556,27 @@ class WorldState:
 
         visible_agents = self.get_visible_agents(agent_id)
 
+        available_recipes = []
+        for recipe in self.get_recipes_for_location(loc) if loc else []:
+            recipe_view = dict(recipe)
+            missing_materials: dict[str, int] = {}
+            for material_id, quantity in recipe.get("materials", {}).items():
+                available = sum(
+                    int(item.get("quantity", 1))
+                    for _, item in self._accessible_materials(agent_id, material_id)
+                )
+                if available < int(quantity):
+                    missing_materials[material_id] = int(quantity) - available
+            hand_occupied = any(
+                self.inventory_slot(item) == "hand"
+                for item in self.find_items_by_owner(agent_id)
+            )
+            recipe_view["missing_materials"] = missing_materials
+            recipe_view["materials_ready"] = not missing_materials
+            recipe_view["craftable_now"] = not missing_materials and not hand_occupied
+            recipe_view["requires_free_hand"] = not missing_materials and hand_occupied
+            available_recipes.append(recipe_view)
+
         return {
             "agent_id": agent_id,
             "current_location": {
@@ -581,7 +602,7 @@ class WorldState:
                 for system_id, system_data in self.get_location_systems(loc).items()
             } if loc else {},
             "facilities": self.get_location_facilities(loc) if loc else [],
-            "available_recipes": self.get_recipes_for_location(loc) if loc else [],
+            "available_recipes": available_recipes,
             "known_map": self.get_agent_map_knowledge(agent_id),
             "known_systems": [
                 {

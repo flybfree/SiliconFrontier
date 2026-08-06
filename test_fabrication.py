@@ -62,6 +62,8 @@ def main() -> None:
     snapshot = world.get_snapshot_for_agent("builder")
     check("Snapshot exposes local fabricator", snapshot["facilities"] == ["fabricator"])
     check("Snapshot exposes available recipe", snapshot["available_recipes"][0]["id"] == "atmosphere_probe")
+    check("Snapshot marks recipe craftable when materials and hand are free", snapshot["available_recipes"][0]["craftable_now"])
+    check("Snapshot reports no missing materials when recipe is craftable", not snapshot["available_recipes"][0]["missing_materials"])
 
     success, message = parser.execute(builder, {"action": "ASSEMBLE", "action_target": "atmosphere_probe"})
     check("Assembly succeeds with local facility and materials", success)
@@ -70,6 +72,11 @@ def main() -> None:
     check("Crafted tool enters builder inventory", len(crafted) == 1 and crafted[0]["recipe_id"] == "atmosphere_probe")
     check("Crafted tool retains declarative capability", crafted[0]["tool"]["capabilities"] == ["inspect_reactor_control"])
     check("Assembly consumes all material stacks", "alloy_stack" not in world.items and "sensor" not in world.items)
+
+    snapshot = world.get_snapshot_for_agent("builder")
+    recipe_status = snapshot["available_recipes"][0]
+    check("Snapshot reports exhausted fabrication materials", recipe_status["missing_materials"] == {"alloy": 2, "sensor": 1})
+    check("Snapshot does not advertise exhausted recipe as craftable", not recipe_status["craftable_now"])
 
     success, message = parser.execute(builder, {"action": "USE", "action_target": "Improvised Atmosphere Probe -> reactor_control"})
     check("Target-aware fabricated tool use succeeds", success)

@@ -9,6 +9,7 @@ Provides a "God Console" for experimental intervention.
 import sys
 import json
 import time
+import traceback
 from pathlib import Path
 from datetime import datetime
 
@@ -691,7 +692,17 @@ def process_queued_cycles() -> None:
         sim.run_one_cycle()
     except Exception as e:
         sim.stop()
-        st.error(f"Error on cycle {sim.current_cycle}: {e}")
+        diagnostic = traceback.format_exc()
+        print(
+            f"[Simulation failure] cycle={sim.current_cycle + 1}; "
+            f"error={type(e).__name__}: {e}\n{diagnostic}"
+        )
+        st.error(
+            f"Unexpected simulation failure in cycle {sim.current_cycle + 1}: "
+            f"{type(e).__name__}: {e}"
+        )
+        with st.expander("Error details"):
+            st.code(diagnostic, language="text")
         return
 
     if not sim.is_running:
