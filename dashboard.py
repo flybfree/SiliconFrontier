@@ -592,6 +592,7 @@ class SimulationState:
                     "emotional_state": a.emotional_state,
                     "completed_effects": copy.deepcopy(getattr(a, "completed_effects", {})),
                     "progress_events": list(getattr(a, "progress_events", [])),
+                    "blocked_targets": copy.deepcopy(getattr(a, "blocked_targets", {})),
                     "pending_drop": getattr(a, "pending_drop", None),
                     "pending_drop_name": getattr(a, "pending_drop_name", None),
                 }
@@ -645,6 +646,7 @@ class SimulationState:
             agent.emotional_state = saved["emotional_state"]
             agent.completed_effects = copy.deepcopy(saved.get("completed_effects", {}))
             agent.progress_events = list(saved.get("progress_events", []))
+            agent.blocked_targets = copy.deepcopy(saved.get("blocked_targets", {}))
             agent.pending_drop = saved.get("pending_drop")
             agent.pending_drop_name = saved.get("pending_drop_name")
 

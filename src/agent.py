@@ -43,6 +43,7 @@ class FrontierAgent:
     STRUCTURED_STATUS_VALIDATED = "structured_validated"
     STRUCTURED_STATUS_VALIDATED_CORRECTED = "structured_validated_corrected"
     STRUCTURED_STATUS_MODEL_FALLBACK = "model_error_fallback"
+    _INVENTORY_LABEL_SUFFIX = re.compile(r"\s*\[(?:protected|recipe material|material|consumable|disposable)\]\s*", re.IGNORECASE)
     DEFAULT_CONDITION = {
         "health": 100,
         "stress": 0,
@@ -177,6 +178,7 @@ class FrontierAgent:
         # new progress on every subsequent turn.
         self.completed_effects: dict[str, str] = {}
         self.progress_events: list[str] = []
+        self.blocked_targets: dict[str, dict[str, Any]] = {}
 
         # Pending drop obligation: set by item data for clues that must be returned.
         # Agent must DROP this item before taking any other action.
@@ -462,6 +464,11 @@ class FrontierAgent:
             ) or "empty"
 
         inventory_str = f"In hand: {labeled(slots['hand'])} | Visible: {labeled(slots['visible'])} | Concealed: {labeled(slots['concealed'])}"
+        affordance_lines = [
+            f"- {item['name']} (bare action target: {item['name']}): {self._item_affordance(item, world_snapshot)}"
+            for item in world_snapshot["agent_inventory"]
+        ]
+        affordance_text = "\n".join(affordance_lines) or "- No carried items."
         tool_lines = []
         for item in world_snapshot["agent_inventory"]:
             capabilities = item.get("tool", {}).get("capabilities", [])
@@ -518,6 +525,10 @@ class FrontierAgent:
         ) or "- None"
         legal_steps = self._legal_next_steps(world_snapshot)
         legal_steps_text = "\n".join(f"- {step}" for step in legal_steps) or "- No deterministic priority; choose a lawful action that advances your goal."
+        blocked_targets_text = "\n".join(
+            f"- {target}: {entry.get('reason', 'temporarily blocked')} ({entry.get('turns', 0)} turn(s) remaining)"
+            for target, entry in getattr(self, "blocked_targets", {}).items()
+        ) or "- None"
 
         return f"""You are {self.name}, the {self.role} aboard the "Silicon Frontier" research station.
 
@@ -527,6 +538,8 @@ Secret Motivation: {self.secret_goal}
 Current Strategic Plan: {strategic_plan_text}
 Condition: {condition_line}
 Current Inventory: {inventory_str}
+Item affordances (use the bare item name shown before the colon; never include a bracketed inventory label in an action target):
+{affordance_text}
 Fabricated Tool Capabilities:
 {tool_capabilities}
 Current Emotional State: {self.emotional_state} — let this genuinely color your reasoning, tone, and choices.
@@ -584,6 +597,8 @@ Completed effects still current (do not repeat unless the relevant state changes
 {completed_effects_text}
 Recommended legal next steps (choose another action only when it is more goal-relevant):
 {legal_steps_text}
+Recently blocked targets (do not retry until access or world state changes):
+{blocked_targets_text}
 Your current sense of progress toward your secret goal: {self.goal_momentum}. {momentum_guidance}
 
 {f"""URGENT — ITEM OBLIGATION
@@ -713,6 +728,9 @@ Output strict JSON:
         if target is None:
             target = ""
         target = str(target)
+        # Inventory labels are explanatory display text, never part of an item
+        # identifier. Models sometimes copy them into the action target.
+        target = self._INVENTORY_LABEL_SUFFIX.sub("", target).strip()
 
         monologue = decision.get("internal_monologue", "")
         if monologue is None:
@@ -1002,6 +1020,21 @@ Output strict JSON:
             return "consumable"
         return "disposable"
 
+    def _item_affordance(self, item: dict[str, Any], world_snapshot: dict[str, Any]) -> str:
+        """Describe the single next legal interaction for a carried item."""
+        slot = str(item.get("inventory_slot", "concealed" if item.get("hidden") else "hand"))
+        if item.get("knowledge"):
+            return "readable evidence" if not self._is_redundant_effect("READ", str(item.get("name", "")), world_snapshot) else "evidence already read"
+        if item.get("use_effect") or item.get("effect") or item.get("consumable"):
+            if slot == "hand":
+                return "usable now"
+            return "must be readied" if slot == "visible" else "must be produced"
+        if item.get("tool"):
+            return "must be readied" if slot == "visible" else "must be produced" if slot == "concealed" else "tool metadata incomplete"
+        if item.get("material_type"):
+            return "crafting material only"
+        return "no direct action"
+
     def _capacity_release_for_pickup(self, target: str, world_snapshot: dict[str, Any]) -> tuple[str, str, str] | None:
         """Release only a disposable item when it unlocks a strictly better pickup."""
         incoming = next(
@@ -1233,6 +1266,50 @@ Output strict JSON:
                     steps.append(f"PRODUCE {name} — prepare this concealed tool.")
         return steps[:6]
 
+    def _item_follow_up_action(
+        self,
+        item: dict[str, Any],
+        world_snapshot: dict[str, Any],
+        reason: str,
+    ) -> tuple[str, str, str] | None:
+        """Turn a carried evidence/tool item into its next valid use or route."""
+        name = str(item.get("name", item.get("id", "item")))
+        if item.get("knowledge"):
+            recipients = list(world_snapshot.get("visible_agents", []))
+            if recipients and not self._is_redundant_effect("SHOW", f"{name} -> {recipients[0]}", world_snapshot):
+                return "SHOW", f"{name} -> {recipients[0]}", f"{reason}: share the readable evidence with {recipients[0]}."
+
+        from tool_registry import CAPABILITIES
+        targets = [
+            str(CAPABILITIES.get(str(capability), {}).get("target"))
+            for capability in item.get("tool", {}).get("capabilities", [])
+            if CAPABILITIES.get(str(capability), {}).get("target")
+        ]
+        for target in targets:
+            if self._match_visible_system(target, world_snapshot) and not self._is_redundant_effect("USE", f"{name} -> {target}", world_snapshot):
+                return "USE", f"{name} -> {target}", f"{reason}: use {name} on its valid local target {target}."
+            system = next(
+                (
+                    known for known in world_snapshot.get("known_systems", [])
+                    if (self._label_matches(target, str(known.get("system_id", ""))) or self._label_matches(target, str(known.get("name", ""))))
+                    and len(known.get("route", [])) >= 2
+                ),
+                None,
+            )
+            if system:
+                return "MOVE", system["route"][1], f"{reason}: move toward {target}, the valid target for {name}."
+        return None
+
+    def _blocked_inventory_alternative(self, world_snapshot: dict[str, Any]) -> tuple[str, str, str] | None:
+        """Avoid a dead wait when protected slots are full by spending existing value first."""
+        hand = next(iter(self._hand_items_from_snapshot(world_snapshot)), None)
+        if hand and (follow_up := self._item_follow_up_action(hand, world_snapshot, "Inventory is full")):
+            return follow_up
+        for item in world_snapshot.get("agent_inventory", []):
+            if item.get("knowledge") and (follow_up := self._item_follow_up_action(item, world_snapshot, "Inventory is full")):
+                return follow_up
+        return self._goal_alternative(world_snapshot)
+
     def _validate_decision_against_telemetry(
         self,
         decision: dict[str, Any],
@@ -1241,7 +1318,8 @@ Output strict JSON:
         """Correct system actions that contradict live telemetry."""
         corrected = False
         action = decision.get("action", "WAIT")
-        target = decision.get("action_target", "")
+        target = self._INVENTORY_LABEL_SUFFIX.sub("", str(decision.get("action_target", ""))).strip()
+        decision["action_target"] = target
 
         def wait(reason: str) -> None:
             nonlocal corrected
@@ -1295,11 +1373,39 @@ Output strict JSON:
                 redirect("STOW", held["name"], f"Stowed {held['name']} to free a hand for {reason}.")
             elif not slot_item("concealed"):
                 redirect("CONCEAL", held["name"], f"Concealed {held['name']} to free a hand for {reason}.")
+            elif alternative := self._blocked_inventory_alternative(world_snapshot):
+                redirect(*alternative)
             else:
                 wait(f"{reason} needs a free hand, but all inventory slots are occupied.")
             return False
 
-        if action in {"READ", "SHOW"} and self._is_redundant_effect(action, target, world_snapshot):
+        if action == "MOVE":
+            destination = (world_snapshot.get("locations") or {}).get(target, {})
+            required = destination.get("requires_item") or destination.get("requires_items")
+            required_items = [required] if isinstance(required, str) else list(required or [])
+            inventory = world_snapshot.get("agent_inventory", [])
+            missing = [
+                item_name for item_name in required_items
+                if not any(
+                    self._label_matches(str(item_name), item.get("id", ""))
+                    or self._label_matches(str(item_name), item.get("name", ""))
+                    for item in inventory
+                )
+            ]
+            if missing:
+                self.blocked_targets = getattr(self, "blocked_targets", {})
+                self.blocked_targets[target] = {
+                    "reason": f"requires {', '.join(str(item) for item in missing)}",
+                    "turns": 4,
+                }
+                alternative = self._goal_alternative(world_snapshot)
+                if alternative and (alternative[0], alternative[1]) != ("MOVE", target):
+                    redirect(*alternative)
+                    decision["validation_note"] = f"MOVE to {target} requires {', '.join(missing)}; {decision['validation_note']}"
+                else:
+                    wait(f"MOVE to {target} is currently blocked; requires {', '.join(missing)}.")
+
+        elif action in {"READ", "SHOW"} and self._is_redundant_effect(action, target, world_snapshot):
             wait(f"{action.title()} already delivered its available information; choose a different goal step.")
 
         elif action == "REPAIR":
@@ -1388,6 +1494,10 @@ Output strict JSON:
                     if expected:
                         expected_targets.append(str(expected))
             if action == "USE" and expected_targets and (not capability_target or not any(self._label_matches(capability_target, expected) for expected in expected_targets)):
+                local_target = next(
+                    (expected for expected in expected_targets if self._match_visible_system(expected, world_snapshot)),
+                    None,
+                )
                 route_target = next(
                     (
                         system for system in world_snapshot.get("known_systems", [])
@@ -1400,7 +1510,13 @@ Output strict JSON:
                     ),
                     None,
                 )
-                if route_target:
+                if local_target:
+                    redirect(
+                        "USE",
+                        f"{matching_item.get('name', item_name)} -> {local_target}",
+                        f"Corrected {matching_item.get('name', item_name)} to its valid local target {local_target}.",
+                    )
+                elif route_target:
                     route = list(route_target["route"])
                     redirect(
                         "MOVE",
@@ -1424,6 +1540,27 @@ Output strict JSON:
                 else:
                     wait("USE requires the named item to be in your hand.")
 
+        elif action == "READ":
+            candidates = list(world_snapshot.get("agent_inventory", [])) + list(world_snapshot.get("visible_items", []))
+            item = next(
+                (
+                    candidate for candidate in candidates
+                    if self._label_matches(target, candidate.get("id", "")) or self._label_matches(target, candidate.get("name", ""))
+                ),
+                None,
+            )
+            if not item:
+                if alternative := self._goal_alternative(world_snapshot):
+                    redirect(*alternative)
+                    decision["validation_note"] = f"READ requires an accessible item, not {target or 'an empty target'}; {decision['validation_note']}"
+                else:
+                    wait(f"READ requires an accessible item; {target or 'that target'} is not readable here.")
+            elif not item.get("knowledge"):
+                if alternative := self._item_follow_up_action(item, world_snapshot, "READ found no hidden information") or self._goal_alternative(world_snapshot):
+                    redirect(*alternative)
+                else:
+                    wait(f"{item.get('name', target)} has no readable hidden information.")
+
         elif action == "SHOW":
             parsed = self._parse_item_agent_target(target)
             if not parsed:
@@ -1441,7 +1578,10 @@ Output strict JSON:
                 if target_agent_id not in world_snapshot.get("visible_agents", []):
                     wait("SHOW requires the recipient to be present.")
                 elif not item or not item.get("knowledge"):
-                    wait(f"{item_name or 'That item'} has no hidden information to show.")
+                    if item and (alternative := self._item_follow_up_action(item, world_snapshot, "SHOW found no hidden information") or self._goal_alternative(world_snapshot)):
+                        redirect(*alternative)
+                    else:
+                        wait(f"{item_name or 'That item'} has no hidden information to show.")
 
         elif action == "ASSEMBLE":
             recipes = world_snapshot.get("available_recipes", [])
@@ -1802,6 +1942,11 @@ Output strict JSON:
             Parsed JSON response with internal_monologue, action, action_target, emotional_state
         """
         snapshot = world_snapshot or {"agent_inventory": [], "visible_agents": []}
+        self.blocked_targets = {
+            target: {**entry, "turns": int(entry.get("turns", 1)) - 1}
+            for target, entry in getattr(self, "blocked_targets", {}).items()
+            if int(entry.get("turns", 1)) > 1
+        }
         system_prompt = self._build_system_prompt(snapshot)
 
         user_prompt = f"Current Situation:\n{observation}\n\nWhat do you do next?"

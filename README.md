@@ -157,6 +157,12 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **Legal-action guidance** — every action prompt includes a compact list of state-derived next steps, including critical recovery, craftable recipes, valid tool preparation, and purposeful routes. This keeps agent choice autonomous while reducing impossible `USE` attempts and prevents repeat prevention from turning into arbitrary movement.
 
+**Blocked-action recovery** — `READ` is limited to accessible items with hidden knowledge, and `SHOW` redirects an evidence-free tool toward its valid system target when possible. When protected inventory fills every slot, agents first use or share a held asset, then pursue a goal-relevant route; they wait only when no safe alternative exists.
+
+**Action affordances and access** — prompts identify whether each carried item is usable now, must be readied or produced, is readable evidence, is a crafting material, or has no direct action. Inventory labels are display-only and are stripped from action targets. Movement preflight recognizes item-gated exits and avoids repeated attempts to enter locked locations without the required access item.
+
+**Rejection memory** — item-gated routes that fail preflight are remembered as temporarily blocked for several of that agent’s turns and shown in the next action prompt. A changed world state or newly acquired access item can still make that route viable again.
+
 **Covert sabotage** — a saboteur observed by co-located agents preserves their sabotage tools and first prepares or relocates to seek an unobserved opportunity. The action validator presents only capability-valid tool targets and never discards protected sabotage components as a fallback.
 
 **Speech as knowledge** — agents retain heard `SAY`/`LIE` content and direct `WHISPER` content as durable known facts. Whisper bystanders only know that a private exchange occurred.

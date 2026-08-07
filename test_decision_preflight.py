@@ -191,6 +191,7 @@ def main() -> None:
         {
             **base,
             "current_location": {"id": "storage_locker"},
+            "visible_systems": {},
             "known_systems": [{"system_id": "reactor_control", "name": "Reactor Control", "status": "ONLINE", "location_id": "engineering", "route": ["storage_locker", "engineering"]}],
             "agent_inventory": [{"name": "Plasma Wrench", "inventory_slot": "hand", "tool": {"capabilities": ["inspect_reactor_control"]}, "use_effect": {"inspect_system": "reactor_control"}}],
         },
@@ -202,6 +203,54 @@ def main() -> None:
         {**base, "visible_agents": ["engineer"], "agent_inventory": [{"name": "Oxygen Scanner", "inventory_slot": "hand"}]},
     )
     assert invalid_show["action"] == "WAIT"
+
+    invalid_read = validate(
+        "Keep the station functional.", {"action": "READ", "action_target": "life_support_console"}, base,
+    )
+    assert invalid_read["action"] == "WAIT"
+    assert "READ requires an accessible item" in invalid_read["validation_note"]
+
+    scanner_show_follow_up = validate(
+        "Monitor life support.", {"action": "SHOW", "action_target": "Oxygen Scanner -> engineer"},
+        {
+            **base,
+            "visible_agents": ["engineer"],
+            "agent_inventory": [{"name": "Oxygen Scanner", "inventory_slot": "hand", "tool": {"capabilities": ["inspect_oxygen_generator"]}}],
+            "known_systems": [{"system_id": "oxygen_generator", "name": "Oxygen Generator", "route": ["engineering", "hydroponics_bay"]}],
+        },
+    )
+    assert (scanner_show_follow_up["action"], scanner_show_follow_up["action_target"]) == ("MOVE", "hydroponics_bay")
+
+    protected_full_follow_up = validate(
+        "Share station evidence.", {"action": "PRODUCE", "action_target": "Station Data Pad"},
+        {
+            **base,
+            "visible_agents": ["engineer"],
+            "agent_inventory": [
+                {"name": "Data Module", "inventory_slot": "hand", "knowledge": "Audit evidence."},
+                {"name": "Reactor Key", "inventory_slot": "visible"},
+                {"name": "Station Data Pad", "inventory_slot": "concealed"},
+            ],
+        },
+    )
+    assert (protected_full_follow_up["action"], protected_full_follow_up["action_target"]) == ("SHOW", "Data Module -> engineer")
+
+    bare_target = validate(
+        "Gather evidence.", {"action": "PRODUCE", "action_target": "Station Data Pad [protected]"},
+        {**base, "agent_inventory": [{"name": "Station Data Pad", "inventory_slot": "concealed"}]},
+    )
+    assert (bare_target["action"], bare_target["action_target"]) == ("PRODUCE", "Station Data Pad")
+
+    blocked_exit = validate(
+        "Explore the station.", {"action": "MOVE", "action_target": "airlock_prep"},
+        {
+            **base,
+            "locations": {"airlock_prep": {"requires_item": "Airlock Key"}},
+            "current_location": {"id": "elevator_bay", "connected_to": ["airlock_prep"]},
+        },
+    )
+    assert blocked_exit["action"] == "WAIT"
+    assert "requires Airlock Key" in blocked_exit["validation_note"]
 
     conceal_with_full_person_slot = validate(
         "Keep the station functional.", {"action": "CONCEAL", "action_target": "Plasma Wrench"},
