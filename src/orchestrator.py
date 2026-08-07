@@ -248,6 +248,19 @@ class Orchestrator:
             location = str(update.get("location", ""))
             system_id = str(update.get("system_id", ""))
             status = str(update.get("status", "")).upper()
+            current = self.world.get_location_systems(location).get(system_id, {})
+            current_status = str(current.get("status", "")).upper()
+            severity = {"ONLINE": 0, "DEGRADED": 1, "OFFLINE": 2, "BROKEN": 2}
+            if (
+                current_status in severity
+                and status in severity
+                and severity[status] < severity[current_status]
+            ):
+                print(
+                    f"  [Scenario Pressure] {system_id} remains {current_status}; "
+                    f"skipped lower-severity transition to {status}."
+                )
+                continue
             if location and system_id and status and self.world.set_system_status(location, system_id, status):
                 self._apply_system_consequence(location, system_id, status, None)
                 print(f"  [Scenario Pressure] {system_id} set to {status}.")
@@ -1225,6 +1238,16 @@ class Orchestrator:
             # 6. SOCIAL MATRIX UPDATE - Evaluate SAY interactions
             if action in {"SAY", "LIE", "GIVE", "DEMAND", "WHISPER", "SHOW"} and success:
                 self._evaluate_social_impact(agent, action, target)
+
+            # Keep factual, compact progress state for the next decision. This
+            # occurs after item/system effects so a repeat is allowed whenever
+            # the relevant observed state has actually changed.
+            agent.record_action_outcome(
+                action,
+                target,
+                success,
+                self.world.get_snapshot_for_agent(agent.agent_id),
+            )
 
             cycle_results.append(result_entry)
             pressure_results = self._update_progression_pressure(agent, action, target, success, item_effect)

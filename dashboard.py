@@ -590,6 +590,8 @@ class SimulationState:
                     "memory_buffer": list(a.memory_buffer),
                     "long_term_memory": a.long_term_memory,
                     "emotional_state": a.emotional_state,
+                    "completed_effects": copy.deepcopy(getattr(a, "completed_effects", {})),
+                    "progress_events": list(getattr(a, "progress_events", [])),
                     "pending_drop": getattr(a, "pending_drop", None),
                     "pending_drop_name": getattr(a, "pending_drop_name", None),
                 }
@@ -641,6 +643,8 @@ class SimulationState:
             agent.memory_buffer = saved["memory_buffer"]
             agent.long_term_memory = saved["long_term_memory"]
             agent.emotional_state = saved["emotional_state"]
+            agent.completed_effects = copy.deepcopy(saved.get("completed_effects", {}))
+            agent.progress_events = list(saved.get("progress_events", []))
             agent.pending_drop = saved.get("pending_drop")
             agent.pending_drop_name = saved.get("pending_drop_name")
 
@@ -929,6 +933,30 @@ def render_event_log():
     if not sim.results_history:
         st.info("No events yet. Start the simulation!")
         return
+
+    actions = [entry for entry in sim.results_history if entry.get("agent_id")]
+    corrections = [entry for entry in actions if entry.get("validation_note")]
+    repeated = [
+        entry for entry in corrections
+        if "already produced" in str(entry.get("validation_note", "")).lower()
+        or "already delivered" in str(entry.get("validation_note", "")).lower()
+    ]
+    sabotage = [entry for entry in actions if entry.get("action") == "SABOTAGE"]
+    sabotage_redirects = [
+        entry for entry in actions
+        if "Witnessed sabotage" in str(entry.get("validation_note", ""))
+    ]
+    milestones = [
+        entry for entry in actions
+        if entry.get("success") and entry.get("action") in {"MOVE", "PICKUP", "READ", "SHOW", "GIVE", "DEMAND", "ASSEMBLE", "REPAIR", "SABOTAGE"}
+    ]
+    metric_cols = st.columns(5)
+    metric_cols[0].metric("Useful actions", sum(1 for entry in actions if entry.get("success") and entry.get("action") != "WAIT"))
+    metric_cols[1].metric("Decision corrections", len(corrections))
+    metric_cols[2].metric("Repeated effects prevented", len(repeated))
+    metric_cols[3].metric("Goal milestones", len(milestones))
+    metric_cols[4].metric("Sabotage redirects", f"{len(sabotage_redirects)} / {len(sabotage)}")
+    st.caption("Decision quality: corrections expose blocked plans; repeat prevention, milestones, and sabotage redirects show productive recovery.")
 
     # Show most recent first
     for entry in reversed(sim.results_history[-20:]):  # Last 20 events

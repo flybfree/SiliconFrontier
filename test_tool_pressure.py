@@ -55,6 +55,11 @@ def main() -> None:
     )
     assert fired and fired[0]["target"] == "reactor_degraded"
     assert world.get_location_systems("engineering")["reactor_control"]["status"] == "DEGRADED"
+    world.set_system_status("engineering", "reactor_control", "BROKEN")
+    orchestrator._apply_progression_effects({
+        "system_updates": [{"location": "engineering", "system_id": "reactor_control", "status": "DEGRADED"}],
+    })
+    assert world.get_location_systems("engineering")["reactor_control"]["status"] == "BROKEN"
     print("[PASS] Tool pressure deterministically degrades the configured system")
 
 

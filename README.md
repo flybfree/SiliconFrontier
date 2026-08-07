@@ -145,7 +145,19 @@ Scenarios can also be loaded as dashboard saves from `saves/`.
 
 **System consequences** — systems can declare status-triggered consequences that add/remove location effects, broadcast memories, and apply runtime agent effects when `SABOTAGE` or `REPAIR` changes system status.
 
-**Critical recovery** — an `OFFLINE` or `BROKEN` system remains an active incident. The incident is recorded immediately, escalates crew stress and morale loss every two unresolved cycles, and triggers new strategic reviews. Non-saboteurs carrying the required repair tool are deterministically directed through the next recovery step: free a hand, ready or produce the tool, move along a known route, demand a visibly held tool, then `REPAIR`. This prevents evidence gathering and conversation from indefinitely displacing an achievable emergency repair.
+**Critical recovery** — a `DEGRADED` system creates a preventive recovery priority; an `OFFLINE` or `BROKEN` system remains an active incident. The incident is recorded immediately, escalates crew stress and morale loss every two unresolved cycles, and triggers new strategic reviews. Non-saboteurs carrying the required repair tool are deterministically directed through the next recovery step: free a hand, ready or produce the tool, move along a known route, demand a visibly held tool, then `REPAIR`. This prevents evidence gathering and conversation from indefinitely displacing achievable preventive or emergency maintenance.
+
+**Failure integrity** — scenario-pressure transitions are severity-monotonic: they can worsen a system, but cannot replace an `OFFLINE` or `BROKEN` state with `DEGRADED`. Decision preflight also rejects fabricated-tool targets that contradict their declared capability and prevents `SHOW` attempts for items without shareable hidden knowledge.
+
+**Action recovery** — when an agent tries to conceal an item while its concealed slot is occupied, it stows that item visibly when possible. If a valid tool is aimed at the wrong system but its actual target is known and reachable, preflight redirects the agent toward that target instead of consuming the turn with a failed use.
+
+**Inventory capacity** — agents label carried items as protected, recipe materials, materials, consumables, or disposable. When a full inventory blocks a higher-value visible item, the engine first offers a disposable item to a trusted co-located agent with a free hand; otherwise it drops that disposable item locally. Protected repair/access tools, evidence, contested resources, and useful recipe materials are never selected for automatic release.
+
+**Progress discipline** — successful tool, clue, and terminal effects are remembered with their relevant observed state. Agents do not repeat an unchanged result; they are redirected toward a new location, target, social step, craft, or other goal milestone. Reflection momentum is grounded in recorded milestones rather than a fluent self-description alone.
+
+**Legal-action guidance** — every action prompt includes a compact list of state-derived next steps, including critical recovery, craftable recipes, valid tool preparation, and purposeful routes. This keeps agent choice autonomous while reducing impossible `USE` attempts and prevents repeat prevention from turning into arbitrary movement.
+
+**Covert sabotage** — a saboteur observed by co-located agents preserves their sabotage tools and first prepares or relocates to seek an unobserved opportunity. The action validator presents only capability-valid tool targets and never discards protected sabotage components as a fallback.
 
 **Speech as knowledge** — agents retain heard `SAY`/`LIE` content and direct `WHISPER` content as durable known facts. Whisper bystanders only know that a private exchange occurred.
 
